@@ -26,12 +26,12 @@ Codex 3 не редактировал. Интеграционные замеча
 
 | Проверка | Наблюдение и предел применимости |
 |---|---|
-| Release/gateway/scorer v3 | 73 passed локально, 2.01 s; [Windows CI](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43041468303/job/130596033605): 73 passed, 7.34 s, PYTHONUTF8=0 |
+| Release/gateway/scorer v3 | 73 passed локально, 2.01 s; [Windows CI](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43043682513/job/130601886677): 73 passed, 8.25 s, PYTHONUTF8=0 |
 | Общий Python после нового main | **259 passed, 15 skipped, 0 failed**, 30.17 s; reports/focus-checks.json и focus-python.* |
 | JavaScript | 46 passed; syntax трёх UI-модулей. reports/focus-javascript.log |
 | Настоящий app HTTP/restart | Без LLM double: две роли, ACL/аудит отказа, ручной protocol→confirm без дублей, task/calendar cancel-confirm, KPI 90/2/75, cookies/state после restart. 4.08 s; reports/focus-http.json |
-| Browser fixtures | 35 passed, 39.744 s на `0844d0e` / merge `79862bb`; [CI job](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43041468303/job/130596032970) |
-| Browser → настоящий HTTP | 44 ответа, 360/768/1440, 0 browser errors, настоящий calendar conflict409, сохранён unknown due; 5.66 s. **Явный LLM double**, качество модели не измерялось |
+| Browser fixtures | 35 passed, 65.406 s на «Фокус» `1eaee60` / merge `353099b`; [CI job](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43043682513/job/130601886953) |
+| Browser → настоящий HTTP | 49 ответов, 360/768/1440, 0 browser errors, настоящий calendar conflict409, сохранён unknown due; 6.13 s. **Явный LLM double**, качество модели не измерялось |
 | Изоляция | Временные БД, torch отсутствует, voice weights не нужны; data/ не очищалась |
 | Данные | 24 synthetic TXT деловых типов, 3 transcript; отдельный идемпотентный seed, совместим с «Орбитой»; gold 18 tasks/16 QA frozen до оценки |
 | Установка этим участником | Чистый venv 22.11 s, pip 19.83 s, **тёплый кэш**; без модели/cold downloads, reports/install.json |
@@ -42,6 +42,11 @@ Codex 3 не редактировал. Интеграционные замеча
 документации не является новым прогоном. Первоначальные local/API SHA сопоставлены
 в reports/publication-map.json; дальнейшие коммиты имеют Source-Local-Commit trailer.
 Git tree каждого опубликованного коммита сверялся с исходным локальным.
+
+**Чистый итоговый CI на `1eaee60` прошёл целиком:** Linux 259/15/0, Windows 73,
+JS 46, UI 35, оба HTTP, pip/syntax/diff. reports/focus-ci.json и focus-ci-*-http.json.
+Это наблюдение кода на указанном SHA; следующий отчётный commit не является новым
+модельным прогоном. Актуальные Checks всегда находятся в PR #4.
 
 ## Закрытые сбои и история проверок
 
@@ -71,7 +76,6 @@ reports/scorer3-ci-observations.json. Raw bytes и hashes исторически
 | Независимая установка другим участником / gold review | Пройти RUNBOOK, измерить время/кэш/модель, проверить обе роли/restart и спорные matches. Тестовый сценарий human-authored не заменяет человеческого участника |
 | Общий CONTRACT | Восстановленный проект требует согласования команды |
 | Лицензии поставки | Решение владельца по PyMuPDF AGPL/commercial, Silero NonCommercial/base-CIS exception; точная идентификация неподтверждённых voice assets. LICENSES.md, без догадок по лицензии кода |
-| Финальный CI на последнем head | Checks PR #4. Старые зелёные run и отдельные прошедшие jobs не сертифицируют новый head |
 
 15 skips общего набора — opt-in сценарии настоящей модели и другие явно пропущенные
 проверки; они не засчитаны как passed. Полный pytest остальных треков, физический

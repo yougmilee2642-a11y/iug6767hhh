@@ -96,3 +96,7 @@ Futura PT упомянут в CSS font-family; поставляемый бина
 не подтверждены. Одно CSS-имя не означает, что эти веса/файлы включены в репозиторий,
 и лицензия Jost на Futura PT не переносится. Внешний font fetch и автономный fallback
 переданы владельцу UI; это реальные assets нового интерфейса, не технологии ресерча.
+
+Фактический browser CI зафиксировал Google Fonts CSS и два Jost CDN URL с `/v20/`;
+reports/focus-font-requests.json. Версия пути наблюдалась, но не закреплена HTML;
+SHA конкретных WOFF2 и их embedded notices в этом аудите не проверены.
