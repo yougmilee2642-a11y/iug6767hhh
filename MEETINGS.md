@@ -109,9 +109,9 @@ No Photoprint recall result has been measured on the real model in this environm
   Relative due dates («к пятнице», «на следующей неделе») are kept as text with the note «дата не распознана».
 - Scanned PDFs (no text layer) are rejected; there is no OCR.
 - Demo authentication: two hard-coded users, passwords in the seed, a signed cookie. There is no
-  registration, roles or SSO. Access is assigned at the meeting/document level (owner + list). Document sharing is set at upload
+  registration or SSO. Track 3 adds manager/reader capabilities; access is also assigned at the meeting/document level (owner + list). Document sharing is set at upload
   (`share_with`), and the UI offers only a minimal sharing setup.
-- Any meeting participant with access can edit the transcript and protocol. Edit history is kept only as
+- In Track 3, only a manager with meeting access can edit the transcript and protocol. Edit history is kept only as
   «оригинал + текущий текст» for lines, plus the audit log. There is no version history.
 - Search is a simple substring match over word stems, not semantic search; it is limited to accessible documents.
 - The owner guard of the main cabinet (`CALLWISE_OWNER_PASSWORD`) still covers `/meetings` when it is set: in that mode you

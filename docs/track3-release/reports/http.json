@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "test_kind": "real HTTP + human-authored protocol; no model quality measurement",
-  "commit": "4ec358ba10213dfd5473c520a329c8b6d91eeaca",
+  "commit": "f2bf0c2ac6102f07479b7a571cc22572baf11d83",
   "requests": [
     {
       "method": "POST",
@@ -75,7 +75,7 @@
     },
     {
       "method": "POST",
-      "path": "/api/meet/confirmations/cf_1LEWVhAtYC5g-gNVUghmAMOr/cancel",
+      "path": "/api/meet/confirmations/cf_-rkdkjlbGdKMhbZubkfLXCj1/cancel",
       "status": 200
     },
     {
@@ -115,7 +115,7 @@
     },
     {
       "method": "POST",
-      "path": "/api/meet/confirmations/cf_1ie4D8VRX4vTeI7U1ybIhgQ2/cancel",
+      "path": "/api/meet/confirmations/cf_a3J0LIXA-SNFGDNzBv6Fdpbx/cancel",
       "status": 200
     },
     {
@@ -164,5 +164,5 @@
     "defect_rate": 2.0,
     "capacity_utilization": 75.0
   },
-  "elapsed_seconds": 3.2910195909989852
+  "elapsed_seconds": 2.978022670999053
 }
