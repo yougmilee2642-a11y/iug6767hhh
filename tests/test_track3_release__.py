@@ -162,6 +162,9 @@ def test_scorer_rejects_fake_citation_and_routes_semantics_for_review():
 
 def test_cleanup_tracks_start_files_but_rejects_tampered_marker(env,monkeypatch):
     from scripts.track3.start import configure
+    import storage
+    monkeypatch.setattr(storage,'DB_PATH',storage.DB_PATH)
+    monkeypatch.setattr(storage,'DATA_DIR',storage.DATA_DIR)
     configure(env['path'])
     cabinet=env['path'].with_name(env['path'].stem+'.cabinet.db')
     cabinet.touch()
