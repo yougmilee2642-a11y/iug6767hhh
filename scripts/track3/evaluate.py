@@ -228,12 +228,15 @@ def main():
 def summarize(report):
     scores=[t['scores'] for t in report['transcripts'] if 'scores' in t]
     expected=len(json.loads(GOLD.read_text())['transcripts'])
-    gold=sum(s['gold_tasks'] for s in scores)
+    gold=sum(len(t['tasks']) for t in json.loads(GOLD.read_text())['transcripts'])
     predicted=sum(s['predicted_tasks'] for s in scores)
     correct=sum(s['correct_tasks'] for s in scores)
     recall=correct/gold if gold else 0.0
     report['overall']=dict(recall=recall,precision=correct/predicted if predicted else 0.0,
-                           correct_tasks=correct,gold_tasks=gold,predicted_tasks=predicted)
+                           correct_tasks=correct,gold_tasks=gold,predicted_tasks=predicted,
+                           owner_errors=sum(len(s['owner_errors']) for s in scores),
+                           due_errors=sum(len(s['due_errors']) for s in scores),
+                           false_or_unresolved_tasks=sum(len(s['false_or_unresolved_tasks']) for s in scores))
     complete=len(scores)==expected
     passed=complete and recall>=0.8 and all(s['recall']>=0.8 and not s['manual_review_pending'] for s in scores)
     passed=passed and len(report['questions'])==len(json.loads(GOLD.read_text())['questions']) and all(q['passed'] for q in report['questions'])

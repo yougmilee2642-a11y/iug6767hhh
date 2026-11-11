@@ -13,9 +13,16 @@ def cleanup(db, confirm=False, artifacts=()):
     marker = Path(str(path)+'.track3.json')
     if marker.is_symlink() or not marker.is_file():
         raise ValueError('Missing regular Track 3 test marker; refusing deletion')
-    if json.loads(marker.read_text()).get('db') != str(path):
+    declared = json.loads(marker.read_text())
+    if declared.get('db') != str(path):
         raise ValueError('Marker does not match database')
     targets = [Path(str(path)+suffix) for suffix in ('','-wal','-shm','-journal','.track3.json')]
+    cabinet = path.with_name(path.stem+'.cabinet.db')
+    allowed_start = {str(cabinet)+suffix for suffix in ('','-wal','-shm','-journal')} | {str(path.with_suffix('.session.key'))}
+    for name in declared.get('start_files',[]):
+        if name not in allowed_start:
+            raise ValueError('Invalid startup artifact in marker')
+        targets.append(Path(name))
     for value in artifacts:
         artifact = Path(value)
         if not artifact.is_absolute() or '..' in artifact.parts:

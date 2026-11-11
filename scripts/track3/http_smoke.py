@@ -86,7 +86,7 @@ def run():
                 change=req(i,'POST',f'/api/meet/tasks/{tid}/preview',json={'changes':{'status':'done'}})
                 cid=change['confirmation_id']
                 req(i,'POST',f'/api/meet/confirmations/{cid}/cancel')
-                req(i,'POST',f'/api/meet/tasks/{tid}/confirm',expected=409,json={'confirmation_id':cid,'idempotency_key':'cancel'})
+                req(i,'POST',f'/api/meet/tasks/{tid}/confirm',expected=409,json={'confirmation_id':cid,'idempotency_key':'cancel-http-operation'})
                 change=req(i,'POST',f'/api/meet/tasks/{tid}/preview',json={'changes':{'status':'in_progress'}})
                 payload={'confirmation_id':change['confirmation_id'],'idempotency_key':'http-single-change'}
                 req(i,'POST',f'/api/meet/tasks/{tid}/confirm',json=payload)
