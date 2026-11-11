@@ -1,0 +1,424 @@
+// Track 3 views. API payloads follow the core and knowledge server handoffs.
+// This module has no demo fallback; fixtures live exclusively in tests/ui_track3.
+export function track3UI(h) {
+  const { node, makeButton: button, makeInput: input, makeTextarea: textarea, makeSelect: select,
+    request, runAction: run, state, dateLabel: date, render, openMeeting, showNotice, toast } = h;
+  let overview = null;
+  let overviewStatus = 'idle';
+  let answer = null;
+  let question = '';
+  let context = '';
+  let qaBusy = false;
+  let qaSequence = 0;
+  let answerContext = '';
+  let answerQuestion = '';
+  let calendarDrafts = new Map();
+  let taskDrafts = new Map();
+  let activeDialog = null;
+  let generation = 0;
+  const can = (capability) => state.capabilities.includes(capability);
+  const key = () => crypto.randomUUID();
+  const field = (label, control) => {
+    const wrap = node('label', 'meeting-field');
+    wrap.append(node('span', 'field-label', label), control);
+    return wrap;
+  };
+  const heading = (parent, title, description) => {
+    const copy = node('header', 'meetings-heading');
+    const text = node('div');
+    text.append(node('h1', '', title), node('p', 'muted-copy', description));
+    copy.append(text); parent.append(copy);
+  };
+  const sourceDate = (source) => `Дата источника: ${date(source?.source_at)}`;
+  const formatTime = (value, zone) => {
+    try { return new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short', timeZone: zone }).format(new Date(value)); }
+    catch { return date(value); }
+  };
+
+  function reset({ keepDrafts = false } = {}) {
+    generation++;
+    overview = answer = null;
+    overviewStatus = 'idle';
+    question = context = answerContext = answerQuestion = '';
+    qaSequence++;
+    qaBusy = false;
+    if (!keepDrafts) { calendarDrafts = new Map(); taskDrafts = new Map(); }
+    activeDialog?.close();
+    activeDialog = null;
+  }
+
+  function discardForeignDrafts(userId) {
+    for (const drafts of [calendarDrafts, taskDrafts]) {
+      for (const id of drafts.keys()) if (!id.startsWith(`${userId}/`)) drafts.delete(id);
+    }
+  }
+
+  // A native dialog supplies a focus trap, Escape, and focus return in the browser.
+  function dialog(title, content, confirmAction, cancelAction, confirmLabel = 'Подтвердить', returnFocus = document.activeElement) {
+    if (activeDialog?.open) return;
+    const origin = returnFocus;
+    const modal = node('dialog', 'meet-preview');
+    const id = `preview-${key()}`;
+    modal.setAttribute('aria-labelledby', id);
+    const label = node('h2', '', title); label.id = id;
+    const error = node('p', 'inline-error'); error.setAttribute('role', 'alert');
+    const actions = node('div', 'inline-actions');
+    let busy = false;
+    let committed = false;
+    const cancel = button('Отмена', () => modal.close());
+    const confirm = button(confirmLabel, async () => {
+      if (busy) return;
+      busy = true; cancel.disabled = confirm.disabled = true;
+      error.textContent = '';
+      try {
+        await confirmAction(); committed = true; modal.close();
+      } catch (e) {
+        if (e.code !== 'stale_session') error.textContent = e.message;
+      } finally {
+        busy = false; cancel.disabled = confirm.disabled = false;
+      }
+    }, 'primary-button');
+    actions.append(cancel, confirm);
+    modal.append(label, content, error, actions);
+    modal.addEventListener('cancel', (event) => { if (busy) event.preventDefault(); });
+    modal.addEventListener('close', () => {
+      if (!committed && cancelAction) void cancelAction().catch((e) => {
+        if (state.user) showNotice(`Предпросмотр закрыт. ${e.message}`);
+      });
+      h.markSaved(modal);
+      modal.remove(); if (activeDialog === modal) activeDialog = null;
+      if (origin?.isConnected) origin.focus();
+    }, { once: true });
+    document.body.append(modal); activeDialog = modal; modal.showModal(); cancel.focus();
+    return modal;
+  }
+
+  function sourceButton(source) {
+    return button(`${source.title || 'Источник'} · ${sourceDate(source)}`, async () => {
+      const kind = { document: 'fragment', utterance: 'utterance' }[source.kind];
+      if (kind) return h.openSource(kind, source.id, source.quote, source);
+      await h.openSource(source.kind, source.id, source.quote, source);
+    }, 'citation-chip');
+  }
+
+  function claims(parent, values) {
+    for (const claim of values || []) {
+      const card = node('article', 'claim-item');
+      card.append(node('p', '', claim.text));
+      for (const source of claim.sources || []) card.append(sourceButton(source));
+      parent.append(card);
+    }
+  }
+
+  async function loadOverview() {
+    if (overviewStatus === 'loading') return;
+    const current = generation;
+    overviewStatus = 'loading'; overview = null;
+    if (state.page === 'overview') render();
+    try {
+      const result = await request('/overview');
+      if (current !== generation) return;
+      overview = result; overviewStatus = 'ready';
+    } catch (e) {
+      if (current !== generation) return;
+      overviewStatus = 'error'; overview = { message: e.message };
+    }
+    if (state.page === 'overview') render();
+  }
+
+  function renderOverview(parent) {
+    heading(parent, 'Обзор', 'Показатели доступных данных и контроль поручений.');
+    if (overviewStatus === 'idle') { void loadOverview(); return; }
+    if (overviewStatus === 'loading') { parent.append(node('p', '', 'Загружаю показатели…')); return; }
+    const refresh = button('Обновить обзор', () => void loadOverview());
+    parent.append(refresh);
+    if (overviewStatus === 'error') {
+      parent.append(node('p', 'inline-error', overview.message)); return;
+    }
+    parent.append(node('p', 'muted-copy', `Актуальность витрины: ${date(overview.as_of)} · Рассчитано: ${date(overview.generated_at)}`));
+    for (const warning of overview.warnings || []) parent.append(node('p', 'gap-state', warning));
+    const grid = node('div', 'meet-kpi-grid');
+    for (const metric of overview.metrics || []) {
+      const card = node('article', 'panel meet-kpi');
+      card.append(node('h2', '', metric.label), node('strong', 'meet-kpi-value', metric.value == null ? 'Нет данных' : `${metric.value} ${metric.unit || ''}`));
+      card.append(node('p', 'task-meta', `Формула: ${metric.formula || 'Не предоставлена'}`));
+      if (metric.source) card.append(sourceButton(metric.source));
+      grid.append(card);
+    }
+    if (!grid.childNodes.length) grid.append(node('p', 'empty-copy', 'Доступных показателей нет.'));
+    parent.append(grid);
+    claims(parent, overview.summary);
+    parent.append(node('h2', '', 'Просроченные задачи'));
+    if (!(overview.overdue_tasks || []).length) parent.append(node('p', 'empty-copy', 'Просроченных задач в доступных данных нет.'));
+    for (const task of overview.overdue_tasks || []) {
+      const row = node('article', 'panel task-card');
+      row.append(node('p', '', task.text), node('p', 'task-meta', `Срок: ${date(task.due)}`));
+      row.append(button(`Открыть задачу во встрече «${task.meeting_title || task.meeting_id}»`, () => void openTask(task), 'task-meeting-link'));
+      parent.append(row);
+    }
+  }
+
+  async function openTask(task) {
+    await openMeeting(task.meeting_id, 'tasks');
+    document.getElementById(`task-${task.id}`)?.focus();
+  }
+
+  function openKnowledge(meetingId = '') {
+    if (String(context) !== String(meetingId)) { answer = null; qaSequence++; qaBusy = false; }
+    context = String(meetingId);
+    h.navigate('knowledge');
+  }
+
+  function renderKnowledge(parent) {
+    heading(parent, 'Знания', 'Ответы по проверенным утверждениям из доступных материалов.');
+    const form = node('form', 'panel meet-knowledge');
+    const scope = select([{ value: '', label: 'Все доступные материалы' }, ...state.meetings.map((m) => ({ value: m.id, label: m.title }))], context);
+    scope.addEventListener('change', () => { context = scope.value; answer = null; qaSequence++; render(); });
+    const q = textarea({ label: 'Ваш вопрос', value: question, required: true, rows: 3 });
+    q.input.maxLength = 2000;
+    q.input.addEventListener('input', () => { question = q.input.value; });
+    const submit = button(qaBusy ? 'Формируется ответ…' : 'Задать вопрос', null, 'primary-button', 'submit');
+    submit.disabled = qaBusy || !can('qa.ask');
+    scope.disabled = qaBusy;
+    form.append(field('Контекст', scope), q.wrap, submit);
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault(); if (qaBusy || !q.input.value.trim()) return;
+      question = q.input.value;
+      const current = generation;
+      const askedContext = context;
+      const askedQuestion = question.trim();
+      const sequence = ++qaSequence;
+      qaBusy = true; answer = null; submit.disabled = true;
+      await run(submit, async () => {
+        const result = await request('/qa', { method: 'POST', body: { question: askedQuestion, ...(askedContext ? { meeting_id: Number(askedContext) } : {}) } });
+        if (current === generation && sequence === qaSequence) { answer = result; answerContext = askedContext; answerQuestion = askedQuestion; qaBusy = false; if (state.page === 'knowledge') render(); }
+      }, { model: true, label: 'Формируется ответ…' });
+      if (current !== generation || sequence !== qaSequence) return;
+      qaBusy = false;
+      if (state.page === 'knowledge') render();
+    });
+    parent.append(form);
+    if (qaBusy) parent.append(node('p', 'muted-copy', 'Модель обрабатывает вопрос. Можно перейти в другой раздел.'));
+    if (!answer) return;
+    const result = node('section', 'panel meet-knowledge');
+    result.setAttribute('aria-label', 'Ответ');
+    const groundedClaims = (answer.claims || []).filter((claim) => claim.sources?.length);
+    result.append(node('p', 'task-meta', `Вопрос: ${answerQuestion}`));
+    if (answer.status !== 'grounded' || !groundedClaims.length) {
+      result.append(node('h2', '', 'Оснований не найдено'), node('p', '', 'В доступных материалах недостаточно проверяемых данных. Уточните вопрос или добавьте материалы.'));
+    } else {
+      result.append(node('h2', '', 'Ответ с источниками'));
+      // Render only claims carrying server-verified sources, never free-form answer HTML.
+      claims(result, groundedClaims);
+    }
+    result.append(node('p', 'task-meta', `Сформировано: ${date(answer.generated_at)}`));
+    result.append(feedback('qa_answer', answer.answer_id, askedMeeting()));
+    parent.append(result);
+  }
+  const askedMeeting = () => answerContext ? Number(answerContext) : undefined;
+
+  function feedback(type, id, meetingId) {
+    const form = node('form', 'meet-feedback');
+    form.dataset.itemId = `feedback-${type}-${id}`;
+    form.append(node('h3', '', 'Обратная связь'));
+    if (!can('feedback.create') || id == null) {
+      form.append(node('p', 'empty-copy', 'Обратная связь недоступна для этого результата.')); return form;
+    }
+    const rating = select([{ value: 'useful', label: 'Полезно' }, { value: 'incorrect', label: 'Ошибка' }]);
+    const comment = textarea({ label: 'Комментарий (необязательно)', rows: 2 }); comment.input.maxLength = 1000;
+    const submit = button('Отправить отзыв', null, 'secondary-button', 'submit');
+    form.append(field('Оценка', rating), comment.wrap, submit);
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const success = await run(submit, () => request('/feedback', { method: 'POST', body: {
+        target_type: type, target_id: String(id), rating: rating.value, comment: comment.input.value,
+        ...(meetingId != null ? { meeting_id: meetingId } : {}), ...(type === 'qa_answer' ? { answer_id: id } : {}),
+      } }));
+      if (success) { h.markSaved(form); form.replaceChildren(node('p', '', 'Отзыв отправлен')); toast('Спасибо, отзыв сохранён'); }
+    });
+    if (type === 'qa_answer') return form;
+    const disclosure = node('details', 'meet-feedback-disclosure');
+    disclosure.append(node('summary', '', 'Обратная связь: полезно / ошибка'), form);
+    return disclosure;
+  }
+
+  function planning(parent) {
+    const meeting = state.meetingData.meeting;
+    const meetingId = meeting.id;
+    const calendarKey = `${state.user.id}/${meetingId}`;
+    const saved = calendarDrafts.get(calendarKey) || {};
+    const panel = node('section', 'panel meet-planning');
+    panel.append(node('h2', '', 'Параметры и свободное время'));
+    const edit = node('form', 'meet-form-grid');
+    const topic = textarea({ label: 'Тема и цель встречи', value: saved.topic ?? meeting.topic, rows: 2 });
+    const people = textarea({ label: 'Участники встречи (по одному в строке)', value: saved.people ?? (meeting.participants || []).join('\n'), rows: 2 });
+    const remember = () => calendarDrafts.set(calendarKey, { ...calendarDrafts.get(calendarKey), topic: topic.input.value, people: people.input.value });
+    topic.input.addEventListener('input', remember); people.input.addEventListener('input', remember);
+    topic.input.disabled = people.input.disabled = !can('meetings.edit');
+    edit.append(topic.wrap, people.wrap);
+    const save = button('Сохранить тему и участников', null, 'secondary-button', 'submit'); save.disabled = !can('meetings.edit');
+    edit.append(save);
+    edit.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      await run(save, async () => {
+        const result = await request(`/meetings/${meetingId}`, { method: 'PATCH', body: {
+          topic: topic.input.value.trim(), participants: people.input.value.split(/[\n,;]+/).map((v) => v.trim()).filter(Boolean),
+        } });
+        if (state.meetingData?.meeting?.id === meetingId) state.meetingData.meeting = result.meeting;
+        h.markSaved(edit);
+        const draft = calendarDrafts.get(calendarKey) || {}; delete draft.topic; delete draft.people; calendarDrafts.set(calendarKey, draft);
+        if (state.page === 'meeting' && state.meetingData?.meeting?.id === meetingId) render();
+        toast('Параметры сохранены');
+      });
+    });
+    panel.append(edit);
+    const form = node('form', 'meet-form-grid');
+    const zone = input({ label: 'Часовой пояс IANA', value: saved.zone || state.timezone, required: true });
+    const start = input({ label: 'Начало поиска (дата и время в зоне)', type: 'datetime-local', value: saved.start || '', required: true });
+    const end = input({ label: 'Конец поиска (дата и время в зоне)', type: 'datetime-local', value: saved.end || '', required: true });
+    const duration = input({ label: 'Продолжительность, минут', type: 'number', value: saved.duration || 60, required: true });
+    duration.input.min = 15; duration.input.max = 540; duration.input.step = 15;
+    const participants = node('fieldset', 'access-users'); participants.append(node('legend', '', 'Календарные участники из тестового справочника'));
+    const load = button('Загрузить участников', async () => {
+      await run(load, async () => {
+        const result = await request('/calendar/participants');
+        participants.replaceChildren(node('legend', '', 'Календарные участники'));
+        for (const person of result.participants || []) {
+          const label = node('label', 'check-label'); const box = node('input'); box.type = 'checkbox'; box.value = person.id;
+          box.checked = saved.participantIds?.includes(String(person.id)) || person.id === state.user.id;
+          label.append(box, node('span', '', person.name)); participants.append(label);
+        }
+      });
+    });
+    participants.append(load);
+    const search = button('Найти свободное время', null, 'secondary-button', 'submit'); search.disabled = !can('calendar.view');
+    form.append(zone.wrap, start.wrap, end.wrap, duration.wrap, participants, search);
+    const slots = node('div', 'meet-slots'); slots.setAttribute('aria-live', 'polite');
+    const rememberRange = () => calendarDrafts.set(calendarKey, { ...calendarDrafts.get(calendarKey), zone: zone.input.value,
+      start: start.input.value, end: end.input.value, duration: duration.input.value,
+      participantIds: [...participants.querySelectorAll('input:checked')].map((box) => box.value) });
+    form.addEventListener('input', rememberRange);
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault(); rememberRange();
+      await run(search, async () => {
+        const body = {
+          timezone: zone.input.value.trim(), range_start: zonedISO(start.input.value, zone.input.value.trim()),
+          range_end: zonedISO(end.input.value, zone.input.value.trim()), duration_minutes: Number(duration.input.value),
+          participant_ids: [...participants.querySelectorAll('input:checked')].map((box) => Number(box.value)),
+        };
+        slots.replaceChildren(node('p', '', 'Подбираю время…'));
+        let result;
+        try { result = await request('/calendar/slots', { method: 'POST', body }); }
+        catch (e) { slots.replaceChildren(node('p', 'inline-error', 'Не удалось подобрать время. Измените параметры или повторите поиск.')); throw e; }
+        slots.replaceChildren(node('p', 'muted-copy', `Тестовый календарь · зона ${result.timezone} · ${(result.participants || []).map((p) => p.name).join(', ')}`));
+        if (!result.slots?.length) slots.append(node('p', '', 'Свободных слотов нет. Измените диапазон или состав участников.'));
+        for (const slot of result.slots || []) {
+          const choose = button(`${formatTime(slot.start_at, result.timezone)} — ${formatTime(slot.end_at, result.timezone)}`, async () => {
+            await run(choose, async () => {
+              let preview;
+              try { preview = await request('/calendar/preview', { method: 'POST', body: {
+                meeting_id: meetingId, participant_ids: body.participant_ids, start_at: slot.start_at,
+                duration_minutes: body.duration_minutes, timezone: body.timezone,
+              } }); } catch (e) {
+                if (e.status === 409) slots.replaceChildren(node('p', 'gap-state', `${e.message} Введённые параметры сохранены.`), button('Обновить слоты', () => form.requestSubmit()));
+                throw e;
+              }
+              const content = calendarPreview(preview);
+              const idempotencyKey = key();
+              dialog('Проверить встречу и приглашения', content, async () => {
+                try {
+                  await request('/calendar/confirm', { method: 'POST', body: { confirmation_id: preview.confirmation_id, idempotency_key: idempotencyKey } });
+                  toast('Встреча назначена. Тестовые приглашения сохранены в локальной очереди.');
+                  h.markSaved(form); await h.refreshMeeting();
+                } catch (e) {
+                  if (e.status === 409) {
+                    content.append(button('Обновить слоты', () => { activeDialog?.close(); form.requestSubmit(); }));
+                    e.message = `${e.message} Обновите слоты. Введённые параметры сохранены.`;
+                  }
+                  throw e;
+                }
+              }, () => cancelConfirmation(preview.confirmation_id), 'Подтвердить', choose);
+            });
+          });
+          choose.disabled = !can('calendar.invite'); slots.append(choose);
+        }
+      });
+    });
+    panel.append(form, slots, button('Вопрос по материалам этой встречи', () => openKnowledge(meetingId), 'text-button'));
+    parent.append(panel);
+  }
+
+  function calendarPreview(result) {
+    const p = result.preview; const content = node('div');
+    content.append(node('p', '', p.title), node('p', '', `${formatTime(p.start_at, p.timezone)} — ${formatTime(p.end_at, p.timezone)} · ${p.timezone}`));
+    content.append(node('p', '', `Участники: ${(p.participants || []).map((person) => person.name).join(', ')}`));
+    content.append(node('p', 'gap-state', 'Тестовые приглашения: запись только в локальную очередь. Реальные письма не отправляются.'));
+    for (const invitation of p.invitations || []) {
+      content.append(node('h3', '', invitation.recipient_name), node('p', '', invitation.subject), node('p', 'source-full-text', invitation.body));
+    }
+    for (const warning of p.warnings || []) content.append(node('p', 'gap-state', warning));
+    content.append(node('p', 'task-meta', `Предпросмотр действителен до ${date(result.expires_at)}`));
+    return content;
+  }
+
+  const cancelConfirmation = (id) => request(`/confirmations/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
+
+  function editTask(task, collection, meetingOnly) {
+    const origin = document.activeElement;
+    const draftKey = `${state.user.id}/${task.id}`;
+    const draft = taskDrafts.get(draftKey) || task;
+    const form = node('form', 'meet-form-grid');
+    form.dataset.itemId = `task-${task.id}`;
+    const status = select([{ value: 'open', label: 'Открыта' }, { value: 'in_progress', label: 'В работе' }, { value: 'done', label: 'Готова' }], draft.status);
+    const assignee = input({ label: 'Ответственный', value: draft.assignee || '' });
+    const due = input({ label: 'Срок', type: 'date', value: draft.due || '' });
+    form.append(node('p', '', task.text), field('Статус задачи', status), assignee.wrap, due.wrap);
+    form.addEventListener('input', () => taskDrafts.set(draftKey, {status: status.value, assignee: assignee.input.value, due: due.input.value}));
+    const editor = dialog('Изменить подтверждённую задачу', form, async () => {
+      const result = await request(`/tasks/${task.id}/preview`, { method: 'POST', body: { changes: {
+        status: status.value, assignee: assignee.input.value.trim() || null, due: due.input.value || null,
+      } } });
+      editor.close();
+      // Wait for the editor close event before opening the next modal.
+      editor.addEventListener('close', () => {
+        const content = node('div'); content.append(node('p', '', result.preview.text));
+        const names = { status: 'Статус', assignee: 'Ответственный', due: 'Срок' };
+        const statuses = { open: 'Открыта', in_progress: 'В работе', done: 'Готова' };
+        for (const [name, label] of Object.entries(names)) content.append(node('p', '', `${label}: ${statuses[result.preview.before[name]] || result.preview.before[name] || 'Не указан'} → ${statuses[result.preview.after[name]] || result.preview.after[name] || 'Не указан'}`));
+        const idempotencyKey = key();
+        const previewDialog = dialog('Подтвердить изменение задачи', content, async () => {
+          const changed = await request(`/tasks/${task.id}/confirm`, { method: 'POST', body: { confirmation_id: result.confirmation_id, idempotency_key: idempotencyKey } });
+          const index = collection.findIndex((item) => String(item.id) === String(task.id));
+          if (index >= 0) collection[index] = changed.task;
+          if (!meetingOnly) state.tasks = collection;
+          taskDrafts.delete(draftKey);
+          render(); toast('Задача обновлена');
+        }, () => cancelConfirmation(result.confirmation_id));
+        previewDialog?.addEventListener('close', () => { if (origin?.isConnected) origin.focus(); }, { once: true });
+      }, { once: true });
+    }, null, 'Предпросмотр');
+    form.addEventListener('submit', (event) => event.preventDefault());
+  }
+
+  // datetime-local has no offset. Resolve it explicitly in the chosen IANA zone.
+  // Ambiguous and nonexistent DST wall times are rejected instead of silently shifted.
+  function zonedISO(value, zone) {
+    const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+    if (!parts) throw new Error('Укажите дату и время.');
+    const target = Date.UTC(...parts.slice(1).map((v, i) => Number(v) - (i === 1 ? 1 : 0)));
+    const fmt = new Intl.DateTimeFormat('sv-SE', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    const wall = (ms) => Object.fromEntries(fmt.formatToParts(new Date(ms)).map((p) => [p.type, p.value]));
+    const candidates = new Set();
+    for (let hours = -36; hours <= 36; hours += 6) {
+      const instant = target + hours * 3600000; const p = wall(instant);
+      const projected = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute));
+      const possible = target - (projected - instant);
+      const t = wall(possible);
+      if (`${t.year}-${t.month}-${t.day}T${t.hour}:${t.minute}` === value) candidates.add(possible);
+    }
+    if (candidates.size !== 1) throw new Error('Это время неоднозначно или отсутствует из-за перевода часов. Выберите другое время.');
+    return new Date([...candidates][0]).toISOString();
+  }
+
+  return { can, reset, discardForeignDrafts, dialog, planning, feedback, sourceButton, renderOverview, renderKnowledge, openKnowledge, editTask, loadOverview, zonedISO };
+}
