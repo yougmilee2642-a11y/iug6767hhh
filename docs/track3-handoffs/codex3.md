@@ -72,3 +72,8 @@ Windows/JS/UI-fixtures/product HTTP passed, но реальный browser→HTTP
 root horizontal overflow360px (http_browser_smoke.py:105). Автору #9 отправлены
 точный SHA/команда/trace. Assertions и foreign CSS/JS не ослаблялись. Harness теперь
 сохраняет screenshot/DOM geometry после failed, не превращая его в passed.
+
+Точная причина mobile overflow: viewport360/document371, account row и logout
+right370.765625px;768/1440 корректны. Источник: reports/voice-layout-diagnostics.json,
+CI43048167863 на be1fd6b. Owner #9 получил измерения; нужен его CSS fix. Последний
+checkpoint — только отчёт/политика, функциональный код не меняет.
