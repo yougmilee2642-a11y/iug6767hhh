@@ -28,23 +28,29 @@ jobs:
           node-version: '22'
       - run: python -m pip install -r requirements-track3-lock.txt
       - run: python -m pip check
+        id: dependencies
       - name: Install test browser (no GPU or voice weights)
         run: python -m playwright install --with-deps chromium
       - name: Meetings, roles, calendar, QA, KPI, gateway, voice routing and release checks
         run: python scripts/track3/check.py -q tests/test_meetings.py tests/test_meeting_voice.py tests/test_meeting_voice_mode.py tests/test_llm_gateway.py tests/test_track3*.py
       - name: JavaScript syntax and regression tests
+        if: always() && steps.dependencies.outcome == 'success'
         run: |
           node --check static/meetings.js
           node --check static/meetings/track3.js
           node --check static/meetings/protocol.js
           node --test tests/*.cjs
       - name: UI owner's exact browser command
+        if: always() && steps.dependencies.outcome == 'success'
         run: python -m unittest discover -s tests/ui_track3 -p 'test_browser.py' -v
       - name: Browser against real HTTP handlers (explicit model double)
+        if: always() && steps.dependencies.outcome == 'success'
         run: python scripts/track3/ui_http_check.py --output /tmp/track3-ui-http.json --artifacts /tmp/track3-ui-http
       - name: Product HTTP, persistence and two roles (no model quality claim)
+        if: always() && steps.dependencies.outcome == 'success'
         run: python scripts/track3/http_smoke.py --output /tmp/track3-http.json
       - name: Python syntax and whitespace
+        if: always() && steps.dependencies.outcome == 'success'
         run: |
           python -m compileall -q meetings scripts/track3
           git diff --check cb2614b86f3b83636e670c83a0afb8f4c9d6c3c3 HEAD

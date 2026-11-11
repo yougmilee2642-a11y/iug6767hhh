@@ -3,7 +3,7 @@
 База cb2614b86f3b83636e670c83a0afb8f4c9d6c3c3. Отдельная clone и integration worktree.
 Ветки codex/track3-release и codex/track3-integration **опубликованы**.
 [Draft PR #4](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/4) направлен в main;
-main не менялся. Подключение владельца yougmilee2642-a11y разрешает push. Публикация
+Codex 3 main не менял; обновление сопровождающего учтено merge. Подключение владельца yougmilee2642-a11y разрешает push. Публикация
 проведена через GitHub API; все trees сверены с локальными. Первоначальные SHA
 наблюдений сопоставляются с опубликованными через reports/publication-map.json.
 
@@ -55,7 +55,8 @@ main не менялся. Подключение владельца yougmilee264
 6. Владелец продукта: решить PyMuPDF AGPL/commercial и проверить точные voice-asset
    notices перед поставкой голоса. Не приписывать весам лицензию кода по аналогии.
 
-Замечаний к чужой продуктовой логике по выполненным проверкам не осталось. Исторический
+Актуальные замечания к knowledge из совместного merge PR #7/#8 отправлены владельцам:
+3 failed, см. STATUS. Исторический
 PDF fallback baseline даёт один fragment вместо ≥3; воспроизведение:
 минимальное окружение без PyMuPDF → pytest test_meetings.py::test_upload_formats_and_bad_files.
 Сейчас воспроизводимость закрыта явной существующей PyMuPDF-зависимостью. Замена
@@ -79,3 +80,10 @@ Doctor подтверждает отсутствие настроенного ga
 GigaAM-v3 model card явно указывает MIT. У Silero v5_ru подтверждён общий LICENSE
 с NonCommercial и отдельное MIT-исключение для base CIS. Заявка сопровождающему
 размещена в PR #4; ASR/TTS/installer в чужой зоне не редактировались.
+
+
+Новые поставки main `35ba34c`, knowledge `9eecb94`, Claude eval `58ec401`
+включены обычными merge. Совместный прогон: 251 passed / 15 skipped / 3 failed.
+Точные воспроизведения направлены в PR #7/#8; foreign logic вручную не изменялась.
+Narrative real-model результаты автора пока не приняты без первичных JSON.
+Windows UTF-8/LF из PR #6 адаптированы к scorer v2 в своих путях, с credit автору.

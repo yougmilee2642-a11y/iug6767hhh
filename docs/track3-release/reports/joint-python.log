@@ -1,0 +1,92 @@
+........................................................................ [ 26%]
+..........................F.......................................s...ss [ 53%]
+ssssssssssss.............FF............................................. [ 80%]
+.....................................................                    [100%]
+=================================== FAILURES ===================================
+__________ test_claim_text_may_copy_document_heading_around_the_quote __________
+
+env = {'app': <fastapi.applications.FastAPI object at 0x7f85962d80b0>, 'irina': <starlette.testclient.TestClient object at 0..._knowledge_support.Model object at 0x7f8596522510>, 'petr': <starlette.testclient.TestClient object at 0x7f85961a3aa0>}
+
+    def test_claim_text_may_copy_document_heading_around_the_quote(env):
+        """Found on qwen2.5:7b: the model pasted the fragment's heading lines into `text`. That is still a verbatim
+        copy of stored text, so the verified quote is answered; the heading is not shown."""
+        heading = 'Фотопринт | Журнал качества\nДата документа: 2026-11-08'
+        fact = 'Контроль качества выявил 20 дефектных экземпляров из 1000 произведённых единиц.'
+        _, fid = document(env['irina'], heading + '\n' + fact)
+        env['model'].reply = {'claims': [{'text': heading + '\n' + fact, 'quote': fact, 'fragment_id': fid}]}
+        result = ask(env, question='Сколько дефектных экземпляров выявил контроль качества?').json()
+>       assert result['status'] == 'grounded' and result['answer'] == fact
+E       AssertionError: assert ('grounded' == 'grounded'
+E         
+E           grounded and 'Фотопринт | ...ённых единиц.' == 'Контроль кач...ённых единиц.'
+E         
+E         + Фотопринт | Журнал качества
+E         + Дата документа: 2026-11-08
+E           Контроль качества выявил 20 дефектных экземпляров из 1000 произведённых единиц.)
+
+tests/test_track3_knowledge.py:113: AssertionError
+_ test_excerpt_boundaries_cannot_drop_currency_or_newline_condition[\u041b\u0438\u043c\u0438\u0442 \u043e\u043f\u043b\u0430\u0442\u044b \u2014 50 \u0442\u044b\u0441. \u0440\u0443\u0431\u043b\u0435\u0439 \u043d\u0430 \u043e\u043f\u0435\u0440\u0430\u0446\u0438\u044e \u043f\u0440\u0438 \u043f\u0440\u0435\u0434\u043e\u043f\u043b\u0430\u0442\u0435.-\u041b\u0438\u043c\u0438\u0442 \u043e\u043f\u043b\u0430\u0442\u044b \u2014 50 \u0442\u044b\u0441.-\u041a\u0430\u043a\u043e\u0439 \u043b\u0438\u043c\u0438\u0442 \u043e\u043f\u043b\u0430\u0442\u044b?] _
+
+env = {'app': <fastapi.applications.FastAPI object at 0x7f8596123bc0>, 'irina': <starlette.testclient.TestClient object at 0..._knowledge_support.Model object at 0x7f85960bd9a0>, 'petr': <starlette.testclient.TestClient object at 0x7f859650b020>}
+text = 'Лимит оплаты — 50 тыс. рублей на операцию при предоплате.'
+cut = 'Лимит оплаты — 50 тыс.', question = 'Какой лимит оплаты?'
+
+    @pytest.mark.parametrize('text,cut,question', [
+        ('Лимит оплаты — 50 тыс. рублей на операцию при предоплате.', 'Лимит оплаты — 50 тыс.', 'Какой лимит оплаты?'),
+        ('Только при предоплате\nОтгрузка состоится 20 ноября.', 'Отгрузка состоится 20 ноября.', 'Когда отгрузка?'),
+    ])
+    def test_excerpt_boundaries_cannot_drop_currency_or_newline_condition(env, text, cut, question):
+        _, fid = document(env['irina'], text)
+        env['model'].reply = {'claims': [{'fragment_id': fid, 'quote': cut, 'text': cut}]}
+        result = env['irina'].post('/api/meet/qa', json={'question': question}).json()
+>       assert result['status'] == 'insufficient_data'
+E       AssertionError: assert 'grounded' == 'insufficient_data'
+E         
+E         - insufficient_data
+E         + grounded
+
+tests/test_track3_knowledge_retrieval.py:82: AssertionError
+_ test_excerpt_boundaries_cannot_drop_currency_or_newline_condition[\u0422\u043e\u043b\u044c\u043a\u043e \u043f\u0440\u0438 \u043f\u0440\u0435\u0434\u043e\u043f\u043b\u0430\u0442\u0435\n\u041e\u0442\u0433\u0440\u0443\u0437\u043a\u0430 \u0441\u043e\u0441\u0442\u043e\u0438\u0442\u0441\u044f 20 \u043d\u043e\u044f\u0431\u0440\u044f.-\u041e\u0442\u0433\u0440\u0443\u0437\u043a\u0430 \u0441\u043e\u0441\u0442\u043e\u0438\u0442\u0441\u044f 20 \u043d\u043e\u044f\u0431\u0440\u044f.-\u041a\u043e\u0433\u0434\u0430 \u043e\u0442\u0433\u0440\u0443\u0437\u043a\u0430?] _
+
+env = {'app': <fastapi.applications.FastAPI object at 0x7f859650b7a0>, 'irina': <starlette.testclient.TestClient object at 0..._knowledge_support.Model object at 0x7f8596508fe0>, 'petr': <starlette.testclient.TestClient object at 0x7f85966408c0>}
+text = 'Только при предоплате\nОтгрузка состоится 20 ноября.'
+cut = 'Отгрузка состоится 20 ноября.', question = 'Когда отгрузка?'
+
+    @pytest.mark.parametrize('text,cut,question', [
+        ('Лимит оплаты — 50 тыс. рублей на операцию при предоплате.', 'Лимит оплаты — 50 тыс.', 'Какой лимит оплаты?'),
+        ('Только при предоплате\nОтгрузка состоится 20 ноября.', 'Отгрузка состоится 20 ноября.', 'Когда отгрузка?'),
+    ])
+    def test_excerpt_boundaries_cannot_drop_currency_or_newline_condition(env, text, cut, question):
+        _, fid = document(env['irina'], text)
+        env['model'].reply = {'claims': [{'fragment_id': fid, 'quote': cut, 'text': cut}]}
+        result = env['irina'].post('/api/meet/qa', json={'question': question}).json()
+>       assert result['status'] == 'insufficient_data'
+E       AssertionError: assert 'grounded' == 'insufficient_data'
+E         
+E         - insufficient_data
+E         + grounded
+
+tests/test_track3_knowledge_retrieval.py:82: AssertionError
+=============================== warnings summary ===============================
+../track3-clean-venv/lib/python3.12/site-packages/starlette/testclient.py:37
+  /workspace/scratch/80c6e160b1f6/track3-clean-venv/lib/python3.12/site-packages/starlette/testclient.py:37: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = typing.Callable[[], typing.ContextManager[anyio.abc.BlockingPortal]]
+
+tests/test_meetings.py::test_requires_login_and_rejects_bad_password
+tests/test_meetings.py::test_requires_login_and_rejects_bad_password
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+tests/test_meetings.py::test_requires_login_and_rejects_bad_password
+tests/test_meetings.py::test_requires_login_and_rejects_bad_password
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/test_meetings.py::test_requires_login_and_rejects_bad_password
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_track3_knowledge.py::test_claim_text_may_copy_document_heading_around_the_quote
+FAILED tests/test_track3_knowledge_retrieval.py::test_excerpt_boundaries_cannot_drop_currency_or_newline_condition[\u041b\u0438\u043c\u0438\u0442 \u043e\u043f\u043b\u0430\u0442\u044b \u2014 50 \u0442\u044b\u0441. \u0440\u0443\u0431\u043b\u0435\u0439 \u043d\u0430 \u043e\u043f\u0435\u0440\u0430\u0446\u0438\u044e \u043f\u0440\u0438 \u043f\u0440\u0435\u0434\u043e\u043f\u043b\u0430\u0442\u0435.-\u041b\u0438\u043c\u0438\u0442 \u043e\u043f\u043b\u0430\u0442\u044b \u2014 50 \u0442\u044b\u0441.-\u041a\u0430\u043a\u043e\u0439 \u043b\u0438\u043c\u0438\u0442 \u043e\u043f\u043b\u0430\u0442\u044b?]
+FAILED tests/test_track3_knowledge_retrieval.py::test_excerpt_boundaries_cannot_drop_currency_or_newline_condition[\u0422\u043e\u043b\u044c\u043a\u043e \u043f\u0440\u0438 \u043f\u0440\u0435\u0434\u043e\u043f\u043b\u0430\u0442\u0435\n\u041e\u0442\u0433\u0440\u0443\u0437\u043a\u0430 \u0441\u043e\u0441\u0442\u043e\u0438\u0442\u0441\u044f 20 \u043d\u043e\u044f\u0431\u0440\u044f.-\u041e\u0442\u0433\u0440\u0443\u0437\u043a\u0430 \u0441\u043e\u0441\u0442\u043e\u0438\u0442\u0441\u044f 20 \u043d\u043e\u044f\u0431\u0440\u044f.-\u041a\u043e\u0433\u0434\u0430 \u043e\u0442\u0433\u0440\u0443\u0437\u043a\u0430?]
+3 failed, 251 passed, 15 skipped, 6 warnings in 44.25s
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
