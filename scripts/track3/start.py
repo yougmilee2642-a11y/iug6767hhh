@@ -1,5 +1,6 @@
 """Run the existing product app with explicit isolated databases and no voice warmup."""
 import argparse
+import json
 import os
 import secrets
 import sys
@@ -15,11 +16,27 @@ def configure(path):
                       TELEGRAM_ENABLED='false', CALLWISE_CLOUD_INTEGRATIONS_ENABLED='false')
     # .env cannot override these explicit environment values; main storage is redirected
     # before app.py's import-time initialize_db. No source app/provider file is modified.
+    cabinet = path.with_name(path.stem+'.cabinet.db')
+    key = path.with_suffix('.session.key')
+    marker = Path(str(path)+'.track3.json')
+    if marker.is_symlink():
+        raise ValueError('Symlink test marker is not allowed')
+    declared = json.loads(marker.read_text()) if marker.is_file() else {'db':str(path)}
+    if declared.get('db') != str(path):
+        raise ValueError('Test marker path mismatch')
+    resources = [str(cabinet)+suffix for suffix in ('','-wal','-shm','-journal')] + [str(key)]
+    previous = declared.get('start_files',[])
+    for name in resources:
+        file = Path(name)
+        if file.is_symlink() or file.is_dir() or (file.exists() and name not in previous):
+            raise ValueError('Refusing existing unowned startup artifact: '+file.name)
+    declared['start_files'] = resources
+    if marker.is_file():
+        marker.write_text(json.dumps(declared))
     import storage
-    storage.DB_PATH = path.with_name(path.stem+'.cabinet.db')
+    storage.DB_PATH = cabinet
     storage.DATA_DIR = path.parent
     if not os.getenv('MEETINGS_SECRET'):
-        key = path.with_suffix('.session.key')
         if not key.exists():
             key.write_text(secrets.token_hex(32))
             key.chmod(0o600)

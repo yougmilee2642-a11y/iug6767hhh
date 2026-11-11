@@ -15,7 +15,12 @@ DATA = ROOT / 'demo/track3'
 
 def seed(db_path):
     path = explicit_db(db_path)
-    if path.exists() and not Path(str(path)+'.track3.json').is_file():
+    marker = Path(str(path)+'.track3.json')
+    if marker.is_symlink() or marker.is_dir():
+        raise ValueError('Test marker must be a regular file')
+    if marker.is_file() and json.loads(marker.read_text()).get('db') != str(path):
+        raise ValueError('Test marker path mismatch')
+    if path.exists() and not marker.is_file():
         raise ValueError('Existing database lacks Track 3 test marker; use a new isolated DB')
     os.environ['MEETINGS_DB_PATH'] = str(path)
     from meetings import documents, store
