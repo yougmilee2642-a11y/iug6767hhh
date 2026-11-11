@@ -198,3 +198,208 @@ def test_scorer_weak_quote_and_wrong_duplicate_cannot_hide_correct_task():
     wrong=copy.deepcopy(p[0]);wrong['assignee']='Пётр'
     score=score_tasks(gold,[wrong]+p,u)
     assert score['recall']==1 and score['precision']==6/7
+
+
+@pytest.mark.parametrize('change', ['negation', 'extra_action', 'question'])
+def test_scorer_never_accepts_keyword_only_semantics(change):
+    gold, utterances, predictions = scoring_fixture()
+    text = predictions[0]['text']
+    predictions[0]['text'] = {'negation': 'Не ' + text.lower(),
+                              'extra_action': text + ' и удалить все заказы',
+                              'question': text + '?'}[change]
+    score = score_tasks(gold, predictions, utterances)
+    assert score['correct_tasks'] == 5
+    assert score['manual_review_pending'][0]['prediction_index'] == 0
+
+
+def test_scorer_rejects_changed_source_even_if_positive_quote_survives():
+    gold, utterances, predictions = scoring_fixture()
+    utterances[0]['text'] = 'Не выполнять: ' + utterances[0]['text']
+    assert score_tasks(gold, predictions, utterances)['correct_tasks'] == 5
+
+
+@pytest.mark.parametrize('field', ['assignee_status', 'due_status'])
+def test_scorer_requires_consistent_stated_fields(field):
+    gold, utterances, predictions = scoring_fixture()
+    predictions[0][field] = 'unknown'
+    assert score_tasks(gold, predictions, utterances)['correct_tasks'] == 5
+
+
+@pytest.mark.parametrize('index', [-1, 6, True])
+def test_review_cannot_silently_ignore_invalid_prediction_index(index):
+    gold, utterances, predictions = scoring_fixture()
+    with pytest.raises(ValueError):
+        score_tasks(gold, predictions, utterances, [{'prediction_index': index}])
+
+
+def full_observation_fixture():
+    from scripts.track3.evaluate import predictions_digest, SCORER_VERSION
+    raw = json.loads(GOLD.read_text())
+    report = dict(schema_version=2, scorer_version=SCORER_VERSION, status='running',
+                  dataset_sha256=frozen_check(), exclusive_gpu_window_confirmed=True,
+                  model_metadata_status='observed', model={'ollama_version': 'unit-double', 'model_digest': 'unit-double'},
+                  transcripts=[], questions=[])
+    for control in raw['transcripts']:
+        utterances = [{'id': f'U{task["utterance_index"]}', 'idx': task['utterance_index'], 'text': task['quote']}
+                      for task in control['tasks']]
+        predictions = [dict(kind='task', text=task['text'], assignee=task['assignee'], due=task['due'],
+                            assignee_status='stated' if task['assignee'] else 'unknown',
+                            due_status='stated' if task['due'] else 'unknown',
+                            quotes=[dict(utterance_id=f'U{task["utterance_index"]}', text=task['quote'])])
+                       for task in control['tasks']]
+        report['transcripts'].append(dict(key=control['key'], http_status=200,
+                                          transcript_sha256=control['transcript_sha256'],
+                                          predictions=predictions, utterances=utterances,
+                                          scores=score_tasks(control['tasks'], predictions, utterances)))
+    report['predictions_sha256'] = predictions_digest(report)
+    report['questions'] = [dict(case=case, passed=True, http_status=200) for case in raw['questions']]
+    return report
+
+
+def test_summary_accepts_full_distinct_control_set_but_not_duplicates():
+    from scripts.track3.evaluate import summarize
+    report = full_observation_fixture()
+    summarize(report)
+    assert report['status'] == 'passed'
+    report['transcripts'] = [report['transcripts'][0]] * 3
+    summarize(report)
+    assert report['status'] == 'failed'
+    assert report['overall']['recall'] == 6 / 18
+    assert 'unknown_or_duplicate_transcript' in report['evaluation_integrity']['issues']
+
+
+@pytest.mark.parametrize('change', ['duplicate_question', 'changed_expected', 'missing_version', 'wrong_corpus'])
+def test_summary_requires_frozen_cases_and_observed_provenance(change):
+    from scripts.track3.evaluate import summarize
+    report = full_observation_fixture()
+    if change == 'duplicate_question':
+        report['questions'][-1] = copy.deepcopy(report['questions'][0])
+    elif change == 'changed_expected':
+        report['questions'][0]['case']['expected_status'] = 'insufficient_data'
+    elif change == 'missing_version':
+        report['model']['ollama_version'] = None
+    else:
+        report['transcripts'][0]['transcript_sha256'] = 'different-corpus'
+    summarize(report)
+    assert report['status'] == 'failed' and not report['evaluation_integrity']['passed']
+
+
+class QAClientDouble:
+    """Adversarial API outputs, not a real model measurement."""
+    class Response:
+        status_code = 200
+        def __init__(self, payload): self.payload = payload
+        def json(self): return self.payload
+
+    def __init__(self, claim='Отгрузка запланирована на 12 ноября.', quote=None, text=None):
+        self.claim = claim
+        self.quote = quote or 'Отгрузка запланирована на 12 ноября.'
+        self.text = text or self.quote
+        self.source = dict(kind='document', id='F1', quote=self.quote, source_at='2026-11-11T00:00:00+00:00')
+        self.answer = self.claim
+        self.sources = [self.source]
+
+    def post(self, *_args, **_kwargs):
+        return self.Response(dict(status='grounded', answer=self.answer,
+                                  claims=[dict(text=self.claim, sources=[self.source])], sources=self.sources))
+
+    def get(self, url):
+        return self.Response({'fragment': {'text': self.text, 'document_id': 1}} if 'fragments' in url else
+                             {'document': {'filename': 'fp.txt', 'created_at': self.source['source_at']}})
+
+
+def qa_case_fixture():
+    return dict(question='Когда отгрузка?', expected_status='grounded', expected_document_filenames=['fp.txt'],
+                expected_quote_substrings=['12 ноября'], forbidden_substrings=[])
+
+
+def test_qa_checks_claim_answer_and_citation_independently():
+    from scripts.track3.evaluate import qa_result
+    client = QAClientDouble()
+    assert qa_result(client, qa_case_fixture())['passed']
+    client.claim = 'Бюджет утверждён.'
+    client.answer = client.claim
+    assert not qa_result(client, qa_case_fixture())['passed']
+    client = QAClientDouble()
+    client.answer += '\nЗакрытые данные подтверждены.'
+    assert not qa_result(client, qa_case_fixture())['passed']
+    client = QAClientDouble()
+    client.sources = []
+    assert not qa_result(client, qa_case_fixture())['passed']
+
+
+def test_qa_cannot_clip_negation_from_source():
+    from scripts.track3.evaluate import qa_result
+    quote = 'отгрузка запланирована на 12 ноября.'
+    client = QAClientDouble(claim=quote, quote=quote, text='Неверно, что ' + quote)
+    assert not qa_result(client, qa_case_fixture())['passed']
+
+
+def test_report_writer_preserves_existing_evidence_and_checkpoints(tmp_path):
+    from scripts.track3.reporting import ReportFile
+    path = tmp_path / 'report.json'
+    with ReportFile(str(path)) as writer:
+        writer.write({'status': 'running', 'completed_controls': 1})
+        with pytest.raises(ValueError):
+            writer.write({'invalid': float('nan')})
+    assert json.loads(path.read_text())['completed_controls'] == 1
+    with pytest.raises(ValueError):
+        ReportFile(str(path))
+    link = tmp_path / 'alias.json'
+    link.symlink_to(path)
+    with pytest.raises(ValueError):
+        ReportFile(str(link))
+
+
+def test_cli_saves_prerequisite_failure_and_interrupt_without_model(monkeypatch, tmp_path):
+    from scripts.track3 import evaluate
+    path = tmp_path / 'not-run.json'
+    monkeypatch.setattr('sys.argv', ['evaluate', '--output', str(path)])
+    def fail(_report, _window, _checkpoint): raise ValueError('synthetic prerequisite failure')
+    monkeypatch.setattr(evaluate, 'run_evaluation', fail)
+    assert evaluate.main() == 2
+    assert json.loads(path.read_text())['status'] == 'not_run'
+    path = tmp_path / 'interrupted.json'
+    monkeypatch.setattr('sys.argv', ['evaluate', '--output', str(path)])
+    def interrupt(report, _window, checkpoint):
+        report.update(status='running', transcripts=[{'key': 'partial'}])
+        checkpoint(report)
+        raise KeyboardInterrupt()
+    monkeypatch.setattr(evaluate, 'run_evaluation', interrupt)
+    assert evaluate.main() == 130
+    saved = json.loads(path.read_text())
+    assert saved['status'] == 'interrupted' and saved['transcripts'][0]['key'] == 'partial'
+
+
+def test_review_cannot_overwrite_raw_report_or_review_input(monkeypatch, tmp_path):
+    from scripts.track3 import score_report
+    report = full_observation_fixture()
+    report['status'] = 'failed'
+    source = tmp_path / 'raw.json'
+    source.write_text(json.dumps(report))
+    review = tmp_path / 'review.json'
+    review.write_text(json.dumps({'predictions_sha256': report['predictions_sha256'], 'transcripts': {}}))
+    for target in (source, review):
+        before = target.read_bytes()
+        monkeypatch.setattr('sys.argv', ['score', '--report', str(source), '--review', str(review), '--output', str(target)])
+        with pytest.raises(SystemExit): score_report.main()
+        assert target.read_bytes() == before
+    output = tmp_path / 'reviewed.json'
+    monkeypatch.setattr('sys.argv', ['score', '--report', str(source), '--review', str(review), '--output', str(output)])
+    assert score_report.main() == 0
+    assert json.loads(output.read_text())['status'] == 'passed'
+
+
+def test_cleanup_retains_marker_if_later_artifact_delete_fails(env, monkeypatch):
+    report = env['path'].parent / 'retained.json'
+    report.write_text('{}')
+    original = Path.unlink
+    def guarded(path, *args, **kwargs):
+        if path == report: raise PermissionError('synthetic filesystem failure')
+        return original(path, *args, **kwargs)
+    monkeypatch.setattr(Path, 'unlink', guarded)
+    with pytest.raises(PermissionError): cleanup(str(env['path']), True, [str(report)])
+    assert Path(str(env['path']) + '.track3.json').exists()
+    monkeypatch.setattr(Path, 'unlink', original)
+    cleanup(str(env['path']), True, [str(report)])
+    assert not report.exists()

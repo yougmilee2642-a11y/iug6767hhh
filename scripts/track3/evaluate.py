@@ -6,6 +6,7 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -17,7 +18,10 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT))
+from scripts.track3.reporting import ReportFile
+
 GOLD = ROOT/'evaluation/track3/gold.json'
+SCORER_VERSION = 2
 
 
 def norm(text):
@@ -42,16 +46,24 @@ def score_tasks(gold, predictions, utterances, reviews=()):
     actual = [p for p in predictions if p.get('kind')=='task']
     source = {u['id']:u for u in utterances}
     index = {u['idx']:u['id'] for u in utterances}
-    review_map = {r['prediction_index']:r for r in reviews}
+    review_map = {}
+    for review in reviews:
+        i = review.get('prediction_index')
+        if type(i) is not int or not 0 <= i < len(actual) or i in review_map:
+            raise ValueError('Review prediction index is invalid or duplicated')
+        review_map[i] = review
     edges, grounded, uncertain = {}, {}, []
     for i,p in enumerate(actual):
         quotes = [q for q in p.get('quotes',[]) if q.get('text') and q.get('utterance_id') in source
                   and q['text'] in source[q['utterance_id']]['text']]
         grounded[i] = bool(quotes)
         evidence = [g for g in gold if any(q['utterance_id']==index.get(g['utterance_index'])
+                    and source[q['utterance_id']]['text'].strip() == g['quote'].strip()
                     and (q['text'] in g['quote'] or g['quote'] in q['text'])
                     and any(norm(a) in norm(q['text']) for a in g['alternatives']) for q in quotes)]
-        candidates = [g for g in evidence if any(norm(a) in norm(p.get('text')) for a in g['alternatives'])]
+        wording = lambda text: ' '.join((text or '').casefold().replace('ё', 'е').split()).removesuffix('.')
+        candidates = [g for g in evidence if wording(p.get('text')) in
+                      {wording(g['text']), *(wording(a) for a in g['alternatives'])}]
         r = review_map.get(i)
         if r:
             if not r.get('reviewer') or not r.get('reason') or r.get('reviewer_kind')!='independent_human':
@@ -74,6 +86,10 @@ def score_tasks(gold, predictions, utterances, reviews=()):
     def fields_ok(g,p):
         owner_ok=norm(p.get('assignee'))==norm(g.get('assignee'))
         due_ok=(p.get('due') or None)==g.get('due')
+        if g.get('due') is not None:
+            due_ok = due_ok and p.get('due_status') == 'stated'
+        if g.get('assignee') is not None:
+            owner_ok = owner_ok and p.get('assignee_status') == 'stated'
         if g.get('due') is None:
             due_ok=due_ok and not p.get('due_text') and p.get('due_status','unknown')=='unknown'
         if g.get('assignee') is None:
@@ -115,144 +131,286 @@ def score_tasks(gold, predictions, utterances, reviews=()):
                 manual_review_pending=uncertain, missing_gold_ids=[g['id'] for g in gold if g['id'] not in matched])
 
 
-def model_info(model):
+def model_info(model, transport=None):
     import httpx
     from providers.ollama import endpoint, LOOPBACK
     from urllib.parse import urlsplit
     target=endpoint()
     if not target: raise ValueError('No allowed Ollama endpoint')
     base,headers=target
-    with httpx.Client(trust_env=False,follow_redirects=False,timeout=5) as c:
+    with httpx.Client(trust_env=False,follow_redirects=False,timeout=5,transport=transport) as c:
         v=c.get(base+'/api/version',headers=headers);v.raise_for_status()
         tags=c.get(base+'/api/tags',headers=headers);tags.raise_for_status()
+    version = v.json().get('version')
+    if not isinstance(version, str) or not version.strip():
+        raise ValueError('Missing Ollama version')
     selected=next((t for t in tags.json().get('models',[]) if t.get('name')==model or t.get('model')==model),None)
     if not selected: raise ValueError('Requested exact model not installed on host')
-    return dict(model=model,ollama_version=v.json().get('version'),model_digest=selected.get('digest'),
+    if not isinstance(selected.get('digest'), str) or not selected['digest'].strip():
+        raise ValueError('Missing installed model digest')
+    return dict(model=model,ollama_version=version,model_digest=selected['digest'],
                 model_size_bytes=selected.get('size'),remote_gateway=urlsplit(base).hostname not in LOOPBACK)
 
 
-def qa_result(client,case):
-    r=client.post('/api/meet/qa',json={'question':case['question']})
-    result=r.json()
-    checks=[r.status_code==200,result.get('status')==case['expected_status']]
-    opened=[]
-    for claim in result.get('claims',[]):
-        for s in claim.get('sources',[]):
-            f=client.get('/api/meet/fragments/'+s['id'])
-            if f.status_code!=200:
-                checks.append(False);continue
-            fragment=f.json()['fragment']
-            d=client.get('/api/meet/documents/'+str(fragment['document_id']))
-            filename=d.json().get('document',{}).get('filename') if d.status_code==200 else None
-            checks += [s['quote'] in fragment['text'],bool(s.get('source_at'))]
-            opened.append({'filename':filename,'quote':s['quote']})
-    answer=' '.join(c.get('text','') for c in result.get('claims',[]))
-    # Every grounded claim must have a live resolvable source, no bare model assertions.
-    if result.get('status')=='grounded':
-        checks += [bool(opened),bool(result.get('claims')),all(c.get('sources') for c in result.get('claims',[]))]
-    for name in case['expected_document_filenames']: checks.append(any(s['filename']==name for s in opened))
-    for q in case['expected_quote_substrings']: checks.append(any(q in s['quote'] for s in opened))
-    for forbidden in case['forbidden_substrings']: checks.append(forbidden not in json.dumps(result,ensure_ascii=False))
-    return dict(passed=all(checks),http_status=r.status_code,response=result,resolved_sources=opened)
+def complete_excerpt(quote, text):
+    """Independent sentence-boundary check: a quote cannot clip a negation."""
+    if not isinstance(quote, str) or not quote:
+        return False
+    start = text.find(quote)
+    while start >= 0:
+        left, right = text[:start], text[start + len(quote):]
+        left_ok = not left.strip() or re.search(r'(?:[.!?]\s+|\n\s*)$', left)
+        right_ok = not right.strip() or right.startswith('\n') or (quote[-1] in '.!?' and right[0].isspace())
+        if left_ok and right_ok:
+            return True
+        start = text.find(quote, start + 1)
+    return False
 
 
-def main():
-    p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--output',required=True,help='Absolute report path')
-    p.add_argument('--exclusive-gpu-window',action='store_true',help='Operator confirms agreed window without competing inference')
-    p.add_argument('--review-file',help='Independent human review bound to predictions_sha256')
-    a=p.parse_args()
-    out=Path(a.output)
-    if not out.is_absolute(): p.error('--output must be absolute')
-    report=dict(status='not_run',started_at=datetime.now(timezone.utc).isoformat(),run_id=uuid.uuid4().hex,
-                commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
-                dirty=bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip()),
-                dataset_sha256=frozen_check(),dataset='photoprint-v1',judge='frozen deterministic rules + independent human review',
-                configured_model=os.getenv('MEETINGS_MODEL','qwen2.5:7b'), model_metadata_status='not_run',
-                parameters=dict(context=int(os.getenv('MEETINGS_CONTEXT','8192')),timeout=float(os.getenv('MEETINGS_TIMEOUT','300')),
-                                temperature=0.1,think=False,stream=False,num_predict_protocol=1800),transcripts=[],questions=[])
-    try:
-        from meetings import llm
-        provider=llm.MeetingLLM()
-        # Validate cloud refusal before any network request.
-        provider._base()
-        report['stage']='model_metadata'
-        report['model']=model_info(provider.model)
-        report['model_metadata_status']='observed'
-        if not a.exclusive_gpu_window:
-            raise ValueError('An agreed exclusive GPU window is required; no extraction was run')
-        report['exclusive_gpu_window_confirmed']=True
-        report['stage']='extraction_and_qa'
-        gold=json.loads(GOLD.read_text())
-        with tempfile.TemporaryDirectory(prefix='track3-live-') as temp:
-            os.environ['MEETINGS_SECRET']='synthetic-live-evaluation-secret'
-            from scripts.track3.seed import seed
-            ids=seed(str(Path(temp)/'live.db'))
-            # Exercise product meetings handlers without importing main cabinet or voice services.
-            from fastapi import FastAPI
-            from fastapi.testclient import TestClient
-            from meetings.api import install
-            from meetings import store
-            app=FastAPI();install(app);llm.set_llm(provider)
-            clients={}
-            for who in ('irina','petr'):
-                c=TestClient(app);r=c.post('/api/meet/login',json={'login':who,'password':who+'-demo'})
-                r.raise_for_status();clients[who]=c
+def qa_result(client, case):
+    payload = {'question': case['question']}
+    if case.get('meeting_id') is not None:
+        payload['meeting_id'] = case['meeting_id']
+    response = client.post('/api/meet/qa', json=payload)
+    result = response.json()
+    checks = [response.status_code == 200, result.get('status') == case['expected_status']]
+    claims = result.get('claims', [])
+    opened, flattened = [], []
+    for claim in claims:
+        sources = claim.get('sources', [])
+        checks.append(bool(sources))
+        for source in sources:
+            flattened.append(source)
+            fid = source.get('id', '')
+            if source.get('kind') != 'document' or not re.fullmatch(r'F[0-9]+', fid):
+                checks.append(False)
+                continue
+            fragment_response = client.get('/api/meet/fragments/' + fid)
+            if fragment_response.status_code != 200:
+                checks.append(False)
+                continue
+            fragment = fragment_response.json()['fragment']
+            document_response = client.get('/api/meet/documents/' + str(fragment['document_id']))
+            if document_response.status_code != 200:
+                checks.append(False)
+                continue
+            document = document_response.json()['document']
+            quote = source.get('quote')
+            checks += [quote == claim.get('text'), complete_excerpt(quote, fragment['text'])]
+            try:
+                at = datetime.fromisoformat(source['source_at'])
+                uploaded = datetime.fromisoformat(document['created_at'])
+                checks.append(at.tzinfo is not None and uploaded.tzinfo is not None and at == uploaded)
+            except (KeyError, ValueError, TypeError):
+                checks.append(False)
+            opened.append({'filename': document['filename'], 'quote': quote})
+    checks.append(result.get('sources', []) == flattened)
+    if result.get('status') == 'grounded':
+        checks += [bool(opened), bool(claims), result.get('answer') == '\n'.join(c['text'] for c in claims)]
+    elif result.get('status') == 'insufficient_data':
+        checks += [not claims, not opened]
+    for name in case['expected_document_filenames']:
+        checks.append(any(source['filename'] == name for source in opened))
+    for quote in case['expected_quote_substrings']:
+        checks.append(any(isinstance(source['quote'], str) and quote in source['quote'] for source in opened))
+    for forbidden in case['forbidden_substrings']:
+        checks.append(forbidden not in json.dumps(result, ensure_ascii=False))
+    return dict(passed=all(checks), http_status=response.status_code, response=result, resolved_sources=opened)
+
+
+class EvaluationBlocked(ValueError):
+    """Stable safe code only; never include raw HTTP exceptions or credentials."""
+
+
+def load_configuration():
+    from dotenv import load_dotenv
+    load_dotenv(ROOT / '.env', override=False)
+    context = int(os.getenv('MEETINGS_CONTEXT', '8192'))
+    timeout = float(os.getenv('MEETINGS_TIMEOUT', '300'))
+    if context <= 0 or not math.isfinite(timeout) or timeout <= 0:
+        raise EvaluationBlocked('invalid_model_configuration')
+    return dict(context=context, timeout=timeout, temperature=0.1, think=False,
+                stream=False, num_predict_protocol=1800)
+
+
+def initial_report():
+    return dict(schema_version=2, scorer_version=SCORER_VERSION, status='not_run',
+                started_at=datetime.now(timezone.utc).isoformat(), run_id=uuid.uuid4().hex,
+                commit=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
+                dirty=bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True).strip()),
+                dataset='photoprint-v1', judge='frozen deterministic rules; independent human review only if supplied',
+                model_metadata_status='not_run', stage='dataset_integrity',
+                transcripts=[], questions=[], llm_calls=[])
+
+
+def run_evaluation(report, exclusive_window, checkpoint):
+    report['dataset_sha256'] = frozen_check()
+    report['stage'] = 'configuration'
+    report['parameters'] = load_configuration()
+    report['configured_model'] = os.getenv('MEETINGS_MODEL') or 'qwen2.5:7b'
+    if report['dirty']:
+        raise EvaluationBlocked('dirty_checkout_commit_changes_first')
+    report['stage'] = 'gpu_window'
+    if not exclusive_window:
+        raise EvaluationBlocked('exclusive_gpu_window_not_confirmed')
+    report['exclusive_gpu_window_confirmed'] = True
+    from meetings import llm
+
+    class ObservedLLM(llm.MeetingLLM):
+        def json(self, system, user, schema, predict=1500):
+            call = dict(predict=predict, schema_sha256=hashlib.sha256(
+                json.dumps(schema, sort_keys=True).encode()).hexdigest())
+            report['llm_calls'].append(call)
+            before = time.perf_counter()
+            try:
+                result = super().json(system, user, schema, predict)
+                call['status'] = 'ok'
+                return result
+            except Exception as error:
+                call.update(status='error', error_code=getattr(error, 'code', type(error).__name__))
+                raise
+            finally:
+                call['latency_seconds'] = time.perf_counter() - before
+
+    report['stage'] = 'model_policy'
+    provider = ObservedLLM()
+    provider._base()
+    report['stage'] = 'model_metadata'
+    report['model'] = model_info(provider.model)
+    report['model_metadata_status'] = 'observed'
+    report['status'] = 'running'
+    checkpoint(report)
+    gold = json.loads(GOLD.read_text())
+    with tempfile.TemporaryDirectory(prefix='track3-live-') as temporary:
+        os.environ['MEETINGS_SECRET'] = 'synthetic-live-evaluation-secret'
+        from scripts.track3.seed import seed
+        report['stage'] = 'seed'
+        ids = seed(str(Path(temporary) / 'live.db'))
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from meetings.api import install
+        from meetings import store
+        app = FastAPI()
+        install(app)
+        llm.set_llm(provider)
+        clients = {}
+        try:
+            report['stage'] = 'authentication'
+            for who in ('irina', 'petr'):
+                client = TestClient(app)
+                clients[who] = client
+                client.post('/api/meet/login', json={'login': who, 'password': who + '-demo'}).raise_for_status()
             for control in gold['transcripts']:
-                mid=ids['meetings'][control['key']]
-                before=time.perf_counter()
-                r=clients['irina'].post(f'/api/meet/meetings/{mid}/protocol/draft')
-                latency=time.perf_counter()-before
-                item=dict(key=control['key'],latency_seconds=latency,http_status=r.status_code,response=r.json())
-                if r.status_code==200:
-                    predictions=r.json()['protocol']['items']
-                    with store.db() as c: utterances=store.utterances(c,mid)
-                    item.update(predictions=predictions,utterances=utterances)
+                report['stage'] = 'protocol:' + control['key']
+                mid = ids['meetings'][control['key']]
+                before = time.perf_counter()
+                response = clients['irina'].post(f'/api/meet/meetings/{mid}/protocol/draft')
+                item = dict(key=control['key'], latency_seconds=time.perf_counter() - before,
+                            http_status=response.status_code, response=response.json(),
+                            transcript_sha256=control['transcript_sha256'])
+                if response.status_code == 200:
+                    item['predictions'] = response.json()['protocol']['items']
+                    with store.db() as connection:
+                        item['utterances'] = store.utterances(connection, mid)
+                    item['scores'] = score_tasks(control['tasks'], item['predictions'], item['utterances'])
                 report['transcripts'].append(item)
-            report['predictions_sha256']=hashlib.sha256(json.dumps(report['transcripts'],sort_keys=True,ensure_ascii=False).encode()).hexdigest()
-            reviews={}
-            if a.review_file:
-                review=json.loads(Path(a.review_file).read_text())
-                if review['predictions_sha256']!=report['predictions_sha256']:
-                    raise ValueError('Review belongs to different predictions; use score_report.py for an existing report')
-                reviews=review.get('transcripts',{})
-            for item,control in zip(report['transcripts'],gold['transcripts']):
-                if item['http_status']==200:
-                    item['scores']=score_tasks(control['tasks'],item['predictions'],item['utterances'],reviews.get(item['key'],[]))
-            for case in gold['questions']:
-                before=time.perf_counter()
-                report['questions'].append(dict(case=case,latency_seconds=None,**qa_result(clients[case['user_login']],case)))
-                report['questions'][-1]['latency_seconds']=time.perf_counter()-before
+                # Persist each completed control before the next expensive call.
+                checkpoint(report)
+            report['predictions_sha256'] = predictions_digest(report)
+            for number, case in enumerate(gold['questions'], 1):
+                report['stage'] = f'qa:{number}'
+                before = time.perf_counter()
+                result = qa_result(clients[case['user_login']], case)
+                report['questions'].append(dict(case=case, latency_seconds=time.perf_counter() - before, **result))
+                checkpoint(report)
+            report['stage'] = 'scoring'
             summarize(report)
-    except Exception as e:
-        # Do not persist raw exception strings: HTTP errors may contain credential-bearing URLs.
-        report.update(status='not_run' if not report['transcripts'] else 'failed',
-                      blocker_type=type(e).__name__,blocker='Model, exclusive window or evaluation prerequisite unavailable; inspect local configuration. No success claimed.')
-    finally:
-        report['finished_at']=datetime.now(timezone.utc).isoformat()
-        out.parent.mkdir(parents=True,exist_ok=True)
-        out.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
-    print(json.dumps({'status':report['status'],'report':str(out),'model':report.get('model'),'overall':report.get('overall')},ensure_ascii=False))
-    return 0 if report['status']=='passed' else 2 if report['status']=='not_run' else 1
+        finally:
+            for client in clients.values():
+                client.close()
+            llm.set_llm(None)
+            store.reset_cache()
+
+
+def predictions_digest(report):
+    raw = [{key: value for key, value in item.items() if key != 'scores'}
+           for item in report['transcripts']]
+    return hashlib.sha256(json.dumps(raw, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
 def summarize(report):
-    scores=[t['scores'] for t in report['transcripts'] if 'scores' in t]
-    expected=len(json.loads(GOLD.read_text())['transcripts'])
-    gold=sum(len(t['tasks']) for t in json.loads(GOLD.read_text())['transcripts'])
-    predicted=sum(s['predicted_tasks'] for s in scores)
-    correct=sum(s['correct_tasks'] for s in scores)
-    recall=correct/gold if gold else 0.0
-    report['overall']=dict(recall=recall,precision=correct/predicted if predicted else 0.0,
-                           correct_tasks=correct,gold_tasks=gold,predicted_tasks=predicted,
-                           owner_errors=sum(len(s['owner_errors']) for s in scores),
-                           due_errors=sum(len(s['due_errors']) for s in scores),
-                           false_or_unresolved_tasks=sum(len(s['false_or_unresolved_tasks']) for s in scores))
-    complete=len(scores)==expected
-    passed=complete and recall>=0.8 and all(s['recall']>=0.8 and not s['manual_review_pending'] for s in scores)
-    passed=passed and len(report['questions'])==len(json.loads(GOLD.read_text())['questions']) and all(q['passed'] for q in report['questions'])
-    report['status']='passed' if passed else 'failed'
+    gold = json.loads(GOLD.read_text())
+    controls = {control['key']: control for control in gold['transcripts']}
+    observed, issues = {}, []
+    for item in report['transcripts']:
+        key = item.get('key')
+        if key not in controls or key in observed:
+            issues.append('unknown_or_duplicate_transcript')
+            continue
+        observed[key] = item
+    scores = [item['scores'] for item in observed.values() if 'scores' in item]
+    denominator = sum(len(control['tasks']) for control in controls.values())
+    predicted = sum(score['predicted_tasks'] for score in scores)
+    correct = sum(score['correct_tasks'] for score in scores)
+    report['overall'] = dict(recall=correct / denominator, precision=correct / predicted if predicted else 0.0,
+                             correct_tasks=correct, gold_tasks=denominator, predicted_tasks=predicted,
+                             owner_errors=sum(len(score['owner_errors']) for score in scores),
+                             due_errors=sum(len(score['due_errors']) for score in scores),
+                             false_or_unresolved_tasks=sum(len(score['false_or_unresolved_tasks']) for score in scores))
+    if set(observed) != set(controls):
+        issues.append('missing_transcripts')
+    for key, item in observed.items():
+        score = item.get('scores', {})
+        if (item.get('http_status') != 200 or score.get('gold_tasks') != len(controls[key]['tasks'])
+                or item.get('transcript_sha256') != controls[key]['transcript_sha256']):
+            issues.append('incomplete_or_inconsistent_transcript')
+    identity = lambda case: json.dumps(case, ensure_ascii=False, sort_keys=True)
+    expected_cases = {identity(case) for case in gold['questions']}
+    actual_cases = [identity(item.get('case')) for item in report['questions']]
+    if len(actual_cases) != len(expected_cases) or set(actual_cases) != expected_cases:
+        issues.append('missing_changed_or_duplicate_qa_cases')
+    if (report.get('model_metadata_status') != 'observed'
+            or not report.get('model', {}).get('ollama_version')
+            or not report.get('model', {}).get('model_digest')
+            or report.get('exclusive_gpu_window_confirmed') is not True):
+        issues.append('unverified_model_or_gpu_window')
+    if report.get('blocker') or report.get('status') in ('not_run', 'interrupted'):
+        issues.append('unfinished_evaluation')
+    report['evaluation_integrity'] = dict(passed=not issues, issues=sorted(set(issues)))
+    passed = (not issues and len(scores) == len(controls) and report['overall']['recall'] >= 0.8
+              and all(score['recall'] >= 0.8 and not score['manual_review_pending'] for score in scores)
+              and all(item.get('passed') is True and item.get('http_status') == 200 for item in report['questions']))
+    report['status'] = 'passed' if passed else 'failed'
 
 
-if __name__=='__main__':
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--output', required=True, help='New absolute .json report path; never overwritten')
+    parser.add_argument('--exclusive-gpu-window', action='store_true',
+                        help='Operator confirms agreed window without competing inference')
+    args = parser.parse_args()
+    try:
+        output = ReportFile(args.output)
+    except ValueError as error:
+        parser.error(str(error))
+    report = initial_report()
+    with output:
+        output.write(report)
+        try:
+            run_evaluation(report, args.exclusive_gpu_window, output.write)
+        except KeyboardInterrupt:
+            report.update(status='interrupted', blocker='operator_interrupted')
+        except Exception as error:
+            report.update(status='not_run' if not report['transcripts'] else 'failed',
+                          blocker_type=type(error).__name__,
+                          blocker=str(error) if isinstance(error, EvaluationBlocked) else 'evaluation_prerequisite_or_request_failed')
+        finally:
+            report['finished_at'] = datetime.now(timezone.utc).isoformat()
+            output.write(report)
+    print(json.dumps({'status': report['status'], 'stage': report['stage'], 'report': str(output.path),
+                      'model': report.get('model'), 'overall': report.get('overall')}, ensure_ascii=False))
+    return 0 if report['status'] == 'passed' else 130 if report['status'] == 'interrupted' else 2 if report['status'] == 'not_run' else 1
+
+
+if __name__ == '__main__':
     raise SystemExit(main())
