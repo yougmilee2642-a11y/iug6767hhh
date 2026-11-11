@@ -1,4 +1,11 @@
-"""Native loopback-only Ollama transport. No cloud fallback or thinking exposure."""
+"""Native Ollama transport. No cloud fallback or thinking exposure.
+
+By default only the loopback Ollama is allowed. A teammate's machine may instead use
+the host's token-protected gateway (scripts/llm_gateway.py): that requires
+OLLAMA_API_KEY and either HTTPS or a Tailscale address (100.64.0.0/10, *.ts.net),
+whose traffic is already encrypted by WireGuard.
+"""
+import ipaddress
 import json
 import os
 import uuid
@@ -23,6 +30,31 @@ def encode_messages(messages):
     return output
 
 
+LOOPBACK={'127.0.0.1','localhost','::1'}
+TAILNET=ipaddress.ip_network('100.64.0.0/10')
+
+
+def _tailnet_host(host):
+    if host.endswith('.ts.net'): return True
+    try: return ipaddress.ip_address(host) in TAILNET
+    except ValueError: return False
+
+
+def endpoint():
+    """Return (base_url, headers) or None when the configured address is not allowed."""
+    base=os.getenv('OLLAMA_BASE_URL','http://127.0.0.1:11434').rstrip('/')
+    parsed=urlsplit(base)
+    host=parsed.hostname or ''
+    if parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment: return None
+    key=os.getenv('OLLAMA_API_KEY','').strip()
+    if parsed.scheme=='http' and host in LOOPBACK:
+        return base,({'Authorization':f'Bearer {key}'} if key else {})
+    if len(key)<24: return None
+    if parsed.scheme=='https' or (parsed.scheme=='http' and _tailnet_host(host)):
+        return base,{'Authorization':f'Bearer {key}'}
+    return None
+
+
 class OllamaProvider:
     def __init__(self,transport=None,model=None,budget=None):
         self.transport=transport
@@ -32,7 +64,9 @@ class OllamaProvider:
         self.last_metrics={}
 
     def metadata(self):
-        return {'provider':'Ollama','model':self.model,'request_count':self.request_count,'fallback':False,'local':True,**self.last_metrics}
+        target=endpoint()
+        remote=bool(target and urlsplit(target[0]).hostname not in LOOPBACK)
+        return {'provider':'Ollama','model':self.model,'request_count':self.request_count,'fallback':False,'local':True,'remote_gateway':remote,**self.last_metrics}
 
     def warm_up(self):
         # Load local inference before the user speaks. No business data or actions.
@@ -40,22 +74,20 @@ class OllamaProvider:
                       ConversationMessage('user', 'Проверка готовности.')], predict=16)
 
     def available(self):
-        base=os.getenv('OLLAMA_BASE_URL','http://127.0.0.1:11434').rstrip('/')
-        parsed=urlsplit(base)
-        if parsed.scheme!='http' or parsed.hostname not in {'127.0.0.1','localhost','::1'} or parsed.username or parsed.password or parsed.path:
-            return False
+        target=endpoint()
+        if not target: return False
+        base,headers=target
         try:
-            with httpx.Client(timeout=2,trust_env=False,follow_redirects=False) as client:
-                response=client.get(base+'/api/tags')
+            with httpx.Client(timeout=5,transport=self.transport,trust_env=False,follow_redirects=False) as client:
+                response=client.get(base+'/api/tags',headers=headers)
             response.raise_for_status()
             return any(item.get('name')==self.model for item in response.json().get('models',[]))
         except (httpx.HTTPError,ValueError,TypeError,AttributeError): return False
 
     def request(self,messages,tools=None,schema=None,predict=None):
-        base=os.getenv('OLLAMA_BASE_URL','http://127.0.0.1:11434').rstrip('/')
-        parsed=urlsplit(base)
-        if parsed.scheme!='http' or parsed.hostname not in {'127.0.0.1','localhost','::1'} or parsed.username or parsed.password or parsed.path:
-            raise LocalAIError('unavailable')
+        target=endpoint()
+        if not target: raise LocalAIError('unavailable')
+        base,headers=target
         if self.model.endswith(':cloud'): raise LocalAIError('cloud_disabled')
         payload={'model':self.model,'messages':encode_messages(messages),'think':False,'stream':False,'keep_alive':'30m',
                  'options':{'num_ctx':int(os.getenv('OLLAMA_CONTEXT','8192')),'num_predict':predict or int(os.getenv('OLLAMA_NUM_PREDICT','384')),'temperature':0.2}}
@@ -65,7 +97,7 @@ class OllamaProvider:
         self.request_count+=1
         try:
             with httpx.Client(timeout=float(os.getenv('OLLAMA_TIMEOUT','120')),transport=self.transport,trust_env=False,follow_redirects=False) as client:
-                response=client.post(base+'/api/chat',json=payload)
+                response=client.post(base+'/api/chat',json=payload,headers=headers)
             response.raise_for_status()
             data=response.json()
             if not isinstance(data,dict) or data.get('done') is not True or data.get('done_reason')=='length':

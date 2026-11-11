@@ -1,7 +1,22 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
 $localPython = Join-Path $PSScriptRoot '.venv/Scripts/python.exe'
 if (-not (Test-Path -LiteralPath $localPython)) { throw 'Сначала создайте .venv и установите requirements-local.txt.' }
+# Teammate mode: .env points OLLAMA_BASE_URL at the host's gateway → no local Ollama needed.
+$remoteLlm = (Select-String -LiteralPath '.env' -Pattern '^OLLAMA_BASE_URL=(.+)$' -ErrorAction SilentlyContinue | Select-Object -First 1)
+$remoteLlmUrl = if ($remoteLlm) { $remoteLlm.Matches.Groups[1].Value.Trim() } else { '' }
+if ($remoteLlmUrl -and $remoteLlmUrl -notmatch '^http://(127\.0\.0\.1|localhost|\[::1\])(:\d+)?/?$') {
+    $env:CALLWISE_LOCAL_ONLY = 'true'
+    $env:AI_PROVIDER = 'ollama'
+    $env:PYTHONUTF8 = '1'
+    $env:HF_HUB_OFFLINE = '1'
+    $env:TRANSFORMERS_OFFLINE = '1'
+    try { $null = Invoke-RestMethod ($remoteLlmUrl.TrimEnd('/') + '/healthz') -TimeoutSec 5; Write-Host "LLM-шлюз доступен: $remoteLlmUrl" }
+    catch { Write-Warning "LLM-шлюз $remoteLlmUrl не отвечает. Включён ли компьютер хоста и start-gateway.ps1? (Tailscale подключён?)" }
+    Write-Host 'Callwise: http://127.0.0.1:8000 — нейросеть на компьютере хоста через шлюз.'
+    & $localPython -m uvicorn app:app --host 127.0.0.1 --port 8000
+    exit $LASTEXITCODE
+}
 $localOllamaCommand = Get-Command ollama.exe -ErrorAction SilentlyContinue
 $localOllamaBinary = if ($localOllamaCommand) { $localOllamaCommand.Source } else { Join-Path $env:LOCALAPPDATA 'Programs/Ollama/ollama.exe' }
 if (-not (Test-Path -LiteralPath $localOllamaBinary)) { throw 'Не найден Ollama. Установите официальный Ollama для Windows.' }
