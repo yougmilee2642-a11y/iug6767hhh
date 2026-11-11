@@ -755,16 +755,18 @@ function renderPreparation(target) {
     }
     if (result.generated_at) prep.append(node('p', 'muted-copy generated-meta', `Сформировано ${dateLabel(result.generated_at)}${result.model ? ` · ${result.model}` : ''}`));
   }
-  if (result) {
-    const tasks = result.open_tasks || [];
+  // Open tasks of previous meetings come live from the server (data.followup) even before a briefing exists.
+  const followup = result || data.followup;
+  if (result || (data.followup?.open_tasks || []).length) {
+    const tasks = followup.open_tasks || [];
     prep.append(node('h3', '', 'Открытые задачи предыдущих встреч'));
     if (!tasks.length) prep.append(node('p', 'empty-copy', 'Открытых задач предыдущих встреч нет.'));
     for (const task of tasks) prep.append(renderTaskCard(task, tasks, true));
-    for (const q of result.task_questions || []) {
+    for (const q of followup.task_questions || []) {
       prep.append(node('p', '', q.text));
       for (const source of q.sources || []) prep.append(ui.sourceButton({ ...source, id: String(source.id).replace(/^T/, '') }));
     }
-    prep.append(ui.feedback('prep', meeting.id, meeting.id));
+    if (result) prep.append(ui.feedback('prep', meeting.id, meeting.id));
   }
   left.append(prep);
   target.append(left);

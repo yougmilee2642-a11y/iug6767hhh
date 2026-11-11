@@ -243,6 +243,10 @@ def test_prepare_includes_open_tasks_of_accessible_previous_meeting_only(env):
     launch = env['launch_meeting']
     task = confirmed_task(irina, launch)
     follow = irina.post(f'/api/meet/meetings/{launch}/next-agenda', json={'create_meeting': True}).json()['meeting']
+    with store.db() as connection:  # no briefing yet: open tasks must still be visible
+        connection.execute('DELETE FROM preps WHERE meeting_id=?', (follow['id'],))
+    before = irina.get(f"/api/meet/meetings/{follow['id']}").json()
+    assert before['prep'] is None and [t['id'] for t in before['followup']['open_tasks']] == [task['id']]
     prep = irina.post(f"/api/meet/meetings/{follow['id']}/prepare").json()['prep']
     assert [t['id'] for t in prep['open_tasks']] == [task['id']]
     source = prep['open_tasks'][0]['source']
@@ -251,8 +255,10 @@ def test_prepare_includes_open_tasks_of_accessible_previous_meeting_only(env):
     assert all(t['text'] != task['text'] for t in prep['brief'])  # not mixed into document facts
     # Petr gets the follow-up but not the previous meeting: no foreign task leaks through the link
     irina.patch(f"/api/meet/meetings/{follow['id']}", json={'access_user_ids': [2]})
-    seen = petr.get(f"/api/meet/meetings/{follow['id']}").json()['prep']
+    seen_meeting = petr.get(f"/api/meet/meetings/{follow['id']}").json()
+    seen = seen_meeting['prep']
     assert seen['open_tasks'] == [] and seen['task_questions'] == []
+    assert seen_meeting['followup'] == {'open_tasks': [], 'task_questions': []}
     # done tasks disappear from the live block
     preview = irina.post(f"/api/meet/tasks/{task['id']}/preview", json={'changes': {'status': 'done'}}).json()
     irina.post(f"/api/meet/tasks/{task['id']}/confirm", json={'confirmation_id': preview['confirmation_id'], 'idempotency_key': 'k-done-01'})

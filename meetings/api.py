@@ -265,7 +265,9 @@ def _full_meeting(connection, user, row):
     return {'meeting': store.meeting_out(connection, row),
             'documents': [store.document_out(connection, d) for d in visible], 'hidden_documents': hidden,
             'utterances': store.utterances(connection, row['id']), 'prep': _visible_prep(connection, user, prep),
-            'protocol': store.protocol(connection, row['id']), 'tasks': tasks}
+            'protocol': store.protocol(connection, row['id']), 'tasks': tasks,
+            # §7.2.1: open tasks of accessible previous meetings, live for this viewer, even before any briefing
+            'followup': _open_task_block(connection, user, row)}
 
 
 def _visible_prep(connection, user, prep):
