@@ -1,11 +1,17 @@
 """SQLite storage for CallWise Meetings with server-side access checks."""
+import contextvars
+import hashlib
 import json
 import os
+import re
 import sqlite3
 import threading
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from meetings import migrations
 
 ROOT = Path(__file__).resolve().parents[1]
 _init_lock = threading.Lock()
@@ -17,7 +23,71 @@ def db_path() -> Path:
 
 
 def now() -> str:
-    return datetime.now(timezone.utc).astimezone().isoformat(timespec='seconds')
+    """Aware UTC timestamp. Never the OS zone (ОТ-07)."""
+    return datetime.now(timezone.utc).isoformat(timespec='seconds')
+
+
+# ---------- time ----------
+DISPLAY_ZONE = 'Europe/Minsk'
+
+
+class TimeError(ValueError):
+    def __init__(self, code: str, detail: str):
+        super().__init__(detail)
+        self.code, self.detail = code, detail
+
+
+def zone(name: str | None) -> ZoneInfo:
+    try:
+        return ZoneInfo(name or DISPLAY_ZONE)
+    except (ZoneInfoNotFoundError, ValueError):
+        raise TimeError('invalid_timezone', f'Неизвестный часовой пояс: {str(name)[:60]}.') from None
+
+
+def parse_aware(value: str, tz_name: str | None = None) -> datetime:
+    """ISO 8601 → aware UTC datetime. A value without offset is accepted ONLY when an explicit IANA timezone
+    is passed; otherwise it is rejected (no guessing from the server zone)."""
+    try:
+        parsed = datetime.fromisoformat(str(value).strip().replace('Z', '+00:00'))
+    except ValueError:
+        # Details are shown to people; the API format (ISO 8601 with offset, or `timezone`) is in the handoff.
+        raise TimeError('invalid_datetime', 'Дата и время указаны в неверном формате. Ничего не сохранено.') from None
+    if parsed.tzinfo is None:
+        if not tz_name:
+            raise TimeError('naive_datetime', 'Не указан часовой пояс, поэтому время нельзя понять однозначно. '
+                            'Ничего не сохранено.')
+        parsed = parsed.replace(tzinfo=zone(tz_name))
+    return parsed.astimezone(timezone.utc)
+
+
+def iso_utc(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat(timespec='seconds')
+
+
+def stored_utc(value: str | None) -> str | None:
+    """Read side for stored timestamps. Legacy naive demo values are read as Europe/Minsk (documented rule),
+    exactly as migration 003 converts them."""
+    return migrations.legacy_to_utc(value) if value else None
+
+
+def local_date(value: str | None, tz_name: str = DISPLAY_ZONE):
+    utc = stored_utc(value)
+    return datetime.fromisoformat(utc).astimezone(zone(tz_name)).date() if utc else None
+
+
+# ---------- request context ----------
+request_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar('meet_request_id', default=None)
+
+
+def safe_text(text: str, limit: int = 120) -> dict:
+    """Minimised representation of user free text for the audit log: e-mails and digits are masked, length is
+    capped, plus a short hash to correlate repeats. The original text is not stored."""
+    raw = str(text or '')
+    masked = re.sub(r'[\w.+-]+@[\w-]+\.[\w.]+', '[email]', raw)
+    masked = re.sub(r'\d', '#', masked)
+    masked = ' '.join(masked.split())
+    return {'masked': masked[:limit] + ('…' if len(masked) > limit else ''), 'length': len(raw),
+            'sha256': hashlib.sha256(raw.encode('utf-8')).hexdigest()[:16]}
 
 
 SCHEMA = """
@@ -79,6 +149,7 @@ def _connect() -> sqlite3.Connection:
         with _init_lock:
             if key not in _initialized:
                 connection.executescript(SCHEMA)
+                migrations.apply(connection)
                 _initialized.add(key)
     return connection
 
@@ -93,13 +164,64 @@ def db():
         connection.close()
 
 
+@contextmanager
+def write_tx():
+    """Serialised write transaction (BEGIN IMMEDIATE): check-then-write sequences such as confirm are atomic
+    across threads and processes. Commits on success, rolls back on any exception."""
+    connection = _connect()
+    connection.isolation_level = None
+    try:
+        connection.execute('BEGIN IMMEDIATE')
+        try:
+            yield connection
+        except BaseException:
+            connection.execute('ROLLBACK')
+            raise
+        connection.execute('COMMIT')
+    finally:
+        connection.close()
+
+
 def reset_cache():
     _initialized.clear()
 
 
+AUDIT_FIELDS = ('object_type', 'object_id', 'result', 'source_ids', 'confirmation_id', 'model', 'error_code')
+
+
 def audit(connection, user_id, action, **details):
-    connection.execute('INSERT INTO audit(at,user_id,action,details) VALUES (?,?,?,?)',
-                       (now(), user_id, action, json.dumps(details, ensure_ascii=False)))
+    """Backward compatible: audit(connection, user_id, action, key=value...). The structured keys
+    object_type, object_id, result ('ok'|'denied'|'error'|'cancelled'|...), source_ids (['F12','U3',...]),
+    confirmation_id, model, error_code go to their own columns; everything else stays in `details`.
+    The current HTTP request id is attached automatically. Never put titles, full prompts or tokens here."""
+    columns = {k: details.pop(k) for k in AUDIT_FIELDS if k in details}
+    sources = columns.get('source_ids') or []
+    connection.execute(
+        'INSERT INTO audit(at,user_id,action,details,request_id,object_type,object_id,result,source_ids,confirmation_id,'
+        'model,error_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+        (now(), user_id, action, json.dumps(details, ensure_ascii=False, default=str), request_id_var.get(),
+         columns.get('object_type'), None if columns.get('object_id') is None else str(columns['object_id']),
+         columns.get('result') or 'ok', json.dumps([str(s) for s in sources]), columns.get('confirmation_id'),
+         columns.get('model'), columns.get('error_code')))
+
+
+def audit_independent(user_id, action, **details):
+    """Audit row in its own connection and transaction, so it survives a rollback of the caller's work.
+    Call it while this thread holds no open write transaction (e.g. from the error handler)."""
+    connection = _connect()
+    try:
+        with connection:
+            audit(connection, user_id, action, **details)
+    finally:
+        connection.close()
+
+
+def audit_out(row) -> dict:
+    return {'id': row['id'], 'at': row['at'], 'user_id': row['user_id'], 'action': row['action'],
+            'request_id': row['request_id'], 'object_type': row['object_type'], 'object_id': row['object_id'],
+            'result': row['result'], 'source_ids': json.loads(row['source_ids'] or '[]'),
+            'confirmation_id': row['confirmation_id'], 'model': row['model'], 'error_code': row['error_code'],
+            'details': json.loads(row['details'] or '{}')}
 
 
 # ---------- access ----------
@@ -156,11 +278,11 @@ def fragment_out(row, title=None) -> dict:
 
 def meeting_out(connection, row) -> dict:
     access = [r[0] for r in connection.execute('SELECT user_id FROM meeting_access WHERE meeting_id=?', (row['id'],))]
-    return {'id': row['id'], 'title': row['title'], 'topic': row['topic'], 'scheduled_at': row['scheduled_at'],
-            'participants': json.loads(row['participants']), 'owner_id': row['owner_id'],
+    return {'id': row['id'], 'title': row['title'], 'topic': row['topic'], 'scheduled_at': stored_utc(row['scheduled_at']),
+            'timezone': DISPLAY_ZONE, 'participants': json.loads(row['participants']), 'owner_id': row['owner_id'],
             'owner_name': user_name(connection, row['owner_id']), 'access_user_ids': access,
             'speaker_map': json.loads(row['speaker_map']), 'followup_of': row['followup_of'],
-            'created_at': row['created_at']}
+            'created_at': row['created_at'], 'version': row['version']}
 
 
 def utterance_out(row, speaker_map: dict) -> dict:
@@ -185,7 +307,7 @@ def task_out(connection, row) -> dict:
             'meeting_id': row['meeting_id'], 'meeting_title': meeting['title'] if meeting else None,
             'protocol_item_id': row['protocol_item_id'], 'source_quote': json.loads(row['source_quote']),
             'confirmed_by': user_name(connection, row['confirmed_by']), 'confirmed_at': row['confirmed_at'],
-            'created_at': row['created_at'], 'updated_at': row['updated_at']}
+            'created_at': row['created_at'], 'updated_at': row['updated_at'], 'version': row['version']}
 
 
 def speaker_map(connection, meeting_id) -> dict:
@@ -207,7 +329,7 @@ def protocol(connection, meeting_id) -> dict | None:
         'SELECT * FROM protocol_items WHERE meeting_id=? ORDER BY position, id', (meeting_id,))]
     confirmed = any(i['confirmed'] for i in items)
     return {'meeting_id': meeting_id, 'status': 'partially_confirmed' if confirmed else 'draft', 'items': items,
-            'warnings': json.loads(head['warnings']), 'generated_at': head['generated_at'], 'model': head['model']}
+            'summary': json.loads(head['summary'] or '[]'), 'warnings': json.loads(head['warnings']), 'generated_at': head['generated_at'], 'model': head['model']}
 
 
 def prep(connection, meeting_id) -> dict | None:
