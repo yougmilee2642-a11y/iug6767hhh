@@ -25,7 +25,7 @@ def norm(text):
 
 
 def frozen_check():
-    hashes = json.loads((ROOT/'evaluation/track3/frozen.json').read_text())
+    hashes = json.loads((ROOT/'evaluation/track3/frozen.json').read_text(encoding='utf-8'))
     for name, digest in hashes.items():
         if hashlib.sha256((ROOT/name).read_bytes()).hexdigest() != digest:
             raise ValueError('Frozen dataset changed: '+name)
@@ -183,7 +183,7 @@ def main():
             raise ValueError('An agreed exclusive GPU window is required; no extraction was run')
         report['exclusive_gpu_window_confirmed']=True
         report['stage']='extraction_and_qa'
-        gold=json.loads(GOLD.read_text())
+        gold=json.loads(GOLD.read_text(encoding='utf-8'))
         with tempfile.TemporaryDirectory(prefix='track3-live-') as temp:
             os.environ['MEETINGS_SECRET']='synthetic-live-evaluation-secret'
             from scripts.track3.seed import seed
@@ -212,7 +212,7 @@ def main():
             report['predictions_sha256']=hashlib.sha256(json.dumps(report['transcripts'],sort_keys=True,ensure_ascii=False).encode()).hexdigest()
             reviews={}
             if a.review_file:
-                review=json.loads(Path(a.review_file).read_text())
+                review=json.loads(Path(a.review_file).read_text(encoding='utf-8'))
                 if review['predictions_sha256']!=report['predictions_sha256']:
                     raise ValueError('Review belongs to different predictions; use score_report.py for an existing report')
                 reviews=review.get('transcripts',{})
@@ -231,15 +231,15 @@ def main():
     finally:
         report['finished_at']=datetime.now(timezone.utc).isoformat()
         out.parent.mkdir(parents=True,exist_ok=True)
-        out.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
+        out.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n', encoding='utf-8')
     print(json.dumps({'status':report['status'],'report':str(out),'model':report.get('model'),'overall':report.get('overall')},ensure_ascii=False))
     return 0 if report['status']=='passed' else 2 if report['status']=='not_run' else 1
 
 
 def summarize(report):
     scores=[t['scores'] for t in report['transcripts'] if 'scores' in t]
-    expected=len(json.loads(GOLD.read_text())['transcripts'])
-    gold=sum(len(t['tasks']) for t in json.loads(GOLD.read_text())['transcripts'])
+    expected=len(json.loads(GOLD.read_text(encoding='utf-8'))['transcripts'])
+    gold=sum(len(t['tasks']) for t in json.loads(GOLD.read_text(encoding='utf-8'))['transcripts'])
     predicted=sum(s['predicted_tasks'] for s in scores)
     correct=sum(s['correct_tasks'] for s in scores)
     recall=correct/gold if gold else 0.0
@@ -250,7 +250,7 @@ def summarize(report):
                            false_or_unresolved_tasks=sum(len(s['false_or_unresolved_tasks']) for s in scores))
     complete=len(scores)==expected
     passed=complete and recall>=0.8 and all(s['recall']>=0.8 and not s['manual_review_pending'] for s in scores)
-    passed=passed and len(report['questions'])==len(json.loads(GOLD.read_text())['questions']) and all(q['passed'] for q in report['questions'])
+    passed=passed and len(report['questions'])==len(json.loads(GOLD.read_text(encoding='utf-8'))['questions']) and all(q['passed'] for q in report['questions'])
     report['status']='passed' if passed else 'failed'
 
 

@@ -1,0 +1,3 @@
+# Frozen evaluation data is hashed byte-for-byte: keep LF on every OS (Windows core.autocrlf would break the check).
+demo/track3/** text eol=lf
+evaluation/track3/** text eol=lf

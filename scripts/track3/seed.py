@@ -18,7 +18,7 @@ def seed(db_path):
     marker = Path(str(path)+'.track3.json')
     if marker.is_symlink() or marker.is_dir():
         raise ValueError('Test marker must be a regular file')
-    if marker.is_file() and json.loads(marker.read_text()).get('db') != str(path):
+    if marker.is_file() and json.loads(marker.read_text(encoding='utf-8')).get('db') != str(path):
         raise ValueError('Test marker path mismatch')
     if path.exists() and not marker.is_file():
         raise ValueError('Existing database lacks Track 3 test marker; use a new isolated DB')
@@ -29,7 +29,7 @@ def seed(db_path):
     from meetings.calendar.service import add_busy
     store.reset_cache()
     ensure_demo_users()
-    fixture = json.loads((DATA/'manifest.json').read_text())
+    fixture = json.loads((DATA/'manifest.json').read_text(encoding='utf-8'))
     result = {'dataset':fixture['version'], 'documents':{}, 'meetings':{}}
     with store.db() as c:
         if c.execute('PRAGMA user_version').fetchone()[0] < 8:
@@ -56,7 +56,7 @@ def seed(db_path):
             else:
                 mid = c.execute('INSERT INTO meetings(owner_id,title,topic,scheduled_at,participants,followup_of,created_at) VALUES (?,?,?,?,?,?,?)',
                                 (users[m['owner']],m['title'],m['title'],m['scheduled_at'],json.dumps(['Ирина','Анна','Дмитрий','Пётр'],ensure_ascii=False),previous,store.now())).lastrowid
-                for i,u in enumerate(parse_transcript((DATA/'transcripts'/m['transcript']).read_text()),1):
+                for i,u in enumerate(parse_transcript((DATA/'transcripts'/m['transcript']).read_text(encoding='utf-8')),1):
                     c.execute('INSERT INTO utterances(meeting_id,idx,speaker_label,text,original_text,source,start_ms) VALUES (?,?,?,?,?,?,?)',
                               (mid,i,u['speaker_label'],u['text'],u['text'],'manual',u['start_ms']))
                 c.executemany('INSERT OR IGNORE INTO meeting_access VALUES (?,?)',[(mid,users[u]) for u in m['access']])
@@ -95,7 +95,7 @@ def seed(db_path):
     # Marker declares the precise files cleanup may remove; no directories and no unrelated secret keys.
     marker = Path(str(path)+'.track3.json')
     if not marker.exists():
-        marker.write_text(json.dumps({'version':1,'db':str(path),'dataset':fixture['version']}))
+        marker.write_text(json.dumps({'version':1,'db':str(path),'dataset':fixture['version']}), encoding='utf-8')
     return result
 
 

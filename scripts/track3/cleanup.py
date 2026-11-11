@@ -13,7 +13,7 @@ def cleanup(db, confirm=False, artifacts=()):
     marker = Path(str(path)+'.track3.json')
     if marker.is_symlink() or not marker.is_file():
         raise ValueError('Missing regular Track 3 test marker; refusing deletion')
-    declared = json.loads(marker.read_text())
+    declared = json.loads(marker.read_text(encoding='utf-8'))
     if declared.get('db') != str(path):
         raise ValueError('Marker does not match database')
     targets = [Path(str(path)+suffix) for suffix in ('','-wal','-shm','-journal','.track3.json')]

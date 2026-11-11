@@ -21,7 +21,7 @@ def configure(path):
     marker = Path(str(path)+'.track3.json')
     if marker.is_symlink():
         raise ValueError('Symlink test marker is not allowed')
-    declared = json.loads(marker.read_text()) if marker.is_file() else {'db':str(path)}
+    declared = json.loads(marker.read_text(encoding='utf-8')) if marker.is_file() else {'db':str(path)}
     if declared.get('db') != str(path):
         raise ValueError('Test marker path mismatch')
     resources = [str(cabinet)+suffix for suffix in ('','-wal','-shm','-journal')] + [str(key)]
@@ -32,15 +32,15 @@ def configure(path):
             raise ValueError('Refusing existing unowned startup artifact: '+file.name)
     declared['start_files'] = resources
     if marker.is_file():
-        marker.write_text(json.dumps(declared))
+        marker.write_text(json.dumps(declared), encoding='utf-8')
     import storage
     storage.DB_PATH = cabinet
     storage.DATA_DIR = path.parent
     if not os.getenv('MEETINGS_SECRET'):
         if not key.exists():
-            key.write_text(secrets.token_hex(32))
+            key.write_text(secrets.token_hex(32), encoding='utf-8')
             key.chmod(0o600)
-        os.environ['MEETINGS_SECRET'] = key.read_text().strip()
+        os.environ['MEETINGS_SECRET'] = key.read_text(encoding='utf-8').strip()
 
 
 def main():
