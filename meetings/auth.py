@@ -12,16 +12,53 @@ from meetings import store
 
 
 class MeetError(Exception):
-    def __init__(self, status: int, code: str, detail: str):
+    """API error `{code, detail}`. `audit` (optional dict with user_id/action/... ) is written by the error
+    handler in its own transaction AFTER the request's transaction rolled back, so denials are never lost."""
+
+    def __init__(self, status: int, code: str, detail: str, audit: dict | None = None):
         super().__init__(detail)
-        self.status, self.code, self.detail = status, code, detail
+        self.status, self.code, self.detail, self.audit = status, code, detail, audit
+
+
+# ---------- roles and capabilities (ОТ-02) ----------
+# `users.role` stays the human job title; `users.access_role` is the server-side role. Capabilities are checked on
+# the server in addition to (never instead of) the per-object ACL: a capability never opens a foreign object.
+CAPABILITIES = {
+    'reader': ('meetings.read', 'prep.generate', 'calendar.view', 'qa.ask', 'overview.read', 'feedback.create'),
+    'manager': ('meetings.read', 'prep.generate', 'calendar.view', 'qa.ask', 'overview.read', 'feedback.create',
+                'meetings.create', 'meetings.edit', 'meetings.share', 'documents.upload', 'documents.share',
+                'transcript.edit', 'protocol.edit', 'protocol.confirm', 'tasks.change', 'calendar.invite',
+                'audit.read'),
+}
+ROLE_LABELS = {'reader': 'Чтение и обратная связь', 'manager': 'Управление встречами и задачами'}
+
+
+def capabilities(user: dict) -> list[str]:
+    return list(CAPABILITIES.get((user or {}).get('access_role') or 'reader', CAPABILITIES['reader']))
+
+
+def has_capability(user: dict, capability: str) -> bool:
+    return capability in capabilities(user)
+
+
+def forbidden(user: dict, capability: str, object_type: str | None = None, object_id=None, action: str | None = None):
+    """403 for an action the role does not allow on an object the user CAN see. Audited, no titles."""
+    return MeetError(403, 'forbidden_role', 'Ваша роль не позволяет выполнить это действие.',
+                     audit={'user_id': user['id'], 'action': 'access_denied', 'object_type': object_type,
+                            'object_id': object_id, 'result': 'denied', 'error_code': 'forbidden_role',
+                            'attempted': action or capability, 'capability': capability})
+
+
+def require(user: dict, capability: str, object_type: str | None = None, object_id=None, action: str | None = None):
+    if not has_capability(user, capability):
+        raise forbidden(user, capability, object_type, object_id, action)
 
 COOKIE = 'cw_meet_user'
 TTL = 12 * 3600
 
 DEMO_USERS = [
-    ('irina', 'Ирина Власова', 'Руководитель проекта', 'irina-demo'),
-    ('petr', 'Пётр Смирнов', 'Подрядчик (дизайн)', 'petr-demo'),
+    ('irina', 'Ирина Власова', 'Руководитель проекта', 'irina-demo', 'manager'),
+    ('petr', 'Пётр Смирнов', 'Подрядчик (дизайн)', 'petr-demo', 'reader'),
 ]
 
 
@@ -38,10 +75,10 @@ def check_password(password: str, stored: str) -> bool:
 
 def ensure_demo_users():
     with store.db() as connection:
-        for login, name, role, password in DEMO_USERS:
+        for login, name, role, password, access_role in DEMO_USERS:
             if not connection.execute('SELECT 1 FROM users WHERE login=?', (login,)).fetchone():
-                connection.execute('INSERT INTO users(login,name,role,password_hash) VALUES (?,?,?,?)',
-                                   (login, name, role, hash_password(password)))
+                connection.execute('INSERT INTO users(login,name,role,password_hash,access_role) VALUES (?,?,?,?,?)',
+                                   (login, name, role, hash_password(password), access_role))
 
 
 def _secret() -> bytes:
@@ -70,7 +107,8 @@ def user_from_request(request: Request) -> dict | None:
         if int(expiry) < time.time():
             return None
         with store.db() as connection:
-            row = connection.execute('SELECT id,login,name,role FROM users WHERE id=?', (int(user_id),)).fetchone()
+            row = connection.execute('SELECT id,login,name,role,access_role FROM users WHERE id=?',
+                                     (int(user_id),)).fetchone()
         return dict(row) if row else None
     except (ValueError, TypeError):
         return None
