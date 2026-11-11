@@ -18,3 +18,4 @@ data/*/
 *.png
 !static/*.png
 proof/
+.claude/

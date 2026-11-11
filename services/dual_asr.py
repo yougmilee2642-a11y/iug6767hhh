@@ -293,6 +293,15 @@ def filter_speaker(audio, interaction_id, speech=None):
     return output, metadata
 
 
+def apply_speaker_mode(audio, interaction_id, speech, speaker_mode='primary'):
+    """Keep every voice for meeting capture or retain the enrolled caller by default."""
+    if speaker_mode == 'all':
+        return audio, {'status':'all_speakers','filter_applied':False}
+    if speaker_mode == 'primary':
+        return filter_speaker(audio,interaction_id,speech)
+    raise ValueError('speaker_mode must be primary or all')
+
+
 def split_long_audio(audio, speech):
     """Split long silences and >24s audio without losing any input samples."""
     # Removing background speech can leave many seconds of silence. RNNT may
@@ -322,7 +331,9 @@ def split_long_audio(audio, speech):
     if start < len(audio): yield audio[start:]
 
 
-def final(data, interaction_id='', stream_id='', vad=None):
+def final(data, interaction_id='', stream_id='', vad=None, speaker_mode='primary'):
+    if speaker_mode not in {'primary', 'all'}:
+        raise ValueError('speaker_mode must be primary or all')
     load()
     began = time.perf_counter()
     audio = decode_audio(data)
@@ -333,7 +344,7 @@ def final(data, interaction_id='', stream_id='', vad=None):
         speech = get_speech_timestamps(torch.from_numpy(audio.copy()),vad,sampling_rate=RATE)
         if not speech:
             return {'text':'','raw_text':'','final':True,'speaker':{'status':'no_speech'}}
-        audio, speaker = filter_speaker(audio,interaction_id,speech)
+        audio, speaker = apply_speaker_mode(audio,interaction_id,speech,speaker_mode)
         if not len(audio):
             return {'text':'','raw_text':'','final':True,'speaker':speaker,
                     'provider':'T-one + GigaAM v3 RNNT'}

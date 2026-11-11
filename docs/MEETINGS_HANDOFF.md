@@ -5,3 +5,11 @@
 - Extra fields beyond contract: meeting GET returns `hidden_documents` (count of attached docs the user cannot read) — show «N документов недоступны вам». Prep citations carry `document_title`, `location`, `document_id`. Task `due_text` may be set while `due` is null (vague date) — show due_text.
 - `due_status: "stated"` may come with `due: null` + `due_text` — render as «Срок: <due_text> (дата не распознана)».
 - Backend tests: `tests/test_meetings.py` (11 passing). Model: qwen2.5:7b via MEETINGS_MODEL (default), protocol draft can take 30–120 s — show progress.
+
+## Codex status
+
+- Implemented the Russian meetings UI for demo sign-in, meeting creation, document upload/attachment, prep claims and gaps, editable transcripts and utterances, speaker mapping, protocol editing/confirmation, per-meeting and global task boards, document search, and citation source panels with downloads. User and document content is rendered with DOM text nodes and textContent.
+- Voice capture reuses the PCM AudioWorklet and WAV encoder, submits 15-second chunks to /api/transcribe with speaker_mode=all, and keeps recognized text editable before saving it as a voice utterance. When diarized segments are absent, the speaker label defaults to Говорящий ? for manual mapping. The service defaults to the existing primary-speaker filter and skips it in all mode.
+- Added fake route and speaker-filter routing tests in tests/test_meeting_voice_mode.py. `node --check static/meetings.js` passed. The Node test runner passed all 66 existing JavaScript tests. `git diff --check` passed.
+- Python tests could not run: `.venv\Scripts\python.exe` attempts to start `C:\Users\leha\AppData\Local\Programs\Python\Python311\python.exe`, which is denied by the current execution environment; `py` reports no installed Python. The local HTTP smoke could not run because no server was listening at `127.0.0.1:8000`.
+- Limitation: the real browser/API path and local model operations still need a smoke run in an environment that can execute the project Python environment and serve the app.

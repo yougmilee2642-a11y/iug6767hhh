@@ -79,12 +79,12 @@ def transcribe_local(data,context=''):
     return transcribe_final(data,context)['raw_text']
 
 
-def transcribe_final(data,context='',interaction_id='',stream_id=''):
+def transcribe_final(data,context='',interaction_id='',stream_id='',speaker_mode='primary'):
     from services import dual_asr
     with _stt_lock:
         load_models()
         try:
-            return dual_asr.final(data,interaction_id,stream_id,vad=_vad)
+            return dual_asr.final(data,interaction_id,stream_id,vad=_vad,speaker_mode=speaker_mode)
         finally:
             dual_asr.close_stream(interaction_id,stream_id)
 

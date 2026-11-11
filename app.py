@@ -40,6 +40,7 @@ from services import local_speech
 from track1.telegram_api import router as telegram_router
 from track1.api import router as track1_router
 from track1.shell_api import router as shell_router
+from meetings.api import install as install_meetings
 from providers.builder import GroqBuilderProvider
 from services.agent_service import AgentService
 from builder.api import router as builder_router
@@ -85,6 +86,7 @@ app.include_router(integrations_router())
 app.include_router(safety_router())
 app.include_router(telegram_router())
 app.include_router(shell_router())
+install_meetings(app)
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 logger = logging.getLogger("callwise")
 
@@ -297,10 +299,16 @@ def start_conversation(request: Request, payload: ChatRequest | None = None):
 @app.post("/api/transcribe")
 def transcribe(file: UploadFile = File(...), context: str = Form(default=""), interaction_id: str = Form(default=""),
                mode: Literal['whole','preview','final'] = Form(default='whole'),
-               stream_id: str = Form(default='',max_length=100), sequence: int = Form(default=0,ge=0,le=1200)):
+               stream_id: str = Form(default='',max_length=100), sequence: int = Form(default=0,ge=0,le=1200),
+               speaker_mode: Literal['primary','all'] = Form(default='primary'),
+               meeting_consent: bool = Form(default=False)):
     state = get_interaction(interaction_id) if interaction_id else None
     if interaction_id and state is None: raise HTTPException(404,'Разговор не найден.')
-    if customer_safety.enabled():
+    meeting_capture = speaker_mode == 'all' and not interaction_id and mode in {'whole','final'}
+    if meeting_capture and not meeting_consent:
+        raise HTTPException(403,'Подтвердите, что все участники согласны на запись и расшифровку встречи.')
+    meeting_capture = meeting_capture and meeting_consent
+    if customer_safety.enabled() and not meeting_capture:
         if state is None: raise HTTPException(404, 'Начните разговор и выберите согласие до записи голоса.')
         if not state.get('safety', {}).get('enabled') or not customer_safety.accepted(state):
             raise HTTPException(403, 'Распознавание запрещено до согласия. Начните новый разговор.')
@@ -317,7 +325,10 @@ def transcribe(file: UploadFile = File(...), context: str = Form(default=""), in
                 if not state or not stream_id: raise HTTPException(400,'Для потока нужен разговор и идентификатор реплики.')
                 return local_speech.transcribe_preview(data,interaction_id,stream_id,sequence)
             if mode=='final' or mode=='whole' and state is not None:
-                result=local_speech.transcribe_final(data,context,interaction_id,stream_id)
+                if speaker_mode == 'all':
+                    result=local_speech.transcribe_final(data,context,interaction_id,stream_id,speaker_mode='all')
+                else:
+                    result=local_speech.transcribe_final(data,context,interaction_id,stream_id)
                 result['text']=normalize_transcript(result['raw_text'],context,config.language)
                 return result
             raw=local_speech.transcribe_local(data,build_transcription_prompt(config,context))

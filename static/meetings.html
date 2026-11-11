@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f6f8">
+  <title>Встречи — Callwise</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/product.css">
+  <link rel="stylesheet" href="/static/meetings.css">
+</head>
+<body class="meetings-page">
+  <header class="meetings-topbar">
+    <a class="meetings-brand" href="/" aria-label="Callwise, на главную"><span class="meetings-brand-mark">C</span><span><b>Callwise</b><small>ВСТРЕЧИ</small></span></a>
+    <nav class="meetings-nav" aria-label="Разделы встреч">
+      <button type="button" data-action="show-meetings" class="nav-current">Встречи</button>
+      <button type="button" data-action="show-tasks">Задачи</button>
+    </nav>
+    <div class="meetings-account" id="account"></div>
+  </header>
+  <main class="meetings-main">
+    <div id="notice" class="meetings-notice" role="status" aria-live="polite" hidden></div>
+    <div id="app" aria-live="polite"></div>
+  </main>
+  <aside id="source-panel" class="source-panel" aria-label="Источник цитаты" aria-modal="true" role="dialog" hidden>
+    <div class="source-panel-head"><div><p class="eyebrow">ПЕРВОИСТОЧНИК</p><h2 id="source-title">Цитата</h2></div><button class="icon-button" type="button" data-action="close-source" aria-label="Закрыть">×</button></div>
+    <div id="source-content" class="source-content"></div>
+  </aside>
+  <div id="toast" class="meetings-toast" role="status" aria-live="polite"></div>
+  <script src="/static/incremental-stt.js"></script>
+  <script type="module" src="/static/meetings.js"></script>
+</body>
+</html>
