@@ -83,10 +83,18 @@ if __name__ == '__main__':
     parser.add_argument('--with-transcript', action='store_true')
     args = parser.parse_args()
     if args.db:
-        os.environ['MEETINGS_DB_PATH'] = str(explicit_db(args.db))
+        test_path = explicit_db(args.db)
+        marker = Path(str(test_path)+'.track3.json')
+        if marker.is_symlink() or (test_path.exists() and not marker.is_file()):
+            parser.error('Existing test DB needs a regular Track 3 marker')
+        if marker.is_file() and json.loads(marker.read_text()).get('db') != str(test_path):
+            parser.error('Test marker path mismatch')
+        os.environ['MEETINGS_DB_PATH'] = str(test_path)
     if args.reset:
         if not args.db or not args.confirm_delete:
             parser.error('--reset requires an explicit marked test --db and --confirm-delete; working data/ is protected')
         cleanup(args.db, confirm=True)
         store.reset_cache()
     print(seed(args.with_transcript))
+    if args.db and not marker.exists():
+        marker.write_text(json.dumps({'version':1,'db':str(test_path),'dataset':'orbita-demo'}))
