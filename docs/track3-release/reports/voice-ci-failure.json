@@ -1,0 +1,28 @@
+{
+  "head_sha": "646bb037b2c7aca58798f32c41fac214d9226d9d",
+  "merge_sha": "85a2dcb10705bf3432d79e2184560fdfae1a981d",
+  "run_id": 43046459529,
+  "linux_job": 130611583933,
+  "overall": "failed",
+  "python": {
+    "passed": 304,
+    "skipped": 15,
+    "failed": 0,
+    "seconds": 48.38
+  },
+  "windows": "passed",
+  "javascript": {
+    "passed": 46
+  },
+  "browser_fixtures": {
+    "passed": 35,
+    "seconds": 55.361
+  },
+  "product_http": "passed; without LLM double; restart and roles",
+  "ui_http": "failed: document.documentElement.scrollWidth <= width, first360px viewport",
+  "source_file": "tests/ui_track3/http_browser_smoke.py:105",
+  "artifact": 13867916164,
+  "artifact_sha256": "12130d6e9a62be99bdb15a409dc09bc5ef1600cabca06d54a19712c8bee948b7",
+  "reported_to_owner": "PR9 comment6799735041",
+  "foreign_logic_edited_by_codex3": false
+}

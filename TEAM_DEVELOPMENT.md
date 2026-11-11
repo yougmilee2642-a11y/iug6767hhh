@@ -1,3 +1,5 @@
+> Track 3 text setup and release status are appended below; the original gateway/voice guide is retained.
+
 # Callwise: команда, нейросеть на одном компьютере
 
 Исходный код и веса моделей — разные вещи. Код общий (GitHub), а нейросеть (Ollama)
@@ -50,7 +52,7 @@
 4. `.\start-local.ps1`: увидев удалённый адрес, скрипт не ищет локальную Ollama,
    проверяет доступность шлюза и запускает CallWise.
 
-Ollama у коллеги не нужна. **Речь** (распознавание GigaAM/Whisper и озвучка Silero)
+Ollama у коллеги не нужна. **Речь** (распознавание T-one + GigaAM и озвучка Silero)
 пока работает локально у каждого: для голосового режима веса речи нужны в `models/`.
 Текстовые функции (встречи, протоколы, задачи, чат) работают только со шлюзом.
 
@@ -87,3 +89,37 @@ Ollama у коллеги не нужна. **Речь** (распознавани
 - https://docs.ollama.com/api/authentication — локальный API Ollama без аутентификации.
 - https://tailscale.com/kb/1017/install — установка Tailscale.
 - https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/ — быстрые туннели.
+
+
+# Track 3 — совместная разработка
+
+База cb2614b86f3b83636e670c83a0afb8f4c9d6c3c3. У каждого отдельная копия/ветка.
+Владение, полный пакет выпуска и критерии: docs/track3-team/README.md.
+CONTRACT в этой директории — проект для согласования: оригинал отсутствовал на remote.
+Редактор общего контракта после согласования — Codex 3.
+
+| Поставка | PR | Ответственный |
+|---|---|---|
+| Core/миграции/роли/календарь | [#2](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/2) | Claude |
+| Knowledge/overview | [#1](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/1) | Codex 2 |
+| UI | [#3](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/3) | Codex 1 |
+| Release/evaluation | [codex/track3-release](https://github.com/yougmilee2642-a11y/iug6767hhh/tree/codex/track3-release), включена в #4 | Codex 3 |
+| Integration | [draft #4](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/4) | Codex 3 |
+
+Интеграция: core → knowledge → UI → release, затем новые owner-hardening коммиты
+обычным merge, без rebase уже слитой истории. main не переписывается и не менялся.
+Интеграционные ошибки чужой логики отправлять автору с запросом/ответом, SHA,
+ожидаемым поведением и командой воспроизведения. Только Claude меняет общую схему
+и регистрацию зависимых импортов. Поддержка gateway использует общую endpoint policy,
+не отдельную ослабленную копию. start-gateway.ps1 не трогать: пользовательская правка.
+
+Исходные три PR прочитаны через GitHub, пути проверены по diff и API. В них нет
+app.py/providers/ASR/старых requirements/start-gateway.ps1; backend textutil включён
+как helper проверки модели из PR Claude. Codex 3 не редактировал эти файлы вручную.
+Новые зависимости — только requirements-track3*.txt.
+
+Команды и тестовый запуск: docs/track3-release/RUNBOOK.md. Все release-smoke БД
+временные; destructive smoke по data/ запрещён. CI CPU на интеграционной ветке и PR;
+live-модель только отдельной явной командой после согласования GPU-окна. Независимый
+повтор установки и окно GPU пока не согласованы: task в codex3 handoff, не выполненные
+действия. Passed/failed/not run разделены в docs/track3-release/STATUS.md.

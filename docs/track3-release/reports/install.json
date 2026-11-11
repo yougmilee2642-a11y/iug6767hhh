@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "measurement": "second fresh venv, same participant; independent colleague reproduction NOT RUN",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "python": "3.12.14",
+  "venv_create_seconds": 2.2770983680002246,
+  "pip_install_seconds": 19.83076292399892,
+  "total_seconds": 22.107861291999143,
+  "pip_cache": "warm from first installation; network and model download times excluded",
+  "requirements_sha256": "1399f4a9880a8b61f550b70a7e02ca410de7af32fb0ede47af8aec4d834b7213",
+  "voice_weights_downloaded": false,
+  "llm_weights_downloaded": false
+}

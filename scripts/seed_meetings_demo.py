@@ -1,6 +1,6 @@
 """Seed the CallWise Meetings demo (idempotent). Usage:
     .venv\\Scripts\\python scripts\\seed_meetings_demo.py [--reset] [--with-transcript]
---reset            delete data/meetings.db first (fresh demo)
+--reset            only an explicit marked test --db, also requires --confirm-delete
 --with-transcript  also load demo/meetings/transcript.txt into the launch meeting
 """
 import hashlib
@@ -72,9 +72,29 @@ def seed(with_transcript=False):
 
 
 if __name__ == '__main__':
-    if '--reset' in sys.argv:
-        path = store.db_path()
-        for suffix in ('', '-wal', '-shm'):
-            Path(str(path) + suffix).unlink(missing_ok=True)
+    import argparse
+    import os
+    from scripts.track3.paths import explicit_db
+    from scripts.track3.cleanup import cleanup
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--db', help='Absolute isolated test DB; default retained only for non-destructive legacy seed')
+    parser.add_argument('--reset', action='store_true')
+    parser.add_argument('--confirm-delete', action='store_true')
+    parser.add_argument('--with-transcript', action='store_true')
+    args = parser.parse_args()
+    if args.db:
+        test_path = explicit_db(args.db)
+        marker = Path(str(test_path)+'.track3.json')
+        if marker.is_symlink() or (test_path.exists() and not marker.is_file()):
+            parser.error('Existing test DB needs a regular Track 3 marker')
+        if marker.is_file() and json.loads(marker.read_text(encoding='utf-8')).get('db') != str(test_path):
+            parser.error('Test marker path mismatch')
+        os.environ['MEETINGS_DB_PATH'] = str(test_path)
+    if args.reset:
+        if not args.db or not args.confirm_delete:
+            parser.error('--reset requires an explicit marked test --db and --confirm-delete; working data/ is protected')
+        cleanup(args.db, confirm=True)
         store.reset_cache()
-    print(seed('--with-transcript' in sys.argv))
+    print(seed(args.with_transcript))
+    if args.db and not marker.exists():
+        marker.write_text(json.dumps({'version':1,'db':str(test_path),'dataset':'orbita-demo'}), encoding='utf-8')

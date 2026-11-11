@@ -1,0 +1,168 @@
+{
+  "status": "passed",
+  "test_kind": "real HTTP + human-authored protocol; no model quality measurement",
+  "commit": "2b20c0062b5f700734674df4917389ede2f6c97a",
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/api/meet/login",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/meet/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/meet/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/meet/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/meet/meetings/1",
+      "status": 404
+    },
+    {
+      "method": "POST",
+      "path": "/api/meet/meetings",
+      "status": 403
+    },
+    {
+      "method": "GET",
+      "path": "/api/meet/audit?scope=my_objects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/meet/overview?as_of=2026-11-11T12:00:00%2B00:00",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/meet/qa",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/meet/meetings/1",
+      "status": 200
+    },
+    {
+      "method": "PUT",
+      "path": "/api/meet/meetings/1/protocol",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/meet/meetings/1/protocol/confirm",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/meet/meetings/1/protocol/confirm",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/meet/tasks/4/preview",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/meet/confirmations/cf_iq5DENz83NYV6wr3Boa-e64V/cancel",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/meet/tasks/4/confirm",
+      "status": 409
+    },
+    {
+      "method": "POST",
+      "path": "/api/meet/tasks/4/preview",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/meet/tasks/4/confirm",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/meet/tasks/4/confirm",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/meet/calendar/participants",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/meet/calendar/slots",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/meet/calendar/preview",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/meet/confirmations/cf_izpzetpukzrbjKQl2fhq1W_V/cancel",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/meet/calendar/events",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/meet/calendar/preview",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/meet/calendar/confirm",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/meet/calendar/outbox",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/meet/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/meet/tasks",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/meet/meetings/1",
+      "status": 404
+    }
+  ],
+  "voice_weights_required": false,
+  "torch_installed": false,
+  "restart_cookie_and_state": "passed",
+  "kpi_before_mutations": {
+    "open_tasks": 2,
+    "overdue_tasks": 1,
+    "on_time_orders": 90.0,
+    "defect_rate": 2.0,
+    "capacity_utilization": 75.0
+  },
+  "elapsed_seconds": 2.9456527330003155
+}
