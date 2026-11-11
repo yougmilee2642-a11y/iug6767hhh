@@ -1,97 +1,57 @@
-# Codex 3 — выпуск и интеграция
+# Codex 3 — передача выпуска и интеграции
 
-База cb2614b86f3b83636e670c83a0afb8f4c9d6c3c3. Отдельная clone и integration worktree.
-Ветки codex/track3-release и codex/track3-integration **опубликованы**.
-[Draft PR #4](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/4) направлен в main;
-Codex 3 main не менял; обновление сопровождающего учтено merge. Подключение владельца yougmilee2642-a11y разрешает push. Публикация
-проведена через GitHub API; все trees сверены с локальными. Первоначальные SHA
-наблюдений сопоставляются с опубликованными через reports/publication-map.json.
+**Выпуск не готов.** Ветки codex/track3-release и codex/track3-integration опубликованы;
+[Draft PR #4](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/4) содержит актуальный
+integration SHA, Checks и список blockers. База cb2614b86f3b83636e670c83a0afb8f4c9d6c3c3.
+Отдельные clone/worktree; main Codex 3 не менял, обновление сопровождающего35ba34c
+включено обычным merge. Коллегам rebase не требуется.
 
-## Выполнено
+## Поставка
 
-- Первый commit 9a51a28 содержит пакет заданий, SHA/ветки/команды/gates.
-  docs/track3-team/README.md и CONTRACT отсутствовали в исходном remote; CONTRACT
-  восстановлен со статусом «на согласование», не выдан за ранее утверждённый.
-- Gold/corpus frozen commit 9d1c2dc: 24 TXT разных деловых типов, 3 transcript,
-  18 задач и 16 QA-кейсов. Никаких результатов модели при создании gold не использовали.
-- MeetingLLM использует providers.ollama.endpoint(), Bearer, no redirects/proxy,
-  cloud rejection, прежние schema/think/context/predict/timeout. Защита тестируется.
-- Отдельный seed с ACL/задачами/aware датами/календарём/KPI по handoff авторов.
-  Других схем не создаёт, требует core migration v8. Орбита и её seed сохранены.
-- Safe cleanup/start/check/HTTP-smoke и lock зависимостей; app.py и voice не патчились.
-  Старый --reset seed не удаляет рабочую data/ без явного test path/confirm.
-- Оценщик настоящей модели и независимый manual scorer; один gold ↔ один prediction,
-  точные цитаты, conservative matching, owner/due ошибки, latency и raw report.
-- Выполнено merge core → knowledge → UI → release, затем обычные merge обновлений
-  владельцев. Зависимые импорты добавлены Claude. Авторские SHA и API в STATUS.
-- Реальный HTTP start→2 роли→ACL/audit→ручной протокол/confirm→task/calendar
-  cancel-confirm→KPI→QA-отказ→restart пройден без модельного двойника и voice weights.
-- CI CPU без секретов, API/architecture/retention/licenses/runbook/demo/10-slide outline.
+- Первый собственный commit — инструкции/SHA/ветки/команды. Отсутствовавшие README/
+  CONTRACT восстановлены как проект, согласование не выдумано.
+- Отдельный frozen gold до оценки: 24 synthetic TXT документов деловых типов,
+  3 transcript, 18 явных задач, 16 QA cases. Local 9d1c2dc опубликован как ca06d6e.
+- MeetingLLM через существующий providers.ollama.endpoint(): Bearer, no redirects/
+  env proxy/cloud, loopback defaults, прежние schema/think/лимиты/timeout.
+- Idempotent seed, две роли/ACL, tasks/calendar/KPI; безопасные start/cleanup/check
+  на временных БД, без app.py/voice/provider/старых requirements изменений.
+- Scorer 3/schema 2, one-to-one source-verified task matching, independent human review
+  для перефразирования, raw checkpoints, новые absolute output paths, offline review.
+- Lock, Linux/Windows CI, API/architecture/retention/licenses/runbook/demo/slide outline.
+- Авторские core→knowledge→UI merge; затем main 35ba34c, knowledge 9eecb94 и Claude 58ec401.
+  Зоны владения сверены. Чужая продуктовая логика вручную не исправлялась.
 
-## Фактические результаты
+## Наблюдаемые проверки
 
-Актуальные логи и passed/failed/not-run: [STATUS](../track3-release/STATUS.md).
-Ни старые live-результаты Орбиты, ни тестовые fixtures не засчитываются новым recall.
-Настоящая модель здесь недоступна: ConnectError /api/version. Первоначальный локальный Chromium был заблокирован
-системным socket permission; затем 35 сценариев прошли в GitHub CI. Независимый повтор установки не выполнен.
-Релиз **НЕ ГОТОВ**.
+Подробности, SHA и первичные артефакты: [STATUS](../track3-release/STATUS.md).
 
-## Конкретные оставшиеся действия владельцев
+- Общий Python: 256 passed / 15 skipped /**3 failed**, 29.42 s; gzip исходника и hash сохранены.
+- Собственный release/gateway/scorer:73 passed локально и в clean Windows CI, PYTHONUTF8=0.
+- JS 46 passed; UI 35 passed; браузер→реальный HTTP 44 responses / 3 widths / 0 errors с явным
+  model double. Product HTTP без LLM double прошёл обе роли/аудит/confirm/restart/KPI.
+- pip/ownership/compile/final diff checks passed локально. Data/ не очищалась, torch не нужен.
+- Live scorer3 **NOT RUN**: нет gateway/model env/согласованного GPU-окна, 0 inference calls.
+  Старые «Орбита 3/3», fixtures и таблица результатов автора не засчитаны новым recall.
 
-1. Публикация закрыта: обе ветки и draft PR #4 существуют. Release уже включён
-   в integration, поэтому отдельный PR release → integration имел бы пустое сравнение.
-   Не сливать main до остальных gates; текущий integration SHA виден в PR.
-2. Команда: согласовать восстановленный CONTRACT. Формат seed уже соответствует
-   опубликованным handoff Claude/Codex 2; интеграционные тесты схемы проходят.
-3. Другой участник: пройти RUNBOOK от нового venv, записать OS/Python, cache/network,
-   время до /meetings, 2 роли, restart. Текущий install.json — тот же участник,
-   тёплый cache, не независимое измерение.
-4. Владелец GPU: предоставить разрешённый endpoint и ключ **через env**, не git/PR;
-   согласовать одно окно без тяжёлых параллельных запросов. Предзагрузить точную модель.
-   Выполнить `python scripts/live_meetings_check.py --track3 --exclusive-gpu-window
-   --output <absolute report.json>`, передать raw report независимому проверяющему.
-5. CI runner: первый полный прогон прошёл, включая 35 browser, 203 Python и 46 JS.
-   Проверять актуальные Checks PR #4 после последующих изменений.
-6. Владелец продукта: решить PyMuPDF AGPL/commercial и проверить точные voice-asset
-   notices перед поставкой голоса. Не приписывать весам лицензию кода по аналогии.
+## Следующие действия владельцев
 
-Актуальные замечания к knowledge из совместного merge PR #7/#8 отправлены владельцам:
-3 failed, см. STATUS. Исторический
-PDF fallback baseline даёт один fragment вместо ≥3; воспроизведение:
-минимальное окружение без PyMuPDF → pytest test_meetings.py::test_upload_formats_and_bad_files.
-Сейчас воспроизводимость закрыта явной существующей PyMuPDF-зависимостью. Замена
-самого PDF parser должна идти через Claude; Codex 3 её не делал.
+1. Knowledge #7/#8: согласовать 3 failed. Heading/date показываются вместо одной цитаты;
+   два других — противоречие политики отказа и безопасного расширения partial quote.
+   Валюта/предоплата сохраняются; потери условия не подтверждено. Воспроизведения в PR.
+2. GPU/operator #8: передать исходные JSON и выполнить scorer3 в одном согласованном
+   окне. Endpoint/model/key задаются через env, секреты не помещать в PR/git.
+   `python scripts/live_meetings_check.py --track3 --exclusive-gpu-window --output <новый абсолютный report.json>`.
+   Отдельный человек проверяет gold/спорные matches; модель не единственный судья.
+3. Другой участник: независимая чистая установка по RUNBOOK, измерение с указанием
+   OS/Python/cache/downloads, проверка двух ролей/restart. Текущий install 22.11 s —
+   этот же участник с тёплым кэшем, без модели; это не обещание 15 минут.
+4. Команда: согласовать CONTRACT. Product owner: закрыть лицензии PyMuPDF/Silero и
+   неподтверждённые конкретные voice-assets по LICENSES.md. ASR/installers не патчились.
+5. UI #3: уточнить empty-state «локальная модель» для разрешённого remote gateway.
+6. Проверить финальные Checks PR #4. Исторический apt DNS failure разобран; CPU checks
+   выполняются до browser install, --with-deps убран, raw whitespace сохранён gzip.
 
-
-## Последующий аудит надёжности
-
-Оценщик версии 2 закрывает keyword-only task match с отрицанием/добавленной командой,
-повтор одного контроля вместо трёх, неподтверждённый claim с настоящей чужой цитатой.
-Gold/fixtures/frozen SHA не менялись. Новые отчёты не перезаписывают существующие,
-пишут checkpoints и interrupted; offline review не запускает инференс.
-Добавлены read-only doctor и CI-путь реального UI → HTTP handlers с явным двойником.
-
-Doctor подтверждает отсутствие настроенного gateway и ConnectError loopback Ollama;
-0 inference requests, 0 database mutations. Для снятия последнего модельного блокера
-нужны OLLAMA_BASE_URL, точная MEETINGS_MODEL, секрет в env и согласованное GPU-окно.
-Не передавать секреты в PR. Режим metadata_ready сам по себе не подтверждает recall.
-
-Из уточнённых лицензий: pyannote release archive проверен по фактическому LICENSE;
-GigaAM-v3 model card явно указывает MIT. У Silero v5_ru подтверждён общий LICENSE
-с NonCommercial и отдельное MIT-исключение для base CIS. Заявка сопровождающему
-размещена в PR #4; ASR/TTS/installer в чужой зоне не редактировались.
-
-
-Новые поставки main `35ba34c`, knowledge `9eecb94`, Claude eval `58ec401`
-включены обычными merge. Совместный прогон: 251 passed / 15 skipped / 3 failed.
-Точные воспроизведения направлены в PR #7/#8; foreign logic вручную не изменялась.
-Narrative real-model результаты автора пока не приняты без первичных JSON.
-Windows UTF-8/LF из PR #6 адаптированы к scorer v2 в своих путях, с credit автору.
-
-
-Уточнение совместных failed: валюта/предоплата не теряются — PR8 расширяет partial
-quote до полного исходного предложения, а тест PR7 требует отказ. Нужна явная
-согласованная политика автора, не снятие проверки. Heading-кейс показывает лишний
-заголовок. Windows CI 68 passed; scorer v3 локально 73 passed. Первичный лог сохранён
-в gzip без изменения bytes; readable копия без trailing whitespace. Scorer v3
-закрывает отдельный собственный QA boundary обход; live v3 по-прежнему NOT RUN.
+Все обязательные gates должны пройти до main merge. Не выдавать narrative результат,
+пропущенный прогон или double за независимую реальную оценку. Remote host получает
+данные; Cloudflare — внешний посредник, не полностью локальный режим у пользователя.

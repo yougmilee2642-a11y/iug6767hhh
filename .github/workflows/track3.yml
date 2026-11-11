@@ -51,7 +51,20 @@ jobs:
         if: always() && steps.dependencies.outcome == 'success'
         id: browser
         timeout-minutes: 5
-        run: python -m playwright install chromium
+        run: |
+          python - <<'PY_BROWSER'
+          from pathlib import Path
+          import shutil
+          import subprocess
+          import sys
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as playwright:
+              executable = shutil.which('chromium') or playwright.chromium.executable_path
+          if Path(executable).is_file():
+              print('Using existing Chromium; UI tests must launch it:', executable)
+          else:
+              subprocess.run([sys.executable, '-m', 'playwright', 'install', 'chromium'], check=True, timeout=240)
+          PY_BROWSER
       - name: UI owner's exact browser command
         if: always() && steps.browser.outcome == 'success'
         run: python -m unittest discover -s tests/ui_track3 -p 'test_browser.py' -v
