@@ -87,3 +87,11 @@ GigaAM-v3 model card явно указывает MIT. У Silero v5_ru подтв
 Точные воспроизведения направлены в PR #7/#8; foreign logic вручную не изменялась.
 Narrative real-model результаты автора пока не приняты без первичных JSON.
 Windows UTF-8/LF из PR #6 адаптированы к scorer v2 в своих путях, с credit автору.
+
+
+Уточнение совместных failed: валюта/предоплата не теряются — PR8 расширяет partial
+quote до полного исходного предложения, а тест PR7 требует отказ. Нужна явная
+согласованная политика автора, не снятие проверки. Heading-кейс показывает лишний
+заголовок. Windows CI 68 passed; scorer v3 локально 73 passed. Первичный лог сохранён
+в gzip без изменения bytes; readable копия без trailing whitespace. Scorer v3
+закрывает отдельный собственный QA boundary обход; live v3 по-прежнему NOT RUN.

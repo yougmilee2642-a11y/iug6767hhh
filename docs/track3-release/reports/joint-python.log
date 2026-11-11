@@ -17,9 +17,9 @@ env = {'app': <fastapi.applications.FastAPI object at 0x7f85962d80b0>, 'irina': 
         result = ask(env, question='Сколько дефектных экземпляров выявил контроль качества?').json()
 >       assert result['status'] == 'grounded' and result['answer'] == fact
 E       AssertionError: assert ('grounded' == 'grounded'
-E         
+E
 E           grounded and 'Фотопринт | ...ённых единиц.' == 'Контроль кач...ённых единиц.'
-E         
+E
 E         + Фотопринт | Журнал качества
 E         + Дата документа: 2026-11-08
 E           Контроль качества выявил 20 дефектных экземпляров из 1000 произведённых единиц.)
@@ -41,7 +41,7 @@ cut = 'Лимит оплаты — 50 тыс.', question = 'Какой лими�
         result = env['irina'].post('/api/meet/qa', json={'question': question}).json()
 >       assert result['status'] == 'insufficient_data'
 E       AssertionError: assert 'grounded' == 'insufficient_data'
-E         
+E
 E         - insufficient_data
 E         + grounded
 
@@ -62,7 +62,7 @@ cut = 'Отгрузка состоится 20 ноября.', question = 'Ког
         result = env['irina'].post('/api/meet/qa', json={'question': question}).json()
 >       assert result['status'] == 'insufficient_data'
 E       AssertionError: assert 'grounded' == 'insufficient_data'
-E         
+E
 E         - insufficient_data
 E         + grounded
 

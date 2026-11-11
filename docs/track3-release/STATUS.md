@@ -147,3 +147,16 @@ scorer v2. Настроенный model endpoint/GPU здесь по-прежн�
 устраняет этот обход независимо от product helper, с отрицаниями/инициалами/валютой
 в регрессиях. Schema остаётся 2; старые отчёты сохраняют scorer_version=2 и не
 переименовываются. Gold/expected не меняются.
+
+
+Windows clean CI на опубликованном `3046943` прошёл: **68 passed, 7.91 s**,
+PYTHONUTF8=0, [job 130585515388](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43039018306/job/130585515388).
+Scorer v3 после этого локально: **73 passed, 2.01 s**, reports/scorer3-python.log.
+Новый общий прогон всё ещё блокируют три упомянутых owner-разногласия; старые зелёные
+прогоны их не закрывают. 46 JS passed; новый HTTP/restart без LLM double прошёл
+за 3.84 s, reports/joint-http.json.
+
+Первичный joint Python log сохранён побайтно в reports/joint-python.raw.log.gz;
+SHA256 в reports/joint-checks.json. Читаемая .log-копия удаляет только trailing
+whitespace, чтобы syntax/diff gate не ломался на pytest presentation.
+Preflight v3: NOT RUN на gpu_window, 0 LLM calls; отчёт сохранён отдельно от v2.

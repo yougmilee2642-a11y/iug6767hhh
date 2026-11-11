@@ -1,0 +1,23 @@
+{
+  "raw_sha256": "54ebd36f2ed1b19e29fe500ed6c205e4faf962b33ee8a116fa509add3dfe2f81",
+  "raw_archive": "joint-python.raw.log.gz",
+  "readable_log": "joint-python.log",
+  "readable_transformation": "trailing whitespace removed per line only",
+  "local_commit": "380b2a96bd87853f4924bca62eeb925959eb431d",
+  "published_equivalent": "2d3d7701376b071757e5af3f9269a653a9c71595",
+  "python": {
+    "passed": 251,
+    "skipped": 15,
+    "failed": 3,
+    "seconds": 44.25
+  },
+  "own_release_gateway": {
+    "passed": 73,
+    "seconds": 2.01,
+    "log": "scorer3-python.log"
+  },
+  "javascript": {
+    "passed": 46,
+    "log": "joint-javascript.log"
+  }
+}
