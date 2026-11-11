@@ -1,9 +1,11 @@
 # Codex 3 — выпуск и интеграция
 
 База cb2614b86f3b83636e670c83a0afb8f4c9d6c3c3. Отдельная clone и integration worktree.
-Ветки codex/track3-release и codex/track3-integration пока **только локальные**.
-main не менялся. Подключённый GitHub Listopad33 имеет pull=true, push=false;
-CLI HTTPS push также не имеет credentials. Публикация и новые PR не состоялись.
+Ветки codex/track3-release и codex/track3-integration **опубликованы**.
+[Draft PR #4](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/4) направлен в main;
+main не менялся. Подключение владельца yougmilee2642-a11y разрешает push. Публикация
+проведена через GitHub API; все trees сверены с локальными. Первоначальные SHA
+наблюдений сопоставляются с опубликованными через reports/publication-map.json.
 
 ## Выполнено
 
@@ -36,11 +38,9 @@ CLI HTTPS push также не имеет credentials. Публикация и �
 
 ## Конкретные оставшиеся действия владельцев
 
-1. Владелец репозитория: дать подключённому Listopad33 write-доступ либо подключить
-   GitHub с write к этому repo и разрешить доступ приложению. После этого опубликовать
-   обе локальные ветки без force и открыть release PR в integration, integration PR
-   в main как draft. Не переписывать main, не сливать до gates. Локальные SHA:
-   `git rev-parse codex/track3-release codex/track3-integration`.
+1. Публикация закрыта: обе ветки и draft PR #4 существуют. Release уже включён
+   в integration, поэтому отдельный PR release → integration имел бы пустое сравнение.
+   Не сливать main до остальных gates; текущий integration SHA виден в PR.
 2. Команда: согласовать восстановленный CONTRACT. Формат seed уже соответствует
    опубликованным handoff Claude/Codex 2; интеграционные тесты схемы проходят.
 3. Другой участник: пройти RUNBOOK от нового venv, записать OS/Python, cache/network,

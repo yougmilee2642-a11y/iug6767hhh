@@ -103,8 +103,8 @@ CONTRACT в этой директории — проект для согласо
 | Core/миграции/роли/календарь | [#2](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/2) | Claude |
 | Knowledge/overview | [#1](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/1) | Codex 2 |
 | UI | [#3](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/3) | Codex 1 |
-| Release/evaluation | codex/track3-release, PR пока не создан | Codex 3 |
-| Integration | codex/track3-integration, PR пока не создан | Codex 3 |
+| Release/evaluation | [codex/track3-release](https://github.com/yougmilee2642-a11y/iug6767hhh/tree/codex/track3-release), включена в #4 | Codex 3 |
+| Integration | [draft #4](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/4) | Codex 3 |
 
 Интеграция: core → knowledge → UI → release, затем новые owner-hardening коммиты
 обычным merge, без rebase уже слитой истории. main не переписывается и не менялся.
