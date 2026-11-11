@@ -931,9 +931,10 @@ def router():
         user = current_user(request)
         with store.db() as connection:
             _task(connection, user, task_id, 'tasks.change', 'task.patch')
+        # The detail is shown to people as is; the route pointer (/tasks/{id}/preview → /confirm) is in the handoff.
         raise MeetError(409, 'confirmation_required',
-                        'Изменение задачи требует предпросмотра и подтверждения: POST /api/meet/tasks/{id}/preview, '
-                        'затем POST /api/meet/tasks/{id}/confirm.')
+                        'Изменение задачи сохраняется только после предпросмотра и явного подтверждения. '
+                        'Задача не изменена.')
 
     @api.post('/api/meet/tasks/{task_id}/preview')
     def preview_task(task_id: int, payload: TaskPreviewIn, request: Request):

@@ -50,12 +50,12 @@ def parse_aware(value: str, tz_name: str | None = None) -> datetime:
     try:
         parsed = datetime.fromisoformat(str(value).strip().replace('Z', '+00:00'))
     except ValueError:
-        raise TimeError('invalid_datetime', 'Дата и время должны быть в формате ISO 8601, например '
-                        '2026-11-20T10:00:00+03:00.') from None
+        # Details are shown to people; the API format (ISO 8601 with offset, or `timezone`) is in the handoff.
+        raise TimeError('invalid_datetime', 'Дата и время указаны в неверном формате. Ничего не сохранено.') from None
     if parsed.tzinfo is None:
         if not tz_name:
-            raise TimeError('naive_datetime', 'Укажите смещение часового пояса (например +03:00) '
-                            'или передайте timezone, например "Europe/Minsk".')
+            raise TimeError('naive_datetime', 'Не указан часовой пояс, поэтому время нельзя понять однозначно. '
+                            'Ничего не сохранено.')
         parsed = parsed.replace(tzinfo=zone(tz_name))
     return parsed.astimezone(timezone.utc)
 

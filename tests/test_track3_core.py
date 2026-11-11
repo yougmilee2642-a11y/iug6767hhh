@@ -210,7 +210,8 @@ def test_task_change_preview_confirm_cancel_stale_and_foreign_token(env):
     assert petr.patch(path, json={'status': 'done'}).status_code == 403
     irina.patch(f'/api/meet/meetings/{launch}', json={'access_user_ids': []})
     assert petr.patch(path, json={'status': 'done'}).status_code == 404
-    assert irina.patch(path, json={'status': 'done'}).json()['code'] == 'confirmation_required'
+    blocked = irina.patch(path, json={'status': 'done'}).json()
+    assert blocked['code'] == 'confirmation_required' and '/api/' not in blocked['detail']  # shown to people as is
     assert irina.get('/api/meet/tasks').json()['tasks'][0]['status'] == 'in_progress'
     assert irina.post(f'{path}/preview', json={'changes': {'status': 'in_progress'}}).json()['code'] == 'no_changes'
 
@@ -586,6 +587,53 @@ def test_garbled_model_text_is_never_shown():
     assert extract._verify_item(raw, [utterance], {'U1'}, {'U1': utterance}, {'U1': 0}, [utterance], [],
                                 datetime(2026, 11, 1).date(), dropped) is None
     assert 'повреждённый текст' in dropped[0]
+
+
+def test_purge_removes_only_spent_confirmations(env):
+    from datetime import timedelta
+    from meetings import confirmations
+    irina = login(env['app'], 'irina')
+    task = confirmed_task(irina, env['launch_meeting'])
+    path = f"/api/meet/tasks/{task['id']}"
+    done = irina.post(f'{path}/preview', json={'changes': {'status': 'in_progress'}}).json()['confirmation_id']
+    irina.post(f'{path}/confirm', json={'confirmation_id': done, 'idempotency_key': 'k-purge-01'})
+    cancelled = irina.post(f'{path}/preview', json={'changes': {'status': 'done'}}).json()['confirmation_id']
+    irina.post(f'/api/meet/confirmations/{cancelled}/cancel')
+    live = irina.post(f'{path}/preview', json={'changes': {'status': 'done'}}).json()['confirmation_id']
+    with store.db() as connection:
+        assert confirmations.purge(connection, datetime.now(timezone.utc) - timedelta(days=1)) == 0
+        assert confirmations.purge(connection, datetime.now(timezone.utc) + timedelta(seconds=5)) == 2
+        left = [r[0] for r in connection.execute('SELECT id FROM confirmations')]
+    assert left == [live]
+    assert any(e['confirmation_id'] == done for e in irina.get('/api/meet/audit').json()['events'])
+    with pytest.raises(ValueError):
+        with store.db() as connection:
+            confirmations.purge(connection, datetime(2026, 1, 1))
+
+
+def test_model_accepted_outcome_contradicted_by_transcript_becomes_discussed():
+    """Found on qwen2.5:7b: Anna's line became an «accepted» proposal although the next relevant line rejects it."""
+    lines = (DEMO / 'transcript.txt').read_text(encoding='utf-8')
+    utterances = [{'id': f'U{i}', 'speaker': u['speaker_label'], 'text': u['text']}
+                  for i, u in enumerate(meet_api.parse_transcript(lines), 1)]
+
+    class Accepting:
+        model = 'double'
+
+        def json(self, system, user, schema, predict=1500):
+            if system == extract.PROTOCOL_SYSTEM:
+                return {'items': [{'kind': 'proposal', 'text': 'Против переноса, шлюз запустить в ограниченном режиме',
+                                   'outcome': 'accepted', 'assignee': '', 'due_text': '', 'utterance_ids': ['U4'],
+                                   'quote': 'Шлюз можно запустить в ограниченном режиме'}]}
+            return {'kind': 'none', 'text': '', 'outcome': 'none', 'assignee': '', 'due_text': ''}
+    items, _warnings = extract.draft_protocol(Accepting(), utterances, [], datetime(2026, 11, 12).date())
+    proposal = next(i for i in items if i['kind'] == 'proposal')
+    assert proposal['outcome'] == 'discussed'
+    assert all(q.get('role') != 'outcome' for q in proposal['quotes'])
+    # invariant: an accepted proposal always carries the line that accepted it
+    for item in items:
+        if item['kind'] == 'proposal' and item['outcome'] == 'accepted':
+            assert any(q.get('role') == 'outcome' for q in item['quotes'])
 
 
 class _RiskCandidate(FakeLLM):
