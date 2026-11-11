@@ -89,7 +89,9 @@ with `speaker_label="Говорящий ?"` and the user maps speakers manually.
 
 # Track 3 current API extensions
 
-Source of truth: integrated core cd06b4d, knowledge e03536b, UI d95b252 and their handoffs.
+Source of truth: integrated core/calendar, maintainer main 35ba34c, knowledge 9eecb94,
+Claude eval fixes 58ec401, UI d95b252 and their handoffs. Joint regressions are in
+track3-release/STATUS.md; a merged API does not mean release acceptance.
 All dates for new meetings/calendar have an offset or an explicit timezone; Europe/Minsk
 is the business date zone. Errors are `{code, detail}` and may include fields; every
 route carries X-Request-ID. Hidden objects → 404, available object with insufficient
@@ -118,7 +120,8 @@ Roles: reader can read/generate prep/view calendar/QA/overview/feedback within A
 manager additionally edits/shares/uploads/confirms/invites/audit. Detail and examples:
 [core](track3-handoffs/claude.md), [knowledge](track3-handoffs/codex2.md).
 Protocol adds kind=risk and summary with verified/needs_clarification, quotes and note.
-Prep adds current-ACL open_tasks/task_questions from followup chain. Reader-generated
+GET meeting includes a live followup open_tasks/task_questions block even when prep is null.
+Prep also adds current-ACL open_tasks/task_questions from the followup chain. Reader-generated
 prep is personal and unsaved. Transcript change during draft → 409 stale_transcript.
 Calendar/task stale/expired/cancelled/conflicting confirmations → 409.
 
@@ -126,6 +129,8 @@ Source dates: document source_at is upload timestamp, not authored date; transcr
 citation shows meeting date, not a fabricated utterance timestamp. Overview as_of is
 oldest included snapshot; generated_at is calculation time. Task counts use current
 statuses even with historical as_of. Aggregated source IDs are opaque signed IDs,
-never authorization. QA returns extractive verified claims; lexical retrieval is
-limited and may refuse relevant synonyms. Model failures → 503 model_*; no hidden
+never authorization. QA asks the model to select offered excerpt_ids; the server renders the stored text.
+The legacy quotation envelope remains supported. Lexical retrieval normalizes common
+Russian inflections/polite wording and the release synonym, but can still miss relevant
+wording. Current legacy quotation policy integration disagreements remain release blockers. Model failures → 503 model_*; no hidden
 cloud fallback. Remote inference/data boundaries are in the runbook.

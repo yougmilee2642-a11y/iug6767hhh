@@ -508,3 +508,29 @@ def test_frozen_inputs_survive_autocrlf_checkout(tmp_path):
     for relative in paths:
         assert (tmp_path / relative).read_bytes() == (ROOT / relative).read_bytes()
         assert b'\r\n' not in (tmp_path / relative).read_bytes()
+
+
+@pytest.mark.parametrize('source,cut', [
+    ('Лимит оплаты — 50 тыс. рублей на операцию при предоплате.', 'Лимит оплаты — 50 тыс.'),
+    ('Только при предоплате\nОтгрузка состоится 20 ноября.', 'Отгрузка состоится 20 ноября.'),
+    ('И. Петров не подтвердил оплату.', 'Петров не подтвердил оплату.'),
+    ('Не подтверждено, что\nотгрузка состоится 20 ноября.', 'отгрузка состоится 20 ноября.'),
+])
+def test_independent_qa_boundaries_keep_abbreviations_initials_and_line_conditions(source, cut):
+    from scripts.track3.evaluate import complete_excerpt, qa_result
+    assert not complete_excerpt(cut, source)
+    assert complete_excerpt(source, source)
+    client = QAClientDouble(claim=cut, quote=cut, text=source)
+    case = qa_case_fixture()
+    case['expected_quote_substrings'] = [cut]
+    assert not qa_result(client, case)['passed']
+    client = QAClientDouble(claim=source, quote=source, text=source)
+    assert qa_result(client, case)['passed']
+
+
+def test_independent_qa_boundaries_allow_whole_sentences_and_preserve_exact_bytes():
+    from scripts.track3.evaluate import complete_excerpt
+    source = 'Проверка завершена. Отгрузка подтверждена! Следующий этап — доставка.'
+    assert complete_excerpt('Отгрузка подтверждена!', source)
+    assert complete_excerpt('Проверка завершена. Отгрузка подтверждена!', source)
+    assert not complete_excerpt('отгрузка подтверждена!', source)
