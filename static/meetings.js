@@ -1,13 +1,20 @@
+import { track3UI } from './meetings/track3.js';
+
 const API = '/api/meet';
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
 const state = {
   user: null,
+  capabilities: [],
+  timezone: 'Europe/Minsk',
+  epoch: 0,
   users: [],
   meetings: [],
   documents: [],
   tasks: [],
+  tasksStatus: 'idle',
+  tasksError: '',
   meetingData: null,
   page: 'meetings',
   tab: 'prep',
@@ -20,6 +27,100 @@ const state = {
   voiceCapture: null,
   nextAgenda: null,
 };
+
+const dirtyFields = new Map();
+const busyButtons = new WeakSet();
+const pendingOperations = new Set();
+let sourceSequence = 0;
+let meetingSequence = 0;
+const ui = track3UI({ node, makeButton, makeInput, makeTextarea, makeSelect, request, runAction, state,
+  dateLabel, render, openMeeting, openSource, showNotice, toast, refreshMeeting, markSaved,
+  navigate: setPage });
+
+function operation(button, key) {
+  key = `${state.epoch}:${key}`;
+  button.dataset.operation = key;
+  button.dataset.idleLabel = button.textContent;
+  if (pendingOperations.has(key)) {
+    button.disabled = true; button.textContent = 'Выполняется…'; button.setAttribute('aria-busy', 'true');
+  }
+  return button;
+}
+
+function permit(control, capability) {
+  control.dataset.capability = capability;
+  control.hidden = !ui.can(capability);
+  return control;
+}
+
+function draftKey(control) {
+  if (control.dataset.draftKey) return control.dataset.draftKey;
+  if (!state.user || control.type === 'password' || control.type === 'file' || control.type === 'checkbox') return null;
+  const label = control.closest('label')?.querySelector('.field-label, .speaker-label')?.textContent;
+  if (!label) return null;
+  const itemId = control.closest('[data-item-id]')?.dataset.itemId || control.closest('[data-utterance-id]')?.dataset.utteranceId || '';
+  const key = [state.user.id, state.page, state.meetingData?.meeting?.id || '', state.tab, itemId, label].join('|');
+  control.dataset.draftKey = key;
+  return key;
+}
+
+function restoreDrafts(root = document) {
+  for (const control of $$('input, textarea, select', root)) {
+    const key = draftKey(control);
+    if (key && dirtyFields.has(key)) {
+      control.value = dirtyFields.get(key);
+      if (control.closest('.protocol-item')) control.dispatchEvent(new Event(control.tagName === 'SELECT' ? 'change' : 'input'));
+    }
+  }
+}
+
+function markSaved(root) {
+  for (const control of $$('input, textarea, select', root || $('#app'))) {
+    const key = draftKey(control);
+    if (key) dirtyFields.delete(key);
+  }
+}
+
+function closeSource() {
+  sourceSequence++;
+  const panel = $('#source-panel');
+  if (panel.open) panel.close();
+  panel.hidden = true;
+  $('#source-content').replaceChildren();
+}
+
+function clearIdentity({ keepDrafts = false } = {}) {
+  state.epoch++;
+  if (state.voiceCapture) {
+    state.voiceCapture.cancelled = true;
+    state.voiceCapture.stream.getTracks().forEach((track) => track.stop());
+    void stopVoiceCapture();
+  }
+  state.user = null;
+  state.capabilities = [];
+  for (const name of ['users', 'meetings', 'documents', 'tasks', 'searchResults']) state[name] = [];
+  state.meetingData = state.nextAgenda = null;
+  state.tasksStatus = 'idle'; state.tasksError = '';
+  state.transcriptDrafts = Object.create(null);
+  state.protocolDrafts = Object.create(null);
+  state.voiceDrafts = Object.create(null);
+  state.searchQuery = '';
+  state.showCreateMeeting = false;
+  state.page = 'meetings';
+  closeSource(); ui.reset({ keepDrafts });
+  clearNotice(); $('#toast').textContent = '';
+  if (!keepDrafts) dirtyFields.clear();
+}
+
+function acceptIdentity(me) {
+  if (state.user && String(state.user.id) !== String(me.user.id)) clearIdentity();
+  state.user = me.user;
+  state.capabilities = me.capabilities || me.user.capabilities || [];
+  ui.discardForeignDrafts(state.user.id);
+  state.timezone = me.timezone || 'Europe/Minsk';
+  // In-memory drafts can only be restored to the same authenticated identity.
+  for (const key of dirtyFields.keys()) if (!key.startsWith(`${state.user.id}|`)) dirtyFields.delete(key);
+}
 
 class ApiError extends Error {
   constructor(message, status, code) {
@@ -90,26 +191,40 @@ function makeSelect(options, selected = '') {
 }
 
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
+  const epoch = state.epoch;
   const requestHeaders = { ...headers };
   let payload = body;
   if (body !== undefined && !(body instanceof FormData)) {
     requestHeaders['Content-Type'] = 'application/json';
     payload = JSON.stringify(body);
   }
-  const response = await fetch(path.startsWith('/api/') ? path : `${API}${path}`, {
+  let response;
+  try { response = await fetch(path.startsWith('/api/') ? path : `${API}${path}`, {
     method,
     headers: requestHeaders,
     body: payload,
     credentials: 'same-origin',
-  });
+  }); } catch {
+    throw new ApiError('Не удалось связаться с сервером. Проверьте соединение и повторите.', 0, epoch === state.epoch ? 'network_error' : 'stale_session');
+  }
   let data = null;
   try {
     data = response.status === 204 ? null : await response.json();
   } catch {
     data = null;
   }
+  if (epoch !== state.epoch) throw new ApiError('Сессия изменилась. Повторите действие после входа.', 0, 'stale_session');
   if (!response.ok) {
-    throw new ApiError(data?.detail || `Ошибка запроса (${response.status}).`, response.status, data?.code);
+    if (response.status === 401 && state.user) {
+      clearIdentity({ keepDrafts: true }); render();
+      showNotice('Сессия завершилась. Войдите снова. Несохранённый ввод сохранён в памяти вкладки только для вашего профиля.');
+    } else if (response.status === 403 && state.user) {
+      closeSource(); ui.reset({ keepDrafts: true });
+      showNotice('Права изменились. Несохранённый ввод сохранён в памяти вкладки.');
+      void request('/me').then((me) => { acceptIdentity(me); render(); }).catch(() => {});
+    }
+    const detail = Array.isArray(data?.detail) ? data.detail.map((item) => `${(item.loc || []).filter((part) => part !== 'body').join('.')}: ${item.msg || 'Некорректное значение'}`).join('; ') : data?.detail;
+    throw new ApiError(typeof detail === 'string' ? detail : `Ошибка запроса (${response.status}).`, response.status, data?.code);
   }
   return data;
 }
@@ -142,6 +257,11 @@ function isModelError(error) {
 }
 
 async function runAction(button, task, { model = false, label = 'Выполняется…' } = {}) {
+  const operationKey = button?.dataset.operation;
+  if ((button && busyButtons.has(button)) || (operationKey && pendingOperations.has(operationKey))) return false;
+  if (operationKey) pendingOperations.add(operationKey);
+  if (button) busyButtons.add(button);
+  const epoch = state.epoch;
   const oldLabel = button?.textContent;
   if (button) {
     button.disabled = true;
@@ -154,15 +274,23 @@ async function runAction(button, task, { model = false, label = 'Выполня�
     await task();
     return true;
   } catch (error) {
-    const message = error?.message || 'Не удалось выполнить действие.';
+    if (error?.code === 'stale_session' || epoch !== state.epoch) return false;
+    const message = error?.status === 403 ? 'Доступ запрещён: права изменились. Черновик сохранён в памяти вкладки.' : error?.message || 'Не удалось выполнить действие.';
     if (model && isModelError(error)) {
       showNotice(`${message} Данные встречи сохранены. Можно повторить попытку.`, () => runAction(button, task, { model, label }));
     } else {
-      showNotice(message);
+      showNotice(message, (error?.status >= 500 || error?.code === 'network_error') ? () => runAction(button, task, { model, label }) : undefined);
     }
     return false;
   } finally {
+    if (operationKey) {
+      pendingOperations.delete(operationKey);
+      for (const current of $$('[data-operation]')) if (current.dataset.operation === operationKey) {
+        current.disabled = false; current.textContent = current.dataset.idleLabel; current.removeAttribute('aria-busy');
+      }
+    }
     if (button) {
+      busyButtons.delete(button);
       button.disabled = false;
       button.classList.remove('is-busy');
       button.removeAttribute('aria-busy');
@@ -174,9 +302,9 @@ async function runAction(button, task, { model = false, label = 'Выполня�
 function dateLabel(value) {
   if (!value) return 'Дата не указана';
   const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(String(value));
-  const date = dateOnly ? new Date(`${value}T12:00:00`) : new Date(value);
+  const date = dateOnly ? new Date(`${value}T12:00:00Z`) : new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
-  return new Intl.DateTimeFormat('ru-RU', dateOnly ? { dateStyle: 'medium' } : { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  return new Intl.DateTimeFormat('ru-RU', dateOnly ? { dateStyle: 'medium' } : { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Moscow' }).format(date);
 }
 
 function fileKind(documentItem) {
@@ -199,18 +327,22 @@ function updateAccount() {
 }
 
 function setPage(page) {
+  meetingSequence++;
   if (state.voiceCapture?.recording) void stopVoiceCapture();
   state.page = page;
   render();
+  if (page === 'overview') void ui.loadOverview();
+  if (dirtyFields.size) toast('Несохранённый ввод остаётся в памяти этой вкладки.');
 }
 
 function updateNavigation() {
-  $$('[data-action="show-meetings"], [data-action="show-tasks"]').forEach((button) => {
-    const active = (state.page === 'meetings' || state.page === 'meeting')
-      ? button.dataset.action === 'show-meetings'
-      : state.page === 'tasks' && button.dataset.action === 'show-tasks';
+  for (const button of $$('.meetings-nav [data-action]')) {
+    const page = button.dataset.action.replace('show-', '');
+    const active = page === state.page || (page === 'meetings' && state.page === 'meeting');
     button.classList.toggle('nav-current', active);
-  });
+    if (active) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  }
 }
 
 function render() {
@@ -224,10 +356,13 @@ function render() {
     return;
   }
   if (state.page === 'meeting' && state.meetingData) renderMeeting(app);
+  else if (state.page === 'overview') ui.renderOverview(app);
+  else if (state.page === 'knowledge') ui.renderKnowledge(app);
   else if (state.page === 'tasks') renderTaskBoard(app, state.tasks, false);
   else if (state.page === 'search') renderSearchResults(app);
   else renderMeetings(app);
   renderGlobalSearch();
+  restoreDrafts();
 }
 
 function renderGlobalSearch() {
@@ -273,7 +408,7 @@ function renderLogin(app) {
     await runAction(submit, async () => {
       await request('/login', { method: 'POST', body: payload });
       await loadSignedInData();
-      state.page = 'meetings';
+      state.page = 'overview';
       clearNotice();
       render();
     });
@@ -293,57 +428,29 @@ function renderLogin(app) {
 }
 
 async function loadSignedInData() {
-  const [me, users, meetings, documents] = await Promise.all([
-    request('/me'), request('/users'), request('/meetings'), request('/documents'),
+  const me = await request('/me');
+  acceptIdentity(me);
+  const [users, meetings, documents] = await Promise.all([
+    request('/users'), request('/meetings'), request('/documents'),
   ]);
-  state.user = me.user;
   state.users = users.users || [];
   state.meetings = meetings.meetings || [];
   state.documents = documents.documents || [];
 }
 
 async function loginBootstrap() {
-  try {
-    const me = await request('/me');
-    state.user = me.user;
-    const [users, meetings, documents] = await Promise.all([
-      request('/users'), request('/meetings'), request('/documents'),
-    ]);
-    state.users = users.users || [];
-    state.meetings = meetings.meetings || [];
-    state.documents = documents.documents || [];
+  $('#app').textContent = 'Загружаю рабочее пространство…';
+  try { await loadSignedInData(); state.page = 'overview'; render(); }
+  catch (error) {
     render();
-  } catch (error) {
-    if (error.status === 401) {
-      state.user = null;
-      render();
-    } else {
-      render();
-      showNotice(error.message);
-    }
+    if (error.status !== 401 && error.code !== 'stale_session') showNotice(error.message, loginBootstrap);
   }
 }
 
 async function logout() {
-  try {
-    await request('/logout', { method: 'POST' });
-  } catch (error) {
-    if (error.status !== 401) showNotice(error.message);
-  }
-  if (state.voiceCapture) await stopVoiceCapture();
-  state.user = null;
-  state.meetingData = null;
-  state.meetings = [];
-  state.documents = [];
-  state.tasks = [];
-  state.users = [];
-  state.transcriptDrafts = Object.create(null);
-  state.protocolDrafts = Object.create(null);
-  state.voiceDrafts = Object.create(null);
-  state.searchResults = [];
-  state.searchQuery = '';
-  state.page = 'meetings';
-  render();
+  clearIdentity(); render();
+  try { await request('/logout', { method: 'POST' }); }
+  catch (error) { if (error.status !== 401) showNotice('Не удалось завершить сессию на сервере. Повторите выход.', logout); }
 }
 
 function renderMeetings(app) {
@@ -356,9 +463,9 @@ function renderMeetings(app) {
     state.showCreateMeeting = !state.showCreateMeeting;
     render();
   }, 'primary-button');
-  intro.append(copy, createToggle);
+  intro.append(copy, permit(createToggle, 'meetings.create'));
   app.append(intro);
-  if (state.showCreateMeeting) app.append(renderCreateMeetingForm());
+  if (state.showCreateMeeting && ui.can('meetings.create')) app.append(renderCreateMeetingForm());
   const list = node('section', 'meeting-list');
   list.append(node('h2', '', 'Мои встречи'));
   if (!state.meetings.length) {
@@ -396,8 +503,9 @@ function renderCreateMeetingForm() {
   const title = makeInput({ label: 'Название', required: true, placeholder: 'Например, запуск продукта' });
   const topic = makeTextarea({ label: 'Тема и цель', rows: 3, placeholder: 'Что нужно обсудить?' });
   const scheduled = makeInput({ label: 'Дата и время', type: 'datetime-local' });
+  const timezone = makeInput({ label: 'Часовой пояс IANA', value: state.timezone, required: true });
   const participants = makeTextarea({ label: 'Участники', rows: 3, placeholder: 'По одному имени в строке' });
-  form.append(title.wrap, topic.wrap, scheduled.wrap, participants.wrap);
+  form.append(title.wrap, topic.wrap, scheduled.wrap, timezone.wrap, participants.wrap);
   const access = node('fieldset', 'access-users');
   access.append(node('legend', '', 'Кому доступна встреча'));
   state.users.filter((person) => person.id !== state.user?.id).forEach((person) => {
@@ -420,9 +528,10 @@ function renderCreateMeetingForm() {
       participants: names,
       access_user_ids: $$('input[type="checkbox"]:checked', access).map((item) => item.value),
     };
-    if (scheduled.input.value) payload.scheduled_at = scheduled.input.value;
     const success = await runAction(submit, async () => {
+      if (scheduled.input.value) { payload.scheduled_at = ui.zonedISO(scheduled.input.value, timezone.input.value); payload.timezone = timezone.input.value; }
       const result = await request('/meetings', { method: 'POST', body: payload });
+      markSaved(form);
       state.showCreateMeeting = false;
       await refreshMeetings();
       await openMeeting(result.meeting.id);
@@ -438,18 +547,20 @@ async function refreshMeetings() {
   state.meetings = result.meetings || [];
 }
 
-async function openMeeting(id) {
+async function openMeeting(id, tab = 'prep') {
+  const sequence = ++meetingSequence;
   if (state.voiceCapture?.recording) await stopVoiceCapture();
   clearNotice();
   try {
     const detail = await request(`/meetings/${encodeURIComponent(id)}`);
+    if (sequence !== meetingSequence) return;
     state.meetingData = detail;
     state.page = 'meeting';
-    state.tab = 'prep';
+    state.tab = tab;
     state.nextAgenda = null;
     render();
   } catch (error) {
-    showNotice(error.message);
+    if (error.code !== 'stale_session') showNotice(error.message, () => openMeeting(id, tab));
   }
 }
 
@@ -497,11 +608,13 @@ function renderMeetingContent() {
   else if (state.tab === 'materials') renderMaterials(target);
   else if (state.tab === 'protocol') renderProtocol(target);
   else renderMeetingTasks(target);
+  restoreDrafts(target);
 }
 
 function renderPreparation(target) {
   const data = state.meetingData;
   const meeting = data.meeting;
+  ui.planning(target);
   const left = node('div', 'prep-layout');
   const docs = node('section', 'panel attached-documents');
   docs.append(node('h2', '', 'Материалы встречи'));
@@ -532,7 +645,7 @@ function renderPreparation(target) {
       toast('Документ добавлен');
     });
   });
-  docs.append(upload);
+  docs.append(permit(upload, 'documents.upload'));
   const attach = node('form', 'attach-existing-form');
   const select = makeSelect([
     { value: '', label: 'Выберите доступный документ' },
@@ -550,7 +663,8 @@ function renderPreparation(target) {
       await refreshMeeting();
     });
   });
-  docs.append(attach);
+  select.setAttribute('aria-label', 'Прикрепить доступный документ');
+  docs.append(permit(attach, 'meetings.edit'));
   if (Number(data.hidden_documents) > 0) {
     docs.append(node('p', 'access-limited-note', `${data.hidden_documents} документов недоступны вам.`));
   }
@@ -570,7 +684,7 @@ function renderPreparation(target) {
       });
       if (okay) toast('Документ удалён из встречи');
     }, 'remove-button');
-    row.append(detach);
+    row.append(permit(detach, 'meetings.edit'));
     attached.append(row);
   });
   docs.append(attached);
@@ -581,14 +695,15 @@ function renderPreparation(target) {
   const headingCopy = node('div', '');
   headingCopy.append(node('p', 'eyebrow', 'ПОДГОТОВКА'));
   headingCopy.append(node('h2', '', 'Справка к встрече'));
-  const generate = makeButton('Сформировать справку', null, 'primary-button');
-  generate.disabled = !(data.documents || []).length;
+  const generate = operation(makeButton('Сформировать справку', null, 'primary-button'), `prepare-${meeting.id}`);
+  generate.disabled ||= !(data.documents || []).length;
   generate.addEventListener('click', () => void runAction(generate, async () => {
     const result = await request(`/meetings/${encodeURIComponent(meeting.id)}/prepare`, { method: 'POST' });
     data.prep = result.prep;
+    if (String(state.meetingData?.meeting?.id) === String(meeting.id)) state.meetingData.prep = result.prep;
     renderMeetingContent();
   }, { model: true }));
-  heading.append(headingCopy, generate);
+  heading.append(headingCopy, permit(generate, 'prep.generate'));
   prep.append(heading);
   const result = data.prep;
   if (!result) prep.append(emptyState('Справки пока нет', (data.documents || []).length ? 'Нажмите «Сформировать справку» — локальная модель соберёт факты со ссылками на фрагменты.' : 'Сначала прикрепите документы, затем сформируйте краткую справку.'));
@@ -611,6 +726,17 @@ function renderPreparation(target) {
       renderStringList(prep, 'Что осталось проверить', result.gaps);
     }
     if (result.generated_at) prep.append(node('p', 'muted-copy generated-meta', `Сформировано ${dateLabel(result.generated_at)}${result.model ? ` · ${result.model}` : ''}`));
+  }
+  if (result) {
+    const tasks = result.open_tasks || [];
+    prep.append(node('h3', '', 'Открытые задачи предыдущих встреч'));
+    if (!tasks.length) prep.append(node('p', 'empty-copy', 'Открытых задач предыдущих встреч нет.'));
+    for (const task of tasks) prep.append(renderTaskCard(task, tasks, true));
+    for (const q of result.task_questions || []) {
+      prep.append(node('p', '', q.text));
+      for (const source of q.sources || []) prep.append(ui.sourceButton({ ...source, id: String(source.id).replace(/^T/, '') }));
+    }
+    prep.append(ui.feedback('prep', meeting.id, meeting.id));
   }
   left.append(prep);
   target.append(left);
@@ -638,9 +764,11 @@ function renderClaimGroup(parent, title, claims) {
   parent.append(section);
 }
 
-async function refreshMeeting() {
-  if (!state.meetingData?.meeting?.id) return;
-  state.meetingData = await request(`/meetings/${encodeURIComponent(state.meetingData.meeting.id)}`);
+async function refreshMeeting(id = state.meetingData?.meeting?.id) {
+  if (!id) return;
+  const data = await request(`/meetings/${encodeURIComponent(id)}`);
+  if (String(state.meetingData?.meeting?.id) !== String(id)) return;
+  state.meetingData = data;
   renderMeetingContent();
 }
 
@@ -654,6 +782,7 @@ function renderMaterials(target) {
   transcript.append(node('p', 'muted-copy', 'Строки с именем перед двоеточием будут разобраны на отдельные реплики.'));
   const form = node('form', 'transcript-form');
   const editor = makeTextarea({
+    label: 'Текст стенограммы',
     value: state.transcriptDrafts[meetingId] || '',
     rows: 8,
     placeholder: 'Ирина: Обсудим план запуска\nАнна: Я подготовлю макет',
@@ -669,15 +798,16 @@ function renderMaterials(target) {
     if (!value) return;
     await runAction(save, async () => {
       const result = await request(`/meetings/${encodeURIComponent(meetingId)}/transcript`, { method: 'PUT', body: { text: value } });
-      state.meetingData.utterances = result.utterances || [];
+      data.utterances = result.utterances || [];
       state.transcriptDrafts[meetingId] = '';
+      markSaved(form);
       editor.input.value = '';
       renderUtteranceList();
       renderSpeakerMapping();
       toast('Стенограмма сохранена');
     });
   });
-  transcript.append(form);
+  transcript.append(permit(form, 'transcript.edit'));
 
   const voice = node('section', 'panel voice-capture-panel');
   voice.append(node('p', 'eyebrow', 'ГОЛОСОВОЙ РЕЖИМ'));
@@ -693,7 +823,7 @@ function renderMaterials(target) {
   consent.type = 'checkbox';
   consentLabel.append(consent, node('span', '', 'Я подтвердил(а), что все участники согласны на запись и расшифровку встречи.'));
   consentLabel.hidden = Boolean(state.voiceCapture?.recording);
-  voice.append(consentLabel);
+  voice.append(permit(consentLabel, 'transcript.edit'));
   const voiceButton = makeButton(state.voiceCapture?.recording ? 'Остановить запись' : state.voiceCapture ? 'Распознавание…' : 'Начать запись', null,
     state.voiceCapture?.recording ? 'stop-recording-button' : 'primary-button');
   voiceButton.disabled = Boolean(state.voiceCapture && !state.voiceCapture.recording) || (!state.voiceCapture?.recording && !consent.checked);
@@ -703,7 +833,7 @@ function renderMaterials(target) {
     if (state.voiceCapture?.recording) void stopVoiceCapture();
     else void startVoiceCapture(meetingId, voiceButton);
   });
-  voice.append(voiceButton);
+  voice.append(permit(voiceButton, 'transcript.edit'));
   const disclaimer = node('small', 'voice-note', 'Для записи нужен разрешённый доступ браузера к микрофону.');
   voice.append(disclaimer);
   const drafts = node('div', 'voice-drafts');
@@ -735,7 +865,8 @@ function renderUtteranceList() {
   const list = $('#utterance-list');
   if (!list || !state.meetingData) return;
   list.replaceChildren();
-  const utterances = state.meetingData.utterances || [];
+  const data = state.meetingData;
+  const utterances = data.utterances || [];
   const counter = $('#utterance-count');
   if (counter) counter.textContent = `${utterances.length} шт.`;
   if (!utterances.length) {
@@ -744,12 +875,14 @@ function renderUtteranceList() {
   }
   utterances.forEach((utterance) => {
     const card = node('article', 'utterance-card');
+    card.dataset.utteranceId = utterance.id;
     const top = node('div', 'utterance-card-head');
     top.append(node('span', 'speaker-badge', utterance.speaker || utterance.speaker_label || 'Говорящий ?'));
     top.append(node('span', 'utterance-meta', `Реплика ${utterance.idx ?? ''}${utterance.source ? ` · ${utterance.source === 'voice' ? 'голос' : 'текст'}` : ''}`));
     card.append(top);
     const speaker = makeInput({ label: 'Метка говорящего', value: utterance.speaker_label || 'Говорящий ?' });
     const words = makeTextarea({ label: 'Текст реплики', value: utterance.text || '', rows: Math.max(2, Math.min(5, Math.ceil((utterance.text || '').length / 100))) });
+    speaker.input.disabled = words.input.disabled = !ui.can('transcript.edit');
     card.append(speaker.wrap, words.wrap);
     if (utterance.edited) card.append(node('small', 'edited-note', `Исходный текст: ${utterance.original_text || ''}`));
     const actions = node('div', 'inline-actions');
@@ -758,22 +891,22 @@ function renderUtteranceList() {
         const result = await request(`/utterances/${encodeURIComponent(utterance.id)}`, {
           method: 'PATCH', body: { text: words.input.value, speaker_label: speaker.input.value.trim() || 'Говорящий ?' },
         });
-        state.meetingData.utterances = utterances.map((item) => String(item.id) === String(utterance.id) ? result.utterance : item);
+        data.utterances = utterances.map((item) => String(item.id) === String(utterance.id) ? result.utterance : item);
         renderUtteranceList();
         renderSpeakerMapping();
       });
-      if (success) toast('Правка сохранена');
+      if (success) { markSaved(card); toast('Правка сохранена'); }
     });
     const remove = makeButton('Удалить', async () => {
       const success = await runAction(remove, async () => {
         await request(`/utterances/${encodeURIComponent(utterance.id)}`, { method: 'DELETE' });
-        state.meetingData.utterances = utterances.filter((item) => String(item.id) !== String(utterance.id));
+        data.utterances = utterances.filter((item) => String(item.id) !== String(utterance.id));
         renderUtteranceList();
         renderSpeakerMapping();
       });
       if (success) toast('Реплика удалена');
     }, 'remove-button');
-    actions.append(save, remove, citationButton(utterance.id, utterance.text, 'utterance', 'Открыть источник'));
+    actions.append(permit(save, 'transcript.edit'), permit(remove, 'transcript.edit'), citationButton(utterance.id, utterance.text, 'utterance', 'Открыть источник'));
     card.append(actions);
     list.append(card);
   });
@@ -783,7 +916,9 @@ function renderSpeakerMapping() {
   const target = $('#speaker-mapping');
   if (!target || !state.meetingData) return;
   target.replaceChildren();
-  const utterances = state.meetingData.utterances || [];
+  if (!ui.can('transcript.edit')) return;
+  const data = state.meetingData;
+  const utterances = data.utterances || [];
   const labels = [...new Set(utterances.map((item) => item.speaker_label).filter(Boolean))];
   if (!labels.length) return;
   target.append(node('h3', '', 'Сопоставить говорящих'));
@@ -818,19 +953,20 @@ function renderSpeakerMapping() {
     });
     const success = await runAction(save, async () => {
       const result = await request(`/meetings/${encodeURIComponent(meeting.id)}/speakers`, { method: 'PUT', body: { speaker_map: mapping } });
-      state.meetingData.meeting = result.meeting;
-      state.meetingData.utterances = result.utterances || [];
+      data.meeting = result.meeting;
+      data.utterances = result.utterances || [];
       renderUtteranceList();
       renderSpeakerMapping();
     });
-    if (success) toast('Говорящие сопоставлены');
+    if (success) { markSaved(target); toast('Говорящие сопоставлены'); }
   });
-  target.append(save);
+  target.append(permit(save, 'transcript.edit'));
 }
 
 function renderVoiceDraft(record) {
   const card = node('article', `voice-draft-card${record.loading ? ' is-loading' : ''}`);
   record.node = card;
+  card.dataset.itemId = `voice-${record.id}`;
   const header = node('div', 'voice-draft-head');
   header.append(node('b', '', `Голосовой фрагмент · ${Math.round(record.startMs / 1000)} сек.`));
   header.append(node('span', 'voice-draft-status', record.status || 'Ожидает распознавания'));
@@ -857,7 +993,8 @@ function renderVoiceDraft(record) {
         body: { text: transcript.input.value.trim(), speaker_label: speaker.input.value.trim() || 'Говорящий ?', source: 'voice', start_ms: record.startMs },
       });
       record.saved = true;
-      state.meetingData.utterances = [...(state.meetingData.utterances || []), result.utterance];
+      markSaved(card);
+      if (String(state.meetingData?.meeting?.id) === String(record.meetingId)) state.meetingData.utterances = [...(state.meetingData.utterances || []), result.utterance];
       state.voiceDrafts[record.meetingId] = (state.voiceDrafts[record.meetingId] || []).filter((item) => item !== record);
       card.remove();
       renderUtteranceList();
@@ -873,22 +1010,24 @@ function renderVoiceDraft(record) {
 }
 
 function addVoiceDraft(meetingId, blob, startMs) {
-  const record = { id: crypto.randomUUID(), meetingId, blob, startMs, speakerLabel: 'Говорящий ?', text: '', status: 'Готов к распознаванию', transcribed: false, loading: false };
+  if (!state.user || !ui.can('transcript.edit')) return;
+  const record = { id: crypto.randomUUID(), epoch: state.epoch, meetingId, blob, startMs, speakerLabel: 'Говорящий ?', text: '', status: 'Готов к распознаванию', transcribed: false, loading: false };
   state.voiceDrafts[meetingId] ||= [];
   state.voiceDrafts[meetingId].push(record);
   const list = $('#voice-drafts');
-  if (list) list.prepend(renderVoiceDraft(record));
+  if (list && String(state.meetingData?.meeting?.id) === String(meetingId)) list.prepend(renderVoiceDraft(record));
   return recognizeVoiceDraft(record);
 }
 
 async function recognizeVoiceDraft(record) {
-  if (record.loading || record.transcribed) return;
+  if (record.epoch !== state.epoch || record.loading || record.transcribed) return;
   record.loading = true;
   record.error = '';
   record.status = 'Распознаётся…';
   if (record.node) {
+    const previous = record.node;
     const newNode = renderVoiceDraft(record);
-    record.node.replaceWith(newNode);
+    previous.replaceWith(newNode);
   }
   try {
     const form = new FormData();
@@ -903,13 +1042,13 @@ async function recognizeVoiceDraft(record) {
       const drafts = state.voiceDrafts[record.meetingId] || [];
       const index = drafts.indexOf(record);
       const replacements = segments.map((segment) => ({
-        id: crypto.randomUUID(), meetingId: record.meetingId, blob: record.blob,
+        id: crypto.randomUUID(), epoch: record.epoch, meetingId: record.meetingId, blob: record.blob,
         startMs: record.startMs + (Number(segment.start_ms) || 0), speakerLabel: segment.speaker_label || 'Говорящий ?',
         text: segment.text.trim(), status: 'Распознано · проверьте перед сохранением', transcribed: true, loading: false,
       }));
       drafts.splice(Math.max(0, index), index < 0 ? 0 : 1, ...replacements);
       const list = $('#voice-drafts');
-      if (list) {
+      if (list && String(state.meetingData?.meeting?.id) === String(record.meetingId)) {
         record.node?.remove();
         [...replacements].reverse().forEach((item) => list.prepend(renderVoiceDraft(item)));
       }
@@ -925,13 +1064,15 @@ async function recognizeVoiceDraft(record) {
   } finally {
     record.loading = false;
     if (record.node?.isConnected) {
+      const previous = record.node;
       const replacement = renderVoiceDraft(record);
-      record.node.replaceWith(replacement);
+      previous.replaceWith(replacement);
     }
   }
 }
 
 async function startVoiceCapture(meetingId, button) {
+  const epoch = state.epoch;
   if (!navigator.mediaDevices?.getUserMedia || typeof AudioWorkletNode === 'undefined') {
     showNotice('Этот браузер не поддерживает запись микрофона через AudioWorklet.');
     return;
@@ -943,6 +1084,7 @@ async function startVoiceCapture(meetingId, button) {
       stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
       context = new AudioContext();
       await context.audioWorklet.addModule('/static/pcm-capture-worklet.js');
+      if (epoch !== state.epoch) throw new ApiError('Сессия изменилась.', 0, 'stale_session');
       const source = context.createMediaStreamSource(stream);
       const worklet = new AudioWorkletNode(context, 'callwise-pcm');
       const gain = context.createGain();
@@ -951,7 +1093,7 @@ async function startVoiceCapture(meetingId, button) {
       worklet.connect(gain);
       gain.connect(context.destination);
       const capture = {
-        meetingId, stream, context, source, worklet, gain, recording: true,
+        meetingId, epoch, stream, context, source, worklet, gain, recording: true,
         frames: [], sampleCount: 0, sentSamples: 0, queue: Promise.resolve(), flushResolve: null,
       };
       worklet.port.onmessage = ({ data }) => {
@@ -979,7 +1121,7 @@ async function startVoiceCapture(meetingId, button) {
 }
 
 function acceptVoiceFrame(capture, frame) {
-  if (capture.closed) return;
+  if (capture.closed || capture.cancelled || capture.epoch !== state.epoch) return;
   capture.frames.push(frame);
   capture.sampleCount += frame.length;
   const chunkSize = 16000 * 15;
@@ -1017,7 +1159,7 @@ function queueVoiceTranscription(capture, frames, startMs) {
     return;
   }
   capture.queue = capture.queue.then(() => {
-    if (!capture.recording && !frames.length) return;
+    if (capture.cancelled || capture.epoch !== state.epoch || (!capture.recording && !frames.length)) return;
     return addVoiceDraft(capture.meetingId, wav, startMs);
   });
 }
@@ -1051,7 +1193,7 @@ async function stopVoiceCapture() {
   if (state.voiceCapture === capture) state.voiceCapture = null;
   if (status) status.textContent = 'Микрофон выключен';
   if (control) { control.disabled = false; control.textContent = 'Начать запись'; control.className = 'primary-button'; }
-  toast('Запись остановлена');
+  if (capture.epoch === state.epoch) toast('Запись остановлена');
   })();
   return capture.stopping;
 }
@@ -1081,23 +1223,29 @@ function appendHighlighted(parent, fullText, quote) {
   parent.append(paragraph);
 }
 
-async function openSource(kind, id, quote) {
+async function openSource(kind, id, quote, source = {}) {
   const panel = $('#source-panel');
   const content = $('#source-content');
   const title = $('#source-title');
   panel.hidden = false;
+  if (!panel.open) panel.showModal();
+  const epoch = state.epoch;
+  const sequence = ++sourceSequence;
   content.replaceChildren(node('p', 'muted-copy', 'Загружаю источник…'));
   try {
     if (kind === 'fragment') {
       const result = await request(`/fragments/${encodeURIComponent(id)}`);
+      if (!panel.open || sequence !== sourceSequence) return;
       const fragment = result.fragment;
       title.textContent = fragment.document_title || 'Фрагмент документа';
       content.replaceChildren();
+      content.append(node('p', 'task-meta', `Дата источника (загрузка документа): ${dateLabel(source.source_at || fragment.source_at || state.documents.find((doc) => String(doc.id) === String(fragment.document_id))?.created_at || fragment.created_at)}`));
       content.append(node('p', 'source-location', fragment.location || `Фрагмент ${fragment.idx ?? ''}`));
       appendHighlighted(content, fragment.text, quote);
       content.append(downloadLink({ id: fragment.document_id, filename: fragment.document_title || 'Документ' }));
-    } else {
+    } else if (kind === 'utterance') {
       const result = await request(`/utterances/${encodeURIComponent(id)}`);
+      if (!panel.open || sequence !== sourceSequence) return;
       const utterance = result.utterance;
       title.textContent = result.meeting_title || 'Реплика встречи';
       content.replaceChildren();
@@ -1106,13 +1254,37 @@ async function openSource(kind, id, quote) {
       const meeting = String(utterance.meeting_id) === String(state.meetingData?.meeting?.id)
         ? state.meetingData
         : await request(`/meetings/${encodeURIComponent(utterance.meeting_id)}`).catch(() => null);
+      if (!panel.open || sequence !== sourceSequence) return;
+      content.prepend(node('p', 'task-meta', source.source_at ? `Дата источника: ${dateLabel(source.source_at)}` : `Дата встречи: ${dateLabel(meeting?.meeting?.scheduled_at)}`));
       if ((meeting?.documents || []).length) {
         content.append(node('h3', '', 'Документы встречи'));
         (meeting.documents || []).forEach((documentItem) => content.append(downloadLink(documentItem)));
       }
+    } else {
+      const result = await request(`/sources/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`);
+      if (!panel.open || sequence !== sourceSequence) return;
+      title.textContent = result.source?.title || 'Источник';
+      content.replaceChildren(node('p', 'task-meta', `Дата источника: ${dateLabel(result.source?.source_at)}`));
+      const data = result.data;
+      const tasks = data?.tasks || (data?.text ? [data] : []);
+      for (const task of tasks) {
+        const row = node('article', 'claim-item');
+        row.append(node('p', '', task.text), node('p', 'task-meta', `Ответственный: ${task.assignee || 'Не назван'} · Срок: ${dateLabel(task.due)}`));
+        if (task.meeting_id) row.append(makeButton('Открыть задачу во встрече', () => { closeSource(); void openMeeting(task.meeting_id, 'tasks'); }, 'task-meeting-link'));
+        content.append(row);
+      }
+      const labels = { numerator: 'Числитель', denominator: 'Знаменатель', completed_orders: 'Завершённые заказы', on_time_orders: 'Заказы в срок', produced_units: 'Произведено единиц', defective_units: 'Бракованных единиц', occupied_capacity: 'Занятая мощность', available_capacity: 'Доступная мощность' };
+      const snapshots = data?.snapshots || [data];
+      for (const snapshot of [data, ...snapshots.filter((item) => item !== data)]) {
+        if (!snapshot) continue;
+        if (snapshot.source_id) content.append(node('h3', '', `Снимок ${snapshot.source_id}`));
+        if (snapshot.period_start) content.append(node('p', 'task-meta', `Период: ${dateLabel(snapshot.period_start)} — ${dateLabel(snapshot.period_end)}`));
+        if (snapshot.as_of) content.append(node('p', 'task-meta', `Актуальность: ${dateLabel(snapshot.as_of)}`));
+        for (const [key, label] of Object.entries(labels)) if (Object.hasOwn(snapshot, key)) content.append(node('p', '', `${label}: ${snapshot[key] ?? 'Нет данных'}`));
+      }
     }
   } catch (error) {
-    content.replaceChildren(node('p', 'inline-error', error.message));
+    if (state.epoch === epoch && panel.open && sequence === sourceSequence) content.replaceChildren(node('p', 'inline-error', error.message), makeButton('Повторить', () => void openSource(kind, id, quote, source)));
   }
 }
 
@@ -1124,15 +1296,16 @@ function renderProtocol(target) {
   const copy = node('div', '');
   copy.append(node('p', 'eyebrow', 'ПРОВЕРЬТЕ ПЕРЕД ПОДТВЕРЖДЕНИЕМ'));
   copy.append(node('h2', '', 'Черновик протокола'));
-  const draft = makeButton(protocol ? 'Обновить черновик' : 'Создать черновик', null, 'primary-button');
+  const draft = operation(makeButton(protocol ? 'Обновить черновик' : 'Создать черновик', null, 'primary-button'), `protocol-draft-${data.meeting.id}`);
   draft.addEventListener('click', () => void runAction(draft, async () => {
-    if (protocol) await saveProtocolEdits();
+    if (protocol) await saveProtocolEdits(data);
     const result = await request(`/meetings/${encodeURIComponent(data.meeting.id)}/protocol/draft`, { method: 'POST' });
     data.protocol = result.protocol;
-    state.protocolDrafts = Object.create(null);
+    if (String(state.meetingData?.meeting?.id) === String(data.meeting.id)) state.meetingData.protocol = result.protocol;
+    for (const item of [...(protocol?.items || []), ...(result.protocol?.items || [])]) delete state.protocolDrafts[item.id];
     renderMeetingContent();
   }, { model: true }));
-  heading.append(copy, draft);
+  heading.append(copy, permit(draft, 'protocol.edit'));
   section.append(heading);
   if (!protocol) {
     section.append(emptyState('Протокол ещё не подготовлен', 'Сохраните стенограмму, затем создайте черновик протокола.'));
@@ -1140,8 +1313,18 @@ function renderProtocol(target) {
     return;
   }
   if ((protocol.warnings || []).length) renderStringList(section, 'Нужно проверить', protocol.warnings);
+  const summary = node('section', 'protocol-group');
+  summary.append(node('h3', '', 'Краткое резюме'));
+  if (!(protocol.summary || []).length) summary.append(node('p', 'empty-copy', 'Резюме пока нет.'));
+  for (const claim of protocol.summary || []) {
+    const row = node('article', 'claim-item'); row.append(node('p', '', claim.text));
+    if (claim.status !== 'verified') row.append(node('p', 'warning-badge amber', claim.note || 'Требует уточнения'));
+    for (const quote of claim.quotes || []) row.append(citationButton(quote.utterance_id, quote.text, 'utterance'));
+    summary.append(row);
+  }
+  section.append(summary, ui.feedback('protocol_summary', data.meeting.id, data.meeting.id));
   const groupOrder = [
-    ['decision', 'Решения'], ['proposal', 'Предложения'], ['task', 'Поручения'], ['open_question', 'Открытые вопросы'],
+    ['decision', 'Решения'], ['proposal', 'Предложения'], ['task', 'Поручения'], ['risk', 'Риски'], ['open_question', 'Открытые вопросы'],
   ];
   for (const [kind, title] of groupOrder) {
     const items = (protocol.items || []).filter((item) => item.kind === kind);
@@ -1154,28 +1337,31 @@ function renderProtocol(target) {
   const actions = node('div', 'protocol-actions');
   const save = makeButton('Сохранить правки', async () => {
     const success = await runAction(save, async () => {
-      await saveProtocolEdits();
-      await refreshMeeting();
+      await saveProtocolEdits(data);
+      await refreshMeeting(data.meeting.id);
       toast('Правки протокола сохранены');
     });
   });
-  actions.append(save);
-  const confirm = makeButton('Подтвердить выбранные', async () => {
-    const selected = $$('.protocol-item-select:checked', section).map((checkbox) => checkbox.value);
+  actions.append(permit(save, 'protocol.edit'));
+  const confirm = makeButton('Подтвердить выбранные', () => {
+    const selected = [...new Set($$('.protocol-item-select:checked', section).map((checkbox) => checkbox.value))];
     if (!selected.length) { toast('Выберите поручения для подтверждения'); return; }
-    const success = await runAction(confirm, async () => {
-      await saveProtocolEdits();
-      const result = await request(`/meetings/${encodeURIComponent(data.meeting.id)}/protocol/confirm`, { method: 'POST', body: { item_ids: selected } });
+    const preview = node('div');
+    preview.append(node('p', '', 'Будут созданы только выбранные поручения:'));
+    for (const item of protocol.items.filter((item) => selected.includes(String(item.id)))) {
+      const d = state.protocolDrafts[item.id] || {};
+      preview.append(node('p', '', `${d.text ?? item.text} · Ответственный: ${(d.assignee ?? item.assignee)?.trim() || 'Не назван'} · Срок: ${(d.due ?? item.due) || (d.dueText ?? item.due_text) || 'Не назван'}`));
+    }
+    ui.dialog('Подтвердить выбранные поручения', preview, async () => {
+      await saveProtocolEdits(data);
+      const result = await request(`/meetings/${encodeURIComponent(data.meeting.id)}/protocol/confirm`, { method: 'POST', body: { item_ids: selected.map(Number) } });
       data.protocol = result.protocol;
-      if (result.created?.length || result.already_confirmed?.length) {
-        data.tasks = [...(data.tasks || []), ...(result.created || []), ...(result.already_confirmed || [])];
-      }
-      renderMeetingContent();
-      toast('Выбранные поручения подтверждены');
+      data.tasks = [...new Map([...(data.tasks || []), ...(result.created || []), ...(result.already_confirmed || [])].map((task) => [String(task.id), task])).values()];
+      renderMeetingContent(); toast('Выбранные поручения подтверждены');
     });
   }, 'primary-button');
   confirm.disabled = !protocol.items?.some((item) => item.kind === 'task' && !item.confirmed);
-  actions.append(confirm);
+  actions.append(permit(confirm, 'protocol.confirm'));
   section.append(actions);
   target.append(section);
 }
@@ -1186,14 +1372,14 @@ function renderProtocolItem(item) {
   const card = node('article', `protocol-item ${item.confirmed ? 'confirmed' : ''}`.trim());
   card.dataset.itemId = item.id;
   const head = node('div', 'protocol-item-head');
-  const title = node('span', 'protocol-kind', item.kind === 'decision' ? 'Решение' : item.kind === 'proposal' ? 'Предложение' : item.kind === 'task' ? 'Поручение' : 'Открытый вопрос');
+  const title = node('span', 'protocol-kind', item.kind === 'decision' ? 'Решение' : item.kind === 'proposal' ? 'Предложение' : item.kind === 'task' ? 'Поручение' : item.kind === 'risk' ? 'Риск' : 'Открытый вопрос');
   head.append(title);
   const outcomeValue = draft.outcome ?? item.outcome;
   if (item.kind === 'proposal' && outcomeValue) {
     const outcome = { rejected: 'Отклонено', accepted: 'Принято', discussed: 'Обсуждалось' }[outcomeValue] || outcomeValue;
     head.append(node('span', `outcome-badge outcome-${item.outcome}`, outcome));
   }
-  if (item.kind === 'task' && !item.confirmed) {
+  if (item.kind === 'task' && !item.confirmed && ui.can('protocol.confirm')) {
     const selection = node('label', 'protocol-select-label');
     const checkbox = node('input', 'protocol-item-select');
     checkbox.type = 'checkbox'; checkbox.value = item.id;
@@ -1202,7 +1388,7 @@ function renderProtocolItem(item) {
   }
   card.append(head);
   const text = makeTextarea({ label: 'Формулировка', value: draft.text ?? item.text ?? '', rows: 2 });
-  text.input.disabled = Boolean(item.confirmed);
+  text.input.disabled = Boolean(item.confirmed) || !ui.can('protocol.edit');
   text.input.addEventListener('input', () => { drafts[item.id] = { ...(drafts[item.id] || {}), text: text.input.value }; });
   card.append(text.wrap);
   if (item.kind === 'proposal') {
@@ -1212,20 +1398,20 @@ function renderProtocolItem(item) {
       { value: '', label: 'Не указан' }, { value: 'accepted', label: 'Принято' },
       { value: 'rejected', label: 'Отклонено' }, { value: 'discussed', label: 'Обсуждалось' },
     ], outcomeValue || '');
-    outcomeSelect.disabled = Boolean(item.confirmed);
+    outcomeSelect.disabled = Boolean(item.confirmed) || !ui.can('protocol.edit');
     outcomeSelect.addEventListener('change', () => { drafts[item.id] = { ...(drafts[item.id] || {}), outcome: outcomeSelect.value || null }; });
     outcomeWrap.append(outcomeSelect);
     card.append(outcomeWrap);
   }
   const fields = node('div', 'protocol-edit-fields');
   const assignee = makeInput({ label: 'Ответственный', value: draft.assignee ?? item.assignee ?? '', placeholder: 'Имя участника' });
-  assignee.input.disabled = Boolean(item.confirmed);
+  assignee.input.disabled = Boolean(item.confirmed) || !ui.can('protocol.edit');
   assignee.input.addEventListener('input', () => { drafts[item.id] = { ...(drafts[item.id] || {}), assignee: assignee.input.value }; });
   const due = makeInput({ label: 'Срок', type: 'date', value: draft.due ?? item.due ?? '' });
-  due.input.disabled = Boolean(item.confirmed);
+  due.input.disabled = Boolean(item.confirmed) || !ui.can('protocol.edit');
   due.input.addEventListener('input', () => { drafts[item.id] = { ...(drafts[item.id] || {}), due: due.input.value }; });
   const dueText = makeInput({ label: 'Срок словами', value: draft.dueText ?? item.due_text ?? '', placeholder: 'Например, в течение недели' });
-  dueText.input.disabled = Boolean(item.confirmed);
+  dueText.input.disabled = Boolean(item.confirmed) || !ui.can('protocol.edit');
   dueText.input.addEventListener('input', () => { drafts[item.id] = { ...(drafts[item.id] || {}), dueText: dueText.input.value }; });
   fields.append(assignee.wrap, due.wrap, dueText.wrap);
   if (item.kind === 'task') card.append(fields);
@@ -1242,18 +1428,21 @@ function renderProtocolItem(item) {
   }
   if ((item.quotes || []).length) {
     const quotes = node('div', 'quote-list');
-    item.quotes.forEach((quote) => quotes.append(citationButton(quote.utterance_id, `${quote.speaker ? `${quote.speaker}: ` : ''}${quote.text}`, 'utterance')));
+    item.quotes.forEach((quote) => quotes.append(citationButton(quote.utterance_id, quote.text, 'utterance')));
     card.append(quotes);
   }
+  card.append(ui.feedback('protocol_item', item.id, state.meetingData.meeting.id));
   if (item.confirmed) {
     card.append(node('p', 'confirmed-stamp', `Подтверждено: ${item.confirmed_by || 'пользователь'} · ${dateLabel(item.confirmed_at)}`));
   }
   return card;
 }
 
-async function saveProtocolEdits() {
-  const protocol = state.meetingData.protocol;
+async function saveProtocolEdits(data = state.meetingData) {
+  const protocol = data.protocol;
   if (!protocol) return;
+  const sentDrafts = new Map((protocol.items || []).map((item) => [item.id, state.protocolDrafts[item.id]]));
+  const sentFields = new Map(dirtyFields);
   const items = (protocol.items || []).map((item) => {
     if (item.confirmed) return { id: item.id, kind: item.kind, text: item.text, outcome: item.outcome, assignee: item.assignee, due: item.due, due_text: item.due_text };
     const draft = state.protocolDrafts[item.id] || {};
@@ -1266,9 +1455,14 @@ async function saveProtocolEdits() {
       due_text: (draft.dueText ?? (draft.due ? '' : item.due_text) ?? '').trim() || null,
     };
   });
-  const result = await request(`/meetings/${encodeURIComponent(state.meetingData.meeting.id)}/protocol`, { method: 'PUT', body: { items } });
-  state.meetingData.protocol = result.protocol;
-  state.protocolDrafts = Object.create(null);
+  const result = await request(`/meetings/${encodeURIComponent(data.meeting.id)}/protocol`, { method: 'PUT', body: { items } });
+  data.protocol = result.protocol;
+  if (String(state.meetingData?.meeting?.id) === String(data.meeting.id)) state.meetingData.protocol = result.protocol;
+  for (const item of protocol.items || []) if (state.protocolDrafts[item.id] === sentDrafts.get(item.id)) delete state.protocolDrafts[item.id];
+  for (const key of dirtyFields.keys()) {
+    const parts = key.split('|');
+    if (parts[1] === 'meeting' && parts[2] === String(data.meeting.id) && parts[3] === 'protocol' && !parts[4].startsWith('feedback-') && dirtyFields.get(key) === sentFields.get(key)) dirtyFields.delete(key);
+  }
 }
 
 function renderMeetingTasks(target) {
@@ -1277,8 +1471,10 @@ function renderMeetingTasks(target) {
   header.append(node('p', 'eyebrow', 'ЗАДАЧИ ПО ВСТРЕЧЕ'));
   header.append(node('h2', '', 'Поручения и следующие шаги'));
   const next = makeButton('Повестка следующей встречи', async () => {
+    const meetingId = state.meetingData.meeting.id;
     const success = await runAction(next, async () => {
-      const result = await request(`/meetings/${encodeURIComponent(state.meetingData.meeting.id)}/next-agenda`, { method: 'POST', body: { create_meeting: true } });
+      const result = await request(`/meetings/${encodeURIComponent(meetingId)}/next-agenda`, { method: 'POST', body: { create_meeting: false } });
+      if (String(state.meetingData?.meeting?.id) !== String(meetingId)) return;
       state.nextAgenda = result;
       renderMeetingContent();
     });
@@ -1306,6 +1502,18 @@ function renderNextAgenda(parent, result) {
     list.append(row);
   });
   panel.append(list);
+  if (!result.meeting && result.agenda?.length && ui.can('meetings.create')) {
+    panel.append(makeButton('Создать следующую встречу', () => {
+      const preview = node('div');
+      preview.append(node('p', '', 'Будет создана новая встреча с открытыми поручениями:'));
+      for (const item of result.agenda) preview.append(node('p', '', item.text));
+      const meetingId = state.meetingData.meeting.id;
+      ui.dialog('Создать встречу по поручениям', preview, async () => {
+        const created = await request(`/meetings/${encodeURIComponent(meetingId)}/next-agenda`, { method: 'POST', body: { create_meeting: true } });
+        state.nextAgenda = created; await refreshMeetings(); renderMeetingContent();
+      });
+    }));
+  }
   parent.append(panel);
 }
 
@@ -1319,6 +1527,12 @@ function renderTaskBoard(parent, tasks, meetingOnly) {
     copy.append(node('p', 'muted-copy', 'Задачи собраны из подтверждённых протоколов доступных встреч.'));
     intro.append(copy);
     parent.append(intro);
+  }
+  if (!meetingOnly && state.tasksStatus === 'loading') {
+    board.append(node('p', '', 'Загружаю задачи…')); parent.append(board); return;
+  }
+  if (!meetingOnly && state.tasksStatus === 'error') {
+    board.append(node('p', 'inline-error', state.tasksError), makeButton('Повторить', () => void openTasks())); parent.append(board); return;
   }
   if (!tasks.length) {
     board.append(emptyState('Задач пока нет', 'Подтверждённые поручения появятся здесь.'));
@@ -1345,6 +1559,7 @@ function renderTaskBoard(parent, tasks, meetingOnly) {
 
 function renderTaskCard(task, collection, meetingOnly) {
   const card = node('article', 'task-card panel');
+  card.id = `task-${task.id}`; card.tabIndex = -1;
   card.append(node('p', 'task-card-text', task.text || 'Без описания'));
   if (task.assignee) card.append(node('p', 'task-meta', `Ответственный: ${task.assignee}`));
   else if (task.assignee_status === 'unknown') card.append(node('p', 'warning-badge red', 'Ответственный не назван'));
@@ -1354,38 +1569,23 @@ function renderTaskCard(task, collection, meetingOnly) {
   const link = makeButton(task.meeting_title ? `Встреча: ${task.meeting_title}` : 'Открыть встречу', () => void openMeeting(task.meeting_id), 'task-meeting-link');
   card.append(link);
   if (task.source_quote?.utterance_id) card.append(citationButton(task.source_quote.utterance_id, task.source_quote.text, 'utterance', 'Открыть цитату'));
-  const status = makeSelect([
-    { value: 'open', label: 'Открыта' }, { value: 'in_progress', label: 'В работе' }, { value: 'done', label: 'Готова' },
-  ], task.status);
-  status.setAttribute('aria-label', 'Статус задачи');
-  status.addEventListener('change', async () => {
-    const old = task.status;
-    status.disabled = true;
-    try {
-      const result = await request(`/tasks/${encodeURIComponent(task.id)}`, { method: 'PATCH', body: { status: status.value } });
-      const index = collection.findIndex((item) => String(item.id) === String(task.id));
-      if (index >= 0) collection[index] = result.task;
-      if (!meetingOnly) state.tasks = collection;
-      render();
-    } catch (error) {
-      status.value = old;
-      status.disabled = false;
-      showNotice(error.message);
-    }
-  });
-  card.append(status);
+  if (ui.can('tasks.change')) card.append(makeButton('Изменить задачу', () => ui.editTask(task, collection, meetingOnly)));
+  card.append(ui.feedback('task', task.id, task.meeting_id));
   return card;
 }
 
 async function openTasks() {
+  if (state.tasksStatus === 'loading') { setPage('tasks'); return; }
   if (state.voiceCapture?.recording) await stopVoiceCapture();
+  state.page = 'tasks'; state.tasks = []; state.tasksStatus = 'loading'; render();
   try {
     const result = await request('/tasks');
-    state.tasks = result.tasks || [];
-    state.page = 'tasks';
-    render();
+    state.tasks = result.tasks || []; state.tasksStatus = 'ready';
+    if (state.page === 'tasks') render();
   } catch (error) {
-    showNotice(error.message);
+    if (error.code === 'stale_session' || error.status === 401) return;
+    state.tasksStatus = 'error'; state.tasksError = error.message;
+    if (state.page === 'tasks') render();
   }
 }
 
@@ -1427,12 +1627,25 @@ function renderSearchResults(app) {
 
 $$('[data-action="show-meetings"]').forEach((button) => button.addEventListener('click', () => setPage('meetings')));
 $$('[data-action="show-tasks"]').forEach((button) => button.addEventListener('click', () => void openTasks()));
-$('[data-action="close-source"]').addEventListener('click', () => { $('#source-panel').hidden = true; });
-$('#source-panel').addEventListener('click', (event) => {
-  if (event.target === $('#source-panel')) $('#source-panel').hidden = true;
+$$('[data-action="show-overview"]').forEach((button) => button.addEventListener('click', () => setPage('overview')));
+$$('[data-action="show-knowledge"]').forEach((button) => button.addEventListener('click', () => ui.openKnowledge()));
+$('[data-action="close-source"]').addEventListener('click', closeSource);
+$('#source-panel').addEventListener('close', () => { sourceSequence++; $('#source-panel').hidden = true; $('#source-content').replaceChildren(); });
+document.addEventListener('input', (event) => {
+  const control = event.target;
+  if (!control.matches('input, textarea, select')) return;
+  const key = draftKey(control);
+  if (key) dirtyFields.set(key, control.value);
 });
-window.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') $('#source-panel').hidden = true;
+window.addEventListener('beforeunload', (event) => {
+  if (dirtyFields.size || state.voiceCapture?.recording) { event.preventDefault(); event.returnValue = ''; }
 });
 window.addEventListener('pagehide', () => { if (state.voiceCapture) void stopVoiceCapture(); });
+window.addEventListener('focus', () => {
+  if (!state.user) return;
+  void request('/me').then((me) => {
+    const changed = String(me.user.id) !== String(state.user?.id) || JSON.stringify(me.capabilities || me.user.capabilities || []) !== JSON.stringify(state.capabilities);
+    if (changed) { clearIdentity({ keepDrafts: true }); acceptIdentity(me); void loadSignedInData().then(render).catch(() => {}); }
+  }).catch(() => {});
+});
 void loginBootstrap();
