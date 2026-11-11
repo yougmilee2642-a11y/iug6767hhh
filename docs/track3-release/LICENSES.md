@@ -46,13 +46,13 @@ API и существующие модули репозитория, новог�
 |---|---|---|
 | Qwen2.5 7B Instruct, Ollama qwen2.5:7b | Настроенный default, точный установленный digest неизвестен | [официальная Ollama-карточка](https://ollama.com/library/qwen2.5:7b) и [официальные GGUF weights LICENSE](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/blob/main/LICENSE): Apache-2.0; карточка 4.7 GB Q4_K_M. Не распространять этот вывод на другие размеры Qwen |
 | GigaAM **код** | submodule/requirement 7447938d791c4f3e643386ee22c33777004293a5 | [LICENSE на этом commit](https://github.com/salute-developers/GigaAM/blob/7447938d791c4f3e643386ee22c33777004293a5/LICENSE): MIT, прочитан через GitHub API |
-| GigaAM **веса** | v3_rnnt.ckpt, URL CDN и expected MD5 0fd2c9a1ff66abd8d32a3a07f7592815 в scripts/install_dual_asr.py | Этот бинарник не скачивался и отдельный документ его лицензирования не подтверждён здесь; не выводим лицензию весов только из лицензии кода. Блокер проверки голосовой дистрибуции |
+| GigaAM **веса** | v3_rnnt.ckpt, URL CDN и expected MD5 0fd2c9a1ff66abd8d32a3a07f7592815 в scripts/install_dual_asr.py | [официальная model card GigaAM-v3](https://huggingface.co/ai-sage/GigaAM-v3/blob/main/README.md) явно указывает MIT, включая rnnt; README закреплённого исходного проекта подтверждает семейство v3. Идентичность конкретного CDN-бинарника и его SHA-256 здесь не проверялись |
 | T-one **код** | submodule 3c5b6c015038173840e62cea99e10cdb1c759116 | [LICENSE на commit](https://github.com/voicekit-team/T-one/blob/3c5b6c015038173840e62cea99e10cdb1c759116/LICENSE): Apache-2.0, прочитан через GitHub API |
 | T-one **веса** | HF revision 106f3b0b32a9e107eb613312e4ebc61ff3d53926/model.onnx | [официальная model card на revision](https://huggingface.co/t-tech/T-one/blob/106f3b0b32a9e107eb613312e4ebc61ff3d53926/README.md) указывает apache-2.0; bytes/digest не измерены здесь |
-| Silero TTS **веса** | models/silero/v5_ru.pt, URL models.silero.ai в installer | [проект](https://github.com/snakers4/silero-models) имеет несколько license файлов/семейств моделей; конкретный загруженный v5_ru бинарник и применимые условия здесь не подтверждены. Нельзя автоматически приписать ему MIT |
+| Silero TTS **веса** | models/silero/v5_ru.pt, URL models.silero.ai в installer | [models.yml на e382298](https://github.com/snakers4/silero-models/blob/e382298387332f2bf461fe6eadfde99104611b0c/models.yml) связывает v5_ru с тем же URL. [LICENSE](https://github.com/snakers4/silero-models/blob/e382298387332f2bf461fe6eadfde99104611b0c/LICENSE) озаглавлен Attribution-NonCommercial-ShareAlike 4.0 International; README исключает из общей лицензии только base cis-tts (MIT). Badge сокращает название иначе; точные условия коммерческой поставки требуют решения владельца. Это не MIT по умолчанию |
 | Silero VAD / sherpa-onnx / ONNXRuntime / torch / torchaudio | Старые requirements-local*.txt, torch/torchaudio 2.11.0+cu128; sherpa-onnx 1.13.8; onnxruntime 1.23.2 | Только существующий опциональный voice stack; в текстовом окружении не установлены. Фактические wheel notices и версии отдельно проверить при голосовой поставке; старые requirements не менялись |
 | WeSpeaker **веса** | wespeaker_en_voxceleb_resnet34_LM.onnx из sherpa release | [код WeSpeaker](https://github.com/wenet-e2e/wespeaker) имеет Apache-2.0, но это не доказывает условия конкретного release-asset и обучающих данных; точный бинарник/notice не проверены |
-| pyannote segmentation **веса** | sherpa-onnx-pyannote-segmentation-3-0.tar.bz2, model.onnx из архива | [официальная исходная model card](https://huggingface.co/pyannote/segmentation-3.0): MIT. Эквивалентность/notice именно ONNX-конверсии sherpa-asset здесь не проверены |
+| pyannote segmentation **веса** | sherpa-onnx-pyannote-segmentation-3-0.tar.bz2, model.onnx из архива | [официальная исходная model card](https://huggingface.co/pyannote/segmentation-3.0): MIT. [официальная sherpa-документация](https://k2-fsa.github.io/sherpa/onnx/speaker-diarization/models.html) связывает этот точный release asset с исходной моделью. LICENSE внутри фактически прочитанного архива — MIT; archive/notice SHA-256 и bytes записаны в reports/pyannote-notice.json. Runtime-модель не устанавливалась |
 
 Все фактические URL voice-assets читаются в scripts/install_dual_asr.py; runtime
 проверяет файлы в models/, а installer пишет dual-asr-manifest.json с SHA-256/bytes.
@@ -69,3 +69,14 @@ API и существующие модули репозитория, новог�
 В репозитории не найден общий LICENSE собственного продукта: права его поставки
 не устанавливаются этим документом. Источники лицензий не заменяют решение владельца
 о конкретной форме распространения; неизвестные условия явно оставлены неизвестными.
+
+
+Дополнительная проверка Silero закреплена на upstream commit
+`e382298387332f2bf461fe6eadfde99104611b0c`: README blob
+`8bb4ccae1d285a5b32bc5b3648a0a027d112a2dc`, LICENSE blob
+`cbe5ad1670406e4402217edfb82d2c56af7e8631`, models.yml blob
+`79159440c2a7ea2e5ef962489cbcdddc14624cdc`. Совпадение названия и URL v5_ru
+проверено отдельно от лицензии кода. Сопровождающему передано
+[замечание с воспроизведением](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/4#issuecomment-6797897713).
+Текстовый сценарий этих весов не использует. Подтверждённые ограничения не означают,
+что решение о лицензировании всей коммерческой голосовой поставки уже принято.

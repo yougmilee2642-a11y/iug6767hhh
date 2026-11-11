@@ -60,3 +60,22 @@ PDF fallback baseline даёт один fragment вместо ≥3; воспро
 минимальное окружение без PyMuPDF → pytest test_meetings.py::test_upload_formats_and_bad_files.
 Сейчас воспроизводимость закрыта явной существующей PyMuPDF-зависимостью. Замена
 самого PDF parser должна идти через Claude; Codex 3 её не делал.
+
+
+## Последующий аудит надёжности
+
+Оценщик версии 2 закрывает keyword-only task match с отрицанием/добавленной командой,
+повтор одного контроля вместо трёх, неподтверждённый claim с настоящей чужой цитатой.
+Gold/fixtures/frozen SHA не менялись. Новые отчёты не перезаписывают существующие,
+пишут checkpoints и interrupted; offline review не запускает инференс.
+Добавлены read-only doctor и CI-путь реального UI → HTTP handlers с явным двойником.
+
+Doctor подтверждает отсутствие настроенного gateway и ConnectError loopback Ollama;
+0 inference requests, 0 database mutations. Для снятия последнего модельного блокера
+нужны OLLAMA_BASE_URL, точная MEETINGS_MODEL, секрет в env и согласованное GPU-окно.
+Не передавать секреты в PR. Режим metadata_ready сам по себе не подтверждает recall.
+
+Из уточнённых лицензий: pyannote release archive проверен по фактическому LICENSE;
+GigaAM-v3 model card явно указывает MIT. У Silero v5_ru подтверждён общий LICENSE
+с NonCommercial и отдельное MIT-исключение для base CIS. Заявка сопровождающему
+размещена в PR #4; ASR/TTS/installer в чужой зоне не редактировались.
