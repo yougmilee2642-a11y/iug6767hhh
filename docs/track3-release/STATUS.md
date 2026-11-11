@@ -107,3 +107,10 @@ recall=1; три delay давали passed; QA с неподтверждённы
 URL/ключ/model env отсутствуют, loopback даёт ConnectError. Исходный отчёт —
 reports/doctor-audit.json. Новый CI включает реальный браузерный HTTP-сценарий;
 его результат оценивается по актуальным Checks PR #4, отдельно от старого pipeline.
+
+
+Проверки аудита: **228 passed, 10 opt-in skipped, 26.35 s**; полный исходный лог
+reports/audit-python.log. Frozen dataset и gold byte-for-byte совпадают с первой
+публикацией. GitHub CI текущего аудита проверяет также новый UI → HTTP harness;
+актуальный результат и опубликованный head находятся в PR #4. Никакое из этих
+чисел не является recall/precision настоящей модели.

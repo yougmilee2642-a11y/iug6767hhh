@@ -1,6 +1,6 @@
 {
   "status": "not_ready",
-  "checked_at": "2026-11-11T13:55:11.418394+00:00",
+  "checked_at": "2026-11-11T14:06:52.495407+00:00",
   "inference_requests": 0,
   "database_mutations": 0,
   "torch_required": false,
@@ -23,5 +23,5 @@
   "configured_model": "qwen2.5:7b",
   "blocked_at": "model_metadata",
   "error_type": "ConnectError",
-  "next_action": "Configure a running allowed Ollama gateway/model; supply credentials through environment, then agree a GPU window"
+  "next_action": "Configure a running allowed Ollama gateway with the exact model installed, then agree a GPU window"
 }
