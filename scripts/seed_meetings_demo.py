@@ -87,7 +87,7 @@ if __name__ == '__main__':
         marker = Path(str(test_path)+'.track3.json')
         if marker.is_symlink() or (test_path.exists() and not marker.is_file()):
             parser.error('Existing test DB needs a regular Track 3 marker')
-        if marker.is_file() and json.loads(marker.read_text()).get('db') != str(test_path):
+        if marker.is_file() and json.loads(marker.read_text(encoding='utf-8')).get('db') != str(test_path):
             parser.error('Test marker path mismatch')
         os.environ['MEETINGS_DB_PATH'] = str(test_path)
     if args.reset:
@@ -97,4 +97,4 @@ if __name__ == '__main__':
         store.reset_cache()
     print(seed(args.with_transcript))
     if args.db and not marker.exists():
-        marker.write_text(json.dumps({'version':1,'db':str(test_path),'dataset':'orbita-demo'}))
+        marker.write_text(json.dumps({'version':1,'db':str(test_path),'dataset':'orbita-demo'}), encoding='utf-8')

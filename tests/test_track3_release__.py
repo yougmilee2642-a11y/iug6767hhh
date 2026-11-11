@@ -41,14 +41,14 @@ def counts():
 
 def test_frozen_dataset_has_coverage():
     assert frozen_check()
-    data=json.loads((ROOT/'demo/track3/manifest.json').read_text())
-    gold=json.loads(GOLD.read_text())
+    data=json.loads((ROOT/'demo/track3/manifest.json').read_text(encoding='utf-8'))
+    gold=json.loads(GOLD.read_text(encoding='utf-8'))
     assert len(data['documents'])>=20 and len(data['meetings'])==3 and len(gold['questions'])>=15
     assert len({d['document_type'] for d in data['documents']})>=5
     assert len({d['authored_at'] for d in data['documents']})>5
     assert {t['status'] for t in data['history_tasks']}=={'open','in_progress','done'}
     for m,g in zip(data['meetings'],gold['transcripts']):
-        text=(ROOT/'demo/track3/transcripts'/m['transcript']).read_text()
+        text=(ROOT/'demo/track3/transcripts'/m['transcript']).read_text(encoding='utf-8')
         assert hashlib.sha256(text.encode()).hexdigest()==g['transcript_sha256']
         assert len(g['tasks'])==6
         for t in g['tasks']: assert t['quote'] in text
@@ -102,8 +102,8 @@ def test_task_cancel_confirm_idempotent_and_restart(env):
 
 
 def test_safe_cleanup_default_dry_run_and_explicit_artifacts(env,tmp_path):
-    report=tmp_path/'observations.json';report.write_text('{}')
-    unrelated=tmp_path/'unrelated.txt';unrelated.write_text('keep')
+    report=tmp_path/'observations.json';report.write_text('{}', encoding='utf-8')
+    unrelated=tmp_path/'unrelated.txt';unrelated.write_text('keep', encoding='utf-8')
     assert cleanup(str(env['path']),artifacts=[str(report)])['dry_run']
     assert env['path'].exists() and report.exists()
     cleanup(str(env['path']),True,[str(report)])
@@ -115,18 +115,33 @@ def test_cleanup_rejects_ambiguous_paths(path):
     with pytest.raises(ValueError): explicit_db(path)
 
 
-def test_cleanup_refuses_live_and_symlinks(tmp_path):
+def test_cleanup_refuses_live_and_unmarked_database(tmp_path):
     with pytest.raises(ValueError): explicit_db(str(ROOT/'data/meetings.db'))
     actual=tmp_path/'real.db';actual.touch()
-    link=tmp_path/'link.db';link.symlink_to(actual)
-    with pytest.raises(ValueError): explicit_db(str(link))
     with pytest.raises(ValueError): cleanup(str(actual),True)
     with pytest.raises(ValueError): seed(str(actual))
     assert actual.exists()
 
 
+def symlink_or_skip(link, target):
+    try:
+        link.symlink_to(target)
+    except OSError as error:
+        if getattr(error, 'winerror', None) == 1314:
+            pytest.skip('Windows account lacks symlink privilege; Linux CI covers this case')
+        raise
+
+
+def test_database_path_refuses_symlink(tmp_path):
+    actual = tmp_path / 'real.db'
+    actual.touch()
+    link = tmp_path / 'link.db'
+    symlink_or_skip(link, actual)
+    with pytest.raises(ValueError): explicit_db(str(link))
+
+
 def scoring_fixture():
-    tasks=json.loads(GOLD.read_text())['transcripts'][0]['tasks']
+    tasks=json.loads(GOLD.read_text(encoding='utf-8'))['transcripts'][0]['tasks']
     utterances=[{'id':f'U{g["utterance_index"]}','idx':g['utterance_index'],'text':g['quote']} for g in tasks]
     predictions=[dict(kind='task',text=g['text'],assignee=g['assignee'],due=g['due'],
                       assignee_status='stated' if g['assignee'] else 'unknown',due_status='stated' if g['due'] else 'unknown',
@@ -168,14 +183,14 @@ def test_cleanup_tracks_start_files_but_rejects_tampered_marker(env,monkeypatch)
     configure(env['path'])
     cabinet=env['path'].with_name(env['path'].stem+'.cabinet.db')
     cabinet.touch()
-    unrelated=env['path'].parent/'not-owned.txt';unrelated.write_text('keep')
+    unrelated=env['path'].parent/'not-owned.txt';unrelated.write_text('keep', encoding='utf-8')
     marker=Path(str(env['path'])+'.track3.json')
-    declared=json.loads(marker.read_text())
+    declared=json.loads(marker.read_text(encoding='utf-8'))
     assert str(cabinet) in declared['start_files']
-    declared['start_files'].append(str(unrelated));marker.write_text(json.dumps(declared))
+    declared['start_files'].append(str(unrelated));marker.write_text(json.dumps(declared), encoding='utf-8')
     with pytest.raises(ValueError): cleanup(str(env['path']),True)
     assert unrelated.exists() and cabinet.exists()
-    declared['start_files'].remove(str(unrelated));marker.write_text(json.dumps(declared))
+    declared['start_files'].remove(str(unrelated));marker.write_text(json.dumps(declared), encoding='utf-8')
     cleanup(str(env['path']),True)
     assert not cabinet.exists() and unrelated.exists()
 
@@ -235,7 +250,7 @@ def test_review_cannot_silently_ignore_invalid_prediction_index(index):
 
 def full_observation_fixture():
     from scripts.track3.evaluate import predictions_digest, SCORER_VERSION
-    raw = json.loads(GOLD.read_text())
+    raw = json.loads(GOLD.read_text(encoding='utf-8'))
     report = dict(schema_version=2, scorer_version=SCORER_VERSION, status='running',
                   dataset_sha256=frozen_check(), exclusive_gpu_window_confirmed=True,
                   model_metadata_status='observed', model={'ollama_version': 'unit-double', 'model_digest': 'unit-double'},
@@ -343,11 +358,17 @@ def test_report_writer_preserves_existing_evidence_and_checkpoints(tmp_path):
         writer.write({'status': 'running', 'completed_controls': 1})
         with pytest.raises(ValueError):
             writer.write({'invalid': float('nan')})
-    assert json.loads(path.read_text())['completed_controls'] == 1
+    assert json.loads(path.read_text(encoding='utf-8'))['completed_controls'] == 1
     with pytest.raises(ValueError):
         ReportFile(str(path))
+
+
+def test_report_writer_refuses_symlink(tmp_path):
+    from scripts.track3.reporting import ReportFile
+    path = tmp_path / 'source.json'
+    path.write_text('{}', encoding='utf-8')
     link = tmp_path / 'alias.json'
-    link.symlink_to(path)
+    symlink_or_skip(link, path)
     with pytest.raises(ValueError):
         ReportFile(str(link))
 
@@ -359,7 +380,7 @@ def test_cli_saves_prerequisite_failure_and_interrupt_without_model(monkeypatch,
     def fail(_report, _window, _checkpoint): raise ValueError('synthetic prerequisite failure')
     monkeypatch.setattr(evaluate, 'run_evaluation', fail)
     assert evaluate.main() == 2
-    assert json.loads(path.read_text())['status'] == 'not_run'
+    assert json.loads(path.read_text(encoding='utf-8'))['status'] == 'not_run'
     path = tmp_path / 'interrupted.json'
     monkeypatch.setattr('sys.argv', ['evaluate', '--output', str(path)])
     def interrupt(report, _window, checkpoint):
@@ -368,7 +389,7 @@ def test_cli_saves_prerequisite_failure_and_interrupt_without_model(monkeypatch,
         raise KeyboardInterrupt()
     monkeypatch.setattr(evaluate, 'run_evaluation', interrupt)
     assert evaluate.main() == 130
-    saved = json.loads(path.read_text())
+    saved = json.loads(path.read_text(encoding='utf-8'))
     assert saved['status'] == 'interrupted' and saved['transcripts'][0]['key'] == 'partial'
 
 
@@ -377,9 +398,9 @@ def test_review_cannot_overwrite_raw_report_or_review_input(monkeypatch, tmp_pat
     report = full_observation_fixture()
     report['status'] = 'failed'
     source = tmp_path / 'raw.json'
-    source.write_text(json.dumps(report))
+    source.write_text(json.dumps(report), encoding='utf-8')
     review = tmp_path / 'review.json'
-    review.write_text(json.dumps({'predictions_sha256': report['predictions_sha256'], 'transcripts': {}}))
+    review.write_text(json.dumps({'predictions_sha256': report['predictions_sha256'], 'transcripts': {}}), encoding='utf-8')
     for target in (source, review):
         before = target.read_bytes()
         monkeypatch.setattr('sys.argv', ['score', '--report', str(source), '--review', str(review), '--output', str(target)])
@@ -388,12 +409,12 @@ def test_review_cannot_overwrite_raw_report_or_review_input(monkeypatch, tmp_pat
     output = tmp_path / 'reviewed.json'
     monkeypatch.setattr('sys.argv', ['score', '--report', str(source), '--review', str(review), '--output', str(output)])
     assert score_report.main() == 0
-    assert json.loads(output.read_text())['status'] == 'passed'
+    assert json.loads(output.read_text(encoding='utf-8'))['status'] == 'passed'
 
 
 def test_cleanup_retains_marker_if_later_artifact_delete_fails(env, monkeypatch):
     report = env['path'].parent / 'retained.json'
-    report.write_text('{}')
+    report.write_text('{}', encoding='utf-8')
     original = Path.unlink
     def guarded(path, *args, **kwargs):
         if path == report: raise PermissionError('synthetic filesystem failure')
@@ -445,7 +466,7 @@ def test_frozen_dataset_failure_still_produces_not_run_report(monkeypatch, tmp_p
     def changed(): raise ValueError('synthetic wrong digest')
     monkeypatch.setattr(evaluate, 'frozen_check', changed)
     assert evaluate.main() == 2
-    saved = json.loads(path.read_text())
+    saved = json.loads(path.read_text(encoding='utf-8'))
     assert saved['status'] == 'not_run' and saved['stage'] == 'dataset_integrity'
     assert not saved['transcripts'] and saved['model_metadata_status'] == 'not_run'
 
@@ -463,3 +484,27 @@ def test_doctor_preserves_http_status_without_leaking_credentials(monkeypatch):
     assert result['status'] == 'not_ready' and result['http_status'] == 401
     assert result['inference_requests'] == result['database_mutations'] == 0
     assert 'must-not-appear' not in json.dumps(result)
+
+
+
+def test_regeneration_ignores_checkout_metadata_and_preserves_frozen_bytes(tmp_path, monkeypatch):
+    from scripts.track3 import build_dataset
+    destination = tmp_path / 'demo/track3'
+    destination.mkdir(parents=True)
+    (destination / '.gitattributes').write_text('*.txt text eol=lf\n', encoding='utf-8')
+    monkeypatch.setattr(build_dataset, 'ROOT', tmp_path)
+    monkeypatch.setattr(build_dataset, 'DEST', destination)
+    monkeypatch.setattr(build_dataset, 'GOLD', tmp_path / 'evaluation/track3')
+    build_dataset.build()
+    assert (tmp_path / 'evaluation/track3/gold.json').read_bytes() == GOLD.read_bytes()
+    assert (tmp_path / 'evaluation/track3/frozen.json').read_bytes() == (ROOT / 'evaluation/track3/frozen.json').read_bytes()
+
+
+def test_frozen_inputs_survive_autocrlf_checkout(tmp_path):
+    import subprocess
+    paths = ['demo/track3/documents/fp_acceptance.txt', 'demo/track3/manifest.json', 'evaluation/track3/gold.json']
+    subprocess.run(['git', '-c', 'core.autocrlf=true', 'checkout-index', '--prefix=' + tmp_path.as_posix() + '/', '--', *paths],
+                   cwd=ROOT, check=True, capture_output=True)
+    for relative in paths:
+        assert (tmp_path / relative).read_bytes() == (ROOT / relative).read_bytes()
+        assert b'\r\n' not in (tmp_path / relative).read_bytes()

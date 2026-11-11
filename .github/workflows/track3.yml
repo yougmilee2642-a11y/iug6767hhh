@@ -57,3 +57,19 @@ jobs:
             /tmp/track3-ui-http.json
             /tmp/track3-ui-http/
           retention-days: 7
+  windows-release:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: '0'
+      TRACK3_REAL_OLLAMA: '0'
+      TRACK3_HTTP_SMOKE: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-track3-lock.txt
+      - run: python -m pip check
+      - name: Release, report and gateway checks without UTF-8 locale mode
+        run: python scripts/track3/check.py -q tests/test_track3_release__.py tests/test_track3_llm__.py

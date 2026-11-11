@@ -23,11 +23,11 @@ def run(artifacts):
     with socket.socket() as reserve:
         reserve.bind(('127.0.0.1', 0))
         port = reserve.getsockname()[1]
-    env = {**os.environ, 'TRACK3_SERVER_ROOT': str(ROOT), 'TRACK3_SMOKE_PORT': str(port),
+    env = {**os.environ, 'PYTHONUTF8': '1', 'TRACK3_SERVER_ROOT': str(ROOT), 'TRACK3_SMOKE_PORT': str(port),
            'TRACK3_SMOKE_URL': f'http://127.0.0.1:{port}', 'TRACK3_ARTIFACTS': str(artifacts)}
     server = None
     before = time.perf_counter()
-    with (artifacts / 'server.log').open('w') as log:
+    with (artifacts / 'server.log').open('w', encoding='utf-8') as log:
         try:
             server = subprocess.Popen([sys.executable, str(ROOT / 'tests/ui_track3/http_smoke_server.py')],
                                       cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
@@ -45,8 +45,8 @@ def run(artifacts):
                 else:
                     raise RuntimeError('isolated_server_startup_timeout')
             result = subprocess.run([sys.executable, str(ROOT / 'tests/ui_track3/http_browser_smoke.py')],
-                                    cwd=ROOT, env=env, capture_output=True, text=True, timeout=180)
-            (artifacts / 'browser.log').write_text(result.stdout + result.stderr)
+                                    cwd=ROOT, env=env, capture_output=True, text=True, encoding='utf-8', timeout=180)
+            (artifacts / 'browser.log').write_text(result.stdout + result.stderr, encoding='utf-8')
             if result.returncode:
                 raise RuntimeError('browser_acceptance_failed_see_artifacts')
             summary = json.loads(result.stdout.strip().splitlines()[-1])
