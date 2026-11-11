@@ -160,3 +160,8 @@ Scorer v3 после этого локально: **73 passed, 2.01 s**, reports
 SHA256 в reports/joint-checks.json. Читаемая .log-копия удаляет только trailing
 whitespace, чтобы syntax/diff gate не ломался на pytest presentation.
 Preflight v3: NOT RUN на gpu_window, 0 LLM calls; отчёт сохранён отдельно от v2.
+
+
+CI порядок уточнён: CPU/Python/JS/HTTP/syntax выполняются до установки Chromium,
+чтобы загрузка браузера не задерживала продуктовую диагностику. У browser install
+есть отдельный timeout 5 минут; его отказ не скрывается зелёным статусом.
