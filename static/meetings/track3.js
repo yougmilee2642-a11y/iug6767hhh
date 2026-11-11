@@ -333,8 +333,8 @@ export function track3UI(h) {
       event.preventDefault();
       if (search.disabled) return;
       rememberRange();
-      const searchedRevision = revision;
       await run(search, async () => {
+        const searchedRevision = revision;
         const body = {
           timezone: zone.input.value.trim(), range_start: zonedISO(start.input.value, zone.input.value.trim()),
           range_end: zonedISO(end.input.value, zone.input.value.trim()), duration_minutes: Number(duration.input.value),

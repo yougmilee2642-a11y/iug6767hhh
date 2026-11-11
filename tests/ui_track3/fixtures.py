@@ -24,6 +24,7 @@ class FixtureAPI:
         self.conflict = False
         self.confirmed = False
         self.due_changed = None
+        self.followup = None
 
     def handle(self, route):
         req = route.request
@@ -46,10 +47,16 @@ class FixtureAPI:
         if path == '/me': return 200, self.me()
         if path == '/users': return 200, {'users': [{'id':1,'name':'Ирина'}, {'id':2,'name':'Пётр'}]}
         if path == '/documents': return 200, {'documents': [dict(id=1, title='План запуска', created_at=NOW, filename='plan.txt')]}
-        if path == '/meetings' and method == 'GET': return 200, {'meetings': [dict(self.meeting, title=self.meeting['title'] if self.user == 'irina' else 'Синк Петра')]}
+        if path == '/meetings' and method == 'GET': return 200, {'meetings': [dict(self.meeting, title=self.meeting['title'] if self.user == 'irina' else 'Синк Петра')] + ([self.followup] if self.followup else [])}
         if path == '/meetings' and method == 'POST': return 200, {'meeting': dict(self.meeting, **body)}
         if path == '/meetings/1' and method == 'PATCH': self.meeting.update(body); return 200, {'meeting': self.meeting}
         if path == '/meetings/1': return 200, dict(meeting=self.meeting, documents=[], utterances=[dict(id='U1',idx=1,speaker='Ирина',speaker_label='Говорящий 1',text=QUOTE['text'],meeting_id=1)], tasks=[self.task] if self.confirmed else [], prep=dict(status='ok',brief=[],agenda=[],questions=[],open_tasks=[self.task],task_questions=[]), protocol=dict(items=self.items, summary=[dict(text='Подготовка плана', status='verified', quotes=[QUOTE])],warnings=[]))
+        if path == '/meetings/1/next-agenda':
+            result={'agenda':[dict(task_id=1,text=self.task['text'],assignee=self.task['assignee'],due=self.task['due'])]}
+            if body.get('create_meeting'):
+                self.followup=dict(self.meeting,id=2,title='Следующая встреча')
+                result['meeting']=self.followup
+            return 200,result
         if path == '/tasks': return 200, {'tasks': [self.task]}
         if path == '/tasks/1/preview':
             changes = body['changes']

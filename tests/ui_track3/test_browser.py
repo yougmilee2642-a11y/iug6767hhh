@@ -523,3 +523,51 @@ class BrowserTests(unittest.TestCase):
         self.page.get_by_role('button',name='Встречи',exact=True).focus()
         expect(self.page.get_by_role('button',name='Изменить задачу')).to_be_visible()
         expect(self.page.get_by_role('heading',name='Параметры и свободное время')).to_have_count(0)
+
+    def test_meeting_times_use_explicit_zone_and_deadline_is_calendar_date(self):
+        self.api.meeting['timezone']='Asia/Tokyo'
+        self.page.reload()
+        expect(self.page.get_by_role('heading',name='Обзор',exact=True)).to_be_visible()
+        self.page.get_by_role('button',name='Встречи',exact=True).click()
+        expect(self.page.locator('.meeting-date-chip')).to_contain_text('15:00')
+        expect(self.page.locator('.meeting-date-chip')).to_contain_text('Asia/Tokyo')
+        self.page.get_by_role('button',name='Открыть встречу',exact=True).click()
+        expect(self.page.locator('.meeting-detail-copy > .eyebrow')).to_contain_text('15:00')
+        expect(self.page.locator('.meeting-detail-copy > .eyebrow')).to_contain_text('Asia/Tokyo')
+        other=self.browser.new_context(timezone_id='Pacific/Kiritimati')
+        try:
+            page=other.new_page();page.route('**/api/meet/**',self.api.handle)
+            page.goto(f'http://127.0.0.1:{self.server.server_port}/static/meetings.html')
+            expect(page.get_by_role('heading',name='Обзор',exact=True)).to_be_visible()
+            page.get_by_role('button',name='Задачи',exact=True).click()
+            expect(page.locator('.task-card .task-meta').filter(has_text='Срок:')).to_contain_text('1 нояб.')
+        finally:
+            other.close()
+
+    def test_slot_retry_uses_edited_range_parameters(self):
+        self.meetings();self.page.get_by_role('button',name='Загрузить участников').click()
+        self.page.get_by_label('Начало поиска').fill('2026-11-18T09:00')
+        self.page.get_by_label('Конец поиска').fill('2026-11-19T18:00')
+        self.api.errors['/calendar/slots']=503
+        self.page.get_by_role('button',name='Найти свободное время').click()
+        expect(self.page.locator('#notice')).to_contain_text('503')
+        self.page.get_by_label('Продолжительность, минут').fill('90')
+        del self.api.errors['/calendar/slots']
+        self.page.get_by_role('button',name='Повторить',exact=True).click()
+        expect(self.page.locator('.meet-slots button')).to_have_count(1)
+        body=[b for _,path,b in self.api.calls if path=='/calendar/slots'][-1]
+        self.assertEqual(body['duration_minutes'],90)
+
+    def test_followup_success_does_not_repeat_creation_on_list_refresh_error(self):
+        self.meetings();self.page.get_by_role('button',name='4 · Задачи').click()
+        self.page.get_by_role('button',name='Повестка следующей встречи',exact=True).click()
+        self.page.get_by_role('button',name='Создать следующую встречу',exact=True).click()
+        self.api.errors['/meetings']=503
+        self.page.get_by_role('button',name='Подтвердить',exact=True).click()
+        expect(self.page.get_by_role('dialog')).to_have_count(0)
+        expect(self.page.locator('#notice')).to_contain_text('Встреча создана')
+        del self.api.errors['/meetings']
+        self.page.get_by_role('button',name='Повторить',exact=True).click()
+        expect(self.page.locator('#notice')).to_be_hidden()
+        creations=[b for _,path,b in self.api.calls if path=='/meetings/1/next-agenda' and b.get('create_meeting')]
+        self.assertEqual(len(creations),1)

@@ -320,12 +320,12 @@ async function runAction(button, task, { model = false, label = 'Выполня�
   }
 }
 
-function dateLabel(value) {
+function dateLabel(value, timeZone = 'Europe/Moscow') {
   if (!value) return 'Дата не указана';
   const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(String(value));
   const date = dateOnly ? new Date(`${value}T12:00:00Z`) : new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
-  return new Intl.DateTimeFormat('ru-RU', dateOnly ? { dateStyle: 'medium' } : { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Moscow' }).format(date);
+  return new Intl.DateTimeFormat('ru-RU', dateOnly ? { dateStyle: 'medium', timeZone: 'UTC' } : { dateStyle: 'medium', timeStyle: 'short', timeZone }).format(date);
 }
 
 function fileKind(documentItem) {
@@ -502,7 +502,7 @@ function renderMeetings(app) {
     const cards = node('div', 'meeting-card-grid');
     state.meetings.forEach((meeting) => {
       const card = node('article', 'meeting-card panel');
-      card.append(node('span', 'meeting-date-chip', dateLabel(meeting.scheduled_at)));
+      card.append(node('span', 'meeting-date-chip', `${dateLabel(meeting.scheduled_at, meeting.timezone || state.timezone)} · ${meeting.timezone || state.timezone}`));
       card.append(node('h3', '', meeting.title || 'Без названия'));
       card.append(node('p', 'meeting-topic', meeting.topic || 'Тема не указана'));
       const participants = node('p', 'meeting-participants', (meeting.participants || []).join(' · ') || 'Участники не указаны');
@@ -598,7 +598,7 @@ function renderMeeting(app) {
   const head = node('section', 'meeting-detail-heading');
   head.append(makeButton('← Все встречи', () => setPage('meetings'), 'back-button'));
   const copy = node('div', 'meeting-detail-copy');
-  copy.append(node('p', 'eyebrow', dateLabel(meeting.scheduled_at)));
+  copy.append(node('p', 'eyebrow', `${dateLabel(meeting.scheduled_at, meeting.timezone || state.timezone)} · ${meeting.timezone || state.timezone}`));
   copy.append(node('h1', '', meeting.title || 'Встреча'));
   copy.append(node('p', 'muted-copy', meeting.topic || 'Тема не указана'));
   head.append(copy);
@@ -1563,7 +1563,12 @@ function renderNextAgenda(parent, result) {
       const meetingId = state.meetingData.meeting.id;
       ui.dialog('Создать встречу по поручениям', preview, async () => {
         const created = await request(`/meetings/${encodeURIComponent(meetingId)}/next-agenda`, { method: 'POST', body: { create_meeting: true } });
-        state.nextAgenda = created; await refreshMeetings(); renderMeetingContent();
+        state.nextAgenda = created; renderMeetingContent();
+        const epoch = state.epoch;
+        try { await refreshMeetings(); }
+        catch (e) {
+          if (state.epoch === epoch && state.user) showNotice('Встреча создана. Не удалось обновить список встреч; повторите загрузку.', () => runAction(null, async () => { await refreshMeetings(); render(); }));
+        }
       });
     }));
   }
