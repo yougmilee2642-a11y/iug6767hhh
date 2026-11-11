@@ -594,5 +594,5 @@ uses the existing application without speech weights. [Status and acceptance evi
 [frozen model evaluation](docs/track3-release/EVALUATION.md), [architecture](docs/track3-release/ARCHITECTURE.md),
 [API](docs/MEETINGS_API.md), [data removal](docs/track3-release/RETENTION.md),
 [licenses](docs/track3-release/LICENSES.md), and [5–7 minute demo](docs/track3-release/DEMO.md).
-Release readiness is blocked until the outstanding live-model, browser, independent reproduction
-and publication gates pass; historical MVP model results are not current release evidence.
+Release readiness is blocked until the outstanding live-model, independent reproduction
+and review gates pass; historical MVP model results are not current release evidence.

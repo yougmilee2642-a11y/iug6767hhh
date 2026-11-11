@@ -25,10 +25,10 @@
   },
   "http": "passed",
   "browser": {
-    "status": "not_run",
-    "setup": "failed",
-    "reason": "Chromium socket() Operation not permitted",
-    "intended_scenarios": 35
+    "status": "passed",
+    "scenarios": 35,
+    "source": "github-ci.json",
+    "historical_local_setup": "failed: socket() Operation not permitted"
   },
   "live_model": {
     "status": "not_run",
@@ -36,9 +36,35 @@
   },
   "independent_install": "not_run",
   "github_ci": {
-    "observed_status": "in_progress",
+    "status": "passed",
     "run_id": 43030022726,
-    "current_status": "See PR #4 Checks"
+    "job_id": 130554366457,
+    "url": "https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43030022726",
+    "head_sha": "5f66956641dd31d9dbb599767a5087fe12c2d3d1",
+    "pull_request_test_merge_sha": "facf44c5538fcf690ffb3ccd230166b881d50777",
+    "runner": "ubuntu-24.04, Python 3.12, Node 22, no GPU or secrets",
+    "python": {
+      "passed": 203,
+      "skipped": 10,
+      "seconds": 36.35
+    },
+    "javascript": {
+      "passed": 46
+    },
+    "browser": {
+      "passed": 35,
+      "seconds": 41.26
+    },
+    "http": {
+      "status": "passed",
+      "seconds": 2.902,
+      "torch_installed": false
+    },
+    "pip_install": "passed",
+    "pip_check": "passed",
+    "syntax_diff": "passed",
+    "model_quality": "not_run",
+    "independent_colleague_install": "not_run"
   },
   "publication": {
     "status": "published",

@@ -41,11 +41,11 @@ Codex 3 меняет лишь свою release-зону; verify_ownership.py п�
 
 | Статус | Проверка | Причина / следующий шаг |
 |---|---|---|
-| FAILED setup; сценарии NOT RUN | Chromium UI suite | process_singleton_posix: socket() Operation not permitted, до первого сценария. reports/browser-blocked.log. Проверить в CI/на машине без этого ограничения |
+| PASSED в GitHub CI | Chromium UI suite | 35/35 сценариев, 41.260 s. Первоначальный локальный setup оставлен в reports/browser-blocked.log; это ограничение локальной среды, закрыто внешним CI-прогоном |
 | NOT RUN | 3 расшифровки и 16 вопросов на настоящей модели | Loopback Ollama metadata preflight: ConnectError. reports/live-not-run.json. Нужны разрешённый gateway/установленная модель и одно согласованное GPU-окно |
 | NOT RUN | Новый recall ≥80%, precision/false tasks/latency | Модель не отвечала; значений нет. Эталон и оценщик готовы, прежняя «Орбита 3 из 3» не засчитывается |
 | NOT RUN | Независимая установка другим участником | Сценарий и точные зависимости готовы, но другой участник здесь не выполнял установку |
-| RUNNING на момент публикационной записи | GitHub CI | Запущен [run 43030022726](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43030022726); актуальный результат — Checks PR #4. Локальный browser setup error не выдаётся за результат CI |
+| PASSED | GitHub CI | [run 43030022726](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43030022726): 203 Python passed/10 skipped; 46 JS; 35 browser; HTTP/restart; install/pip check/syntax/diff. reports/github-ci.json; актуальный head — Checks PR #4 |
 | RESOLVED | Публикация | Выбран подключённый yougmilee2642-a11y с push=true; обе ветки опубликованы через GitHub API, PR #4 draft. Отдельный release → integration PR не нужен: release уже включён в integration. Первоначальная блокировка Primary Listopad33 оставлена в истории |
 | PENDING | Согласование общего CONTRACT | Файлов не было на remote; восстановлен проект контракта, согласование не выдумывается |
 | PENDING | Лицензирование поставки | PyMuPDF dual AGPL/commercial и неподтверждённые условия конкретных voice-assets; LICENSES.md |
@@ -66,7 +66,7 @@ Codex 3 меняет лишь свою release-зону; verify_ownership.py п�
 | 6 Текстовый запуск | Existing app.py без torch/голосовых весов; RUNBOOK | HTTP passed; независимый повтор pending |
 | 7 Очистка/хранение | Marker, absolute path, dry-run, explicit confirm; RETENTION | Passed unit/integration, политика ручная |
 | 8 Лицензии | Lock, metadata inventory, отдельные code/weights | Текстовый inventory готов; указанные license gates pending |
-| 9 CI/документы/демо | Workflow, API, architecture, 5–7 мин, 10 слайдов | Документы готовы, UI/CI не выполнены в этой среде |
+| 9 CI/документы/демо | Workflow, API, architecture, 5–7 мин, 10 слайдов | Документы готовы; UI и CPU CI passed на GitHub runner |
 
 ## Риски и передачи
 
@@ -82,9 +82,13 @@ Codex 3 меняет лишь свою release-зону; verify_ownership.py п�
 
 Финальный UI owner update d95b252 добавлен обычным merge: зоны времени и retry.
 Python-продуктовые файлы он не менял. Локально повторены JS/syntax/diff, браузерные
-35 сценариев остаются NOT RUN из-за описанного ограничения Chromium.
+35 сценариев прошли на GitHub runner; исходное локальное ограничение Chromium сохранено как историческое наблюдение.
 
 При публикации собственные commit SHA изменились из-за авторских метаданных API,
 **git tree каждого из 31 коммитов совпал с исходным локальным**. История коллег
 не переписывалась. Первоначальный gold commit 9d1c2dc опубликован как ca06d6eba2fe697073609181d40f1dfe24e3f459.
 Старые machine reports сохраняют первоначальные commit ID; соответствие — publication-map.json.
+
+Внешний чистый CPU runner подтвердил установку lock и полный pipeline. Это
+самостоятельный прогон CI, но не обещанный независимый повтор другим участником
+и не проверка модели: эти два gate остаются открытыми.
