@@ -3,15 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f5f6f8">
-  <title>Встречи — Callwise</title>
+  <meta name="theme-color" content="#f6efe6">
+  <title>Фокус — встречи и знания</title>
+  <link rel="icon" href="/static/focus-logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="/static/style.css">
   <link rel="stylesheet" href="/static/product.css">
   <link rel="stylesheet" href="/static/meetings.css">
 </head>
 <body class="meetings-page">
   <header class="meetings-topbar">
-    <a class="meetings-brand" href="/" aria-label="Callwise, на главную"><span class="meetings-brand-mark">C</span><span><b>Callwise</b><small>ВСТРЕЧИ</small></span></a>
+    <a class="meetings-brand" href="/meetings" aria-label="Фокус, к списку встреч">
+      <svg class="meetings-brand-mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M16 10.8L27.13 17.23M20.5 13.4V26.25M20.5 18.6L9.37 25.03M16 21.2L4.87 14.77M11.5 18.6V5.75M11.5 13.4L22.63 6.97" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path class="lens-core" d="M16 10.8L20.5 13.4V18.6L16 21.2L11.5 18.6V13.4Z"/></svg>
+      <span><b>Фокус</b><small>встречи и знания</small></span>
+    </a>
     <nav class="meetings-nav" aria-label="Разделы встреч">
       <button type="button" data-action="show-overview">Обзор</button>
       <button type="button" data-action="show-meetings" class="nav-current">Встречи</button>
@@ -25,7 +32,7 @@
     <div id="app" aria-live="polite"></div>
   </main>
   <dialog id="source-panel" class="source-panel" aria-labelledby="source-title" hidden>
-    <div class="source-panel-head"><div><p class="eyebrow">ПЕРВОИСТОЧНИК</p><h2 id="source-title">Цитата</h2></div><button class="icon-button" type="button" data-action="close-source" aria-label="Закрыть">×</button></div>
+    <div class="source-panel-head"><div><p class="eyebrow">Первоисточник</p><h2 id="source-title">Цитата</h2></div><button class="icon-button" type="button" data-action="close-source" aria-label="Закрыть">×</button></div>
     <div id="source-content" class="source-content"></div>
   </dialog>
   <div id="toast" class="meetings-toast" role="status" aria-live="polite"></div>

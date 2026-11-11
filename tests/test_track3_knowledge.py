@@ -104,13 +104,14 @@ def test_partial_quote_is_widened_to_the_whole_stored_sentence_with_its_negation
 
 def test_claim_text_may_copy_document_heading_around_the_quote(env):
     """Found on qwen2.5:7b: the model pasted the fragment's heading lines into `text`. That is still a verbatim
-    copy of stored text, so the verified quote is answered; the heading is not shown."""
+    copy of stored text, so the verified quote is answered. Lines without a full stop belong to one stored
+    sentence (PR #7 keeps a condition on the line above), so the answer is that whole original sentence."""
     heading = 'Фотопринт | Журнал качества\nДата документа: 2026-11-08'
     fact = 'Контроль качества выявил 20 дефектных экземпляров из 1000 произведённых единиц.'
     _, fid = document(env['irina'], heading + '\n' + fact)
     env['model'].reply = {'claims': [{'text': heading + '\n' + fact, 'quote': fact, 'fragment_id': fid}]}
     result = ask(env, question='Сколько дефектных экземпляров выявил контроль качества?').json()
-    assert result['status'] == 'grounded' and result['answer'] == fact
+    assert result['status'] == 'grounded' and result['answer'] == heading + '\n' + fact
 
 
 def test_mixed_valid_and_invented_claims_and_extra_answer(env):

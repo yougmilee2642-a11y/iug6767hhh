@@ -79,7 +79,10 @@ def test_excerpt_boundaries_cannot_drop_currency_or_newline_condition(env, text,
     _, fid = document(env['irina'], text)
     env['model'].reply = {'claims': [{'fragment_id': fid, 'quote': cut, 'text': cut}]}
     result = env['irina'].post('/api/meet/qa', json={'question': question}).json()
-    assert result['status'] == 'insufficient_data'
+    # A word-aligned partial quote is widened to the whole stored sentence (PR #8), so the currency or the
+    # condition on the line above is shown with it; the cut itself is never the answer.
+    assert result['status'] == 'grounded'
+    assert result['answer'] == text and result['sources'][0]['quote'] == text
     choices = env['model'].calls[-1][1]['untrusted_documents'][0]['excerpts']
     assert cut not in [choice['text'] for choice in choices]
 
