@@ -4,12 +4,12 @@
   "integration_code_sha": "f2bf0c2ac6102f07479b7a571cc22572baf11d83",
   "release_code_sha": "62a0f276313fa992fb937445c8d4cb840ce8caad",
   "python": {
-    "passed": 203,
+    "passed": 228,
     "skipped": 10,
     "failed": 0,
-    "elapsed_seconds": 23.0,
-    "sha": "2d3eb9514991801f1f5423c9739d9454e1b00bff",
-    "log": "python.log"
+    "elapsed_seconds": 26.35,
+    "log": "audit-python.log",
+    "source_commit": "6c8ffc8b4d6a08336b30f068d280a60fb5a7cb41"
   },
   "final_marker_and_isolation": {
     "passed": 13,
@@ -81,5 +81,17 @@
   "license_review": "pending; see LICENSES.md",
   "contract_agreement": "pending",
   "final_ui_source_sha": "d95b252e237e02141028359efa9023f50bf4497f",
-  "final_ui_integration_check_sha": "419e41a6c3a9df0cd9cf3e8bfc6448f0483fe4a5"
+  "final_ui_integration_check_sha": "419e41a6c3a9df0cd9cf3e8bfc6448f0483fe4a5",
+  "before_audit_python": {
+    "passed": 203,
+    "skipped": 10,
+    "failed": 0,
+    "elapsed_seconds": 23.0,
+    "sha": "2d3eb9514991801f1f5423c9739d9454e1b00bff",
+    "log": "python.log"
+  },
+  "scorer_version": 2,
+  "frozen_gold_unchanged": true,
+  "post_audit_ci": "See current Checks PR #4; previous github_ci record is the pre-audit observation",
+  "model_prerequisites": "doctor-audit.json"
 }

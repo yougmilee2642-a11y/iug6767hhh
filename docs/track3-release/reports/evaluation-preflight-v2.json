@@ -1,0 +1,29 @@
+{
+  "schema_version": 2,
+  "scorer_version": 2,
+  "status": "not_run",
+  "started_at": "2026-11-11T14:06:53.138525+00:00",
+  "run_id": "bd7e07989dd148db9b9ac17fd559866f",
+  "commit": "5ce9f178919ab6fa4f2ded7eeb9bd9be526117c0",
+  "dirty": false,
+  "dataset": "photoprint-v1",
+  "judge": "frozen deterministic rules; independent human review only if supplied",
+  "model_metadata_status": "not_run",
+  "stage": "gpu_window",
+  "transcripts": [],
+  "questions": [],
+  "llm_calls": [],
+  "dataset_sha256": "1645bc60e6de0c60ed8d21174d84121eb904ec8430b6cb1de48fb3dcf7113fe1",
+  "parameters": {
+    "context": 8192,
+    "timeout": 300.0,
+    "temperature": 0.1,
+    "think": false,
+    "stream": false,
+    "num_predict_protocol": 1800
+  },
+  "configured_model": "qwen2.5:7b",
+  "blocker_type": "EvaluationBlocked",
+  "blocker": "exclusive_gpu_window_not_confirmed",
+  "finished_at": "2026-11-11T14:06:53.157037+00:00"
+}
