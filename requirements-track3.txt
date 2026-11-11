@@ -14,3 +14,6 @@ google-auth==2.40.1
 requests==2.32.4
 numpy==2.2.5
 pypdf==5.4.0
+
+# Existing Orbita PDF parser requires block-preserving extraction.
+pymupdf==1.25.5
