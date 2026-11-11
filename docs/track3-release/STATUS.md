@@ -2,7 +2,9 @@
 
 **Выпуск заблокирован.** [Draft PR #4](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/4)
 содержит актуальный integration SHA и Checks. Ветки release/integration опубликованы.
-Codex 3 main не менял; обновление main сопровождающим `0e99e32` включено обычным merge.
+Codex 3 main не менял; обновление main сопровождающим `e3d37e3` включено обычным merge.
+Для этой передачи срез main зафиксирован на e3d37e3: последующие изменения —
+отдельная поставка, не бесконечное перемещение проверяемого кандидата.
 
 ## Состав и владение
 
@@ -10,11 +12,12 @@ Codex 3 main не менял; обновление main сопровождающ
 
 | Поставка | Включённый авторский SHA / PR |
 |---|---|
-| Core, migration v8, роли, календарь | `cd06b4d` / #2; затем main сопровождающего `0e99e32` |
+| Core, migration v8, роли, календарь | `cd06b4d` / #2; затем main сопровождающего `e3d37e3` |
 | Knowledge, overview, KPI | `9eecb94` / #7, поверх исходного #1 |
 | Отмена поручений, разные задачи с общим сроком, legacy QA | Claude `58ec401` / #8 |
 | UI | `d95b252` / #3; «Фокус» `1ea0a5a`, включённый сопровождающим |
 | Согласование knowledge | `3104d0c` / #10: точный полный answer/source вместо обрезанной цитаты |
+| Voice MVP | Авторский #9 / main `e3d37e3`, без обязательных весов для text start |
 | Release | `codex/track3-release`; scorer 3, schema 2 |
 | Интеграция | `codex/track3-integration`; обычные merge без rebase авторов |
 
@@ -27,9 +30,9 @@ Codex 3 не редактировал. Интеграционные замеча
 | Проверка | Наблюдение и предел применимости |
 |---|---|
 | Release/gateway/scorer v3 | 73 passed локально, 2.01 s; [Windows CI](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43043682513/job/130601886677): 73 passed, 8.25 s, PYTHONUTF8=0 |
-| Общий Python после нового main | **259 passed, 15 skipped, 0 failed**, 30.17 s; reports/focus-checks.json и focus-python.* |
-| JavaScript | 46 passed; syntax трёх UI-модулей. reports/focus-javascript.log |
-| Настоящий app HTTP/restart | Без LLM double: две роли, ACL/аудит отказа, ручной protocol→confirm без дублей, task/calendar cancel-confirm, KPI 90/2/75, cookies/state после restart. 4.08 s; reports/focus-http.json |
+| Общий Python после нового main | **304 passed, 15 skipped, 0 failed**, 35.82 s; reports/voice-integration-checks.json и voice-integration-python.* |
+| JavaScript | 46 passed; syntax трёх UI-модулей. reports/voice-integration-javascript.log |
+| Настоящий app HTTP/restart | Без LLM double: две роли, ACL/аудит отказа, ручной protocol→confirm без дублей, task/calendar cancel-confirm, KPI 90/2/75, cookies/state после restart. 2.95 s; reports/voice-integration-http.json |
 | Browser fixtures | 35 passed, 65.406 s на «Фокус» `1eaee60` / merge `353099b`; [CI job](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43043682513/job/130601886953) |
 | Browser → настоящий HTTP | 49 ответов, 360/768/1440, 0 browser errors, настоящий calendar conflict409, сохранён unknown due; 6.13 s. **Явный LLM double**, качество модели не измерялось |
 | Изоляция | Временные БД, torch отсутствует, voice weights не нужны; data/ не очищалась |
@@ -43,10 +46,15 @@ Codex 3 не редактировал. Интеграционные замеча
 в reports/publication-map.json; дальнейшие коммиты имеют Source-Local-Commit trailer.
 Git tree каждого опубликованного коммита сверялся с исходным локальным.
 
-**Чистый итоговый CI на `1eaee60` прошёл целиком:** Linux 259/15/0, Windows 73,
+**Чистый CI до voice merge на `1eaee60` прошёл целиком:** Linux 259/15/0, Windows 73,
 JS 46, UI 35, оба HTTP, pip/syntax/diff. reports/focus-ci.json и focus-ci-*-http.json.
 Это наблюдение кода на указанном SHA; следующий отчётный commit не является новым
 модельным прогоном. Актуальные Checks всегда находятся в PR #4.
+
+После добавления авторского voice MVP локальный общий набор вырос до **304 passed /
+15 skipped / 0 failed**; текстовый HTTP/restart подтвердил отсутствие torch/весов.
+Добавлены45 CPU unit checks voice, реальный микрофон/ASR/TTS не измерены. Точный
+новый кандидат проходит обычные Checks PR #4; старый зелёный run не подменяет его.
 
 ## Закрытые сбои и история проверок
 

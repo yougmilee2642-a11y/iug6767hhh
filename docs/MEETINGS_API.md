@@ -89,7 +89,7 @@ with `speaker_label="Говорящий ?"` and the user maps speakers manually.
 
 # Track 3 current API extensions
 
-Source of truth: integrated core/calendar, maintainer main 0e99e32, knowledge 9eecb94,
+Source of truth: integrated core/calendar, maintainer main e3d37e3, knowledge 9eecb94,
 Claude eval fixes 58ec401, UI d95b252 and their handoffs. Joint regressions are in
 track3-release/STATUS.md; a merged API does not mean release acceptance.
 All dates for new meetings/calendar have an offset or an explicit timezone; Europe/Minsk
@@ -136,3 +136,20 @@ wording. The owner reconciled legacy quotation policy in 3104d0c: a partial quot
 to the full stored sentence including units/conditions; unpunctuated heading lines
 remain part of that sentence. Tests assert the full exact answer and source. Model failures → 503 model_*; no hidden
 cloud fallback. Remote inference/data boundaries are in the runbook.
+
+
+## Авторский voice MVP (#9, main e3d37e3)
+
+| Endpoint | Контракт / ограничения |
+|---|---|
+| POST /api/meet/voice/ask | `{text,meeting_id?,speak_private?:false}`; текст1–1000 символов. Возвращает route/status/answer/display/spoken/speak/silent_reason/open_page. Чтение через существующие QA/overview и ACL; команды изменения получают отказ и ссылку на экран preview/confirm |
+| POST /api/meet/voice/transcribe | Multipart WAV≤5 MiB; require qa.ask, локальный ASR, иначе503 local_asr_required; ответ `{text}`, Cache-Control:no-store. Весов для обычного text start не требует |
+| POST /api/meet/voice/wake | Multipart≤256 KiB; только loopback-клиент без proxy headers и с локальным ASR. Возвращает `{wake,question}`; чужая речь не возвращается как question. Ограничение размера/пустой сегмент→413, remote client→403 wake_local_only |
+
+Озвучивание по умолчанию разрешено только если каждый слушатель видит те же данные;
+иначе ответ только на экране. speak_private — явный выбор пользователя для одного
+вопроса, не изменение ACL. Маршруты чтения проверяют qa.ask/overview.read. Voice audit
+записывает маршрут/результат/источники, без raw вопроса/ответа; вопрос QA может оставить
+обычный hash/result в qa_answers. Аудио не записывается этими route handlers в БД.
+Настоящий microphone/ASR/TTS в этой среде не проверен; 45 CPU tests — doubles.
+Подробнее: [авторский handoff](track3-handoffs/voice-assistant.md).
