@@ -1,0 +1,83 @@
+"""Demo users with signed session cookie. Every /api/meet endpoint resolves the user server-side."""
+import hashlib
+import hmac
+import os
+import secrets
+import time
+from pathlib import Path
+
+from fastapi import Request
+
+from meetings import store
+
+
+class MeetError(Exception):
+    def __init__(self, status: int, code: str, detail: str):
+        super().__init__(detail)
+        self.status, self.code, self.detail = status, code, detail
+
+COOKIE = 'cw_meet_user'
+TTL = 12 * 3600
+
+DEMO_USERS = [
+    ('irina', 'Ирина Власова', 'Руководитель проекта', 'irina-demo'),
+    ('petr', 'Пётр Смирнов', 'Подрядчик (дизайн)', 'petr-demo'),
+]
+
+
+def hash_password(password: str, salt: str | None = None) -> str:
+    salt = salt or secrets.token_hex(8)
+    digest = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 120_000).hex()
+    return f'{salt}${digest}'
+
+
+def check_password(password: str, stored: str) -> bool:
+    salt, _, _digest = stored.partition('$')
+    return hmac.compare_digest(hash_password(password, salt), stored)
+
+
+def ensure_demo_users():
+    with store.db() as connection:
+        for login, name, role, password in DEMO_USERS:
+            if not connection.execute('SELECT 1 FROM users WHERE login=?', (login,)).fetchone():
+                connection.execute('INSERT INTO users(login,name,role,password_hash) VALUES (?,?,?,?)',
+                                   (login, name, role, hash_password(password)))
+
+
+def _secret() -> bytes:
+    configured = os.getenv('MEETINGS_SECRET', '')
+    if configured:
+        return configured.encode()
+    path = Path(store.db_path()).with_name('meetings_secret.key')
+    if not path.is_file():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(secrets.token_hex(32))
+    return path.read_text().strip().encode()
+
+
+def make_cookie(user_id: int) -> str:
+    value = f'{user_id}.{int(time.time()) + TTL}.{secrets.token_hex(8)}'
+    return value + '.' + hmac.new(_secret(), value.encode(), hashlib.sha256).hexdigest()
+
+
+def user_from_request(request: Request) -> dict | None:
+    raw = request.cookies.get(COOKIE, '')
+    try:
+        user_id, expiry, nonce, digest = raw.split('.')
+        value = f'{user_id}.{expiry}.{nonce}'
+        if not hmac.compare_digest(digest, hmac.new(_secret(), value.encode(), hashlib.sha256).hexdigest()):
+            return None
+        if int(expiry) < time.time():
+            return None
+        with store.db() as connection:
+            row = connection.execute('SELECT id,login,name,role FROM users WHERE id=?', (int(user_id),)).fetchone()
+        return dict(row) if row else None
+    except (ValueError, TypeError):
+        return None
+
+
+def current_user(request: Request) -> dict:
+    user = user_from_request(request)
+    if not user:
+        raise MeetError(401, 'not_authenticated', 'Войдите как демо-пользователь.')
+    return user
