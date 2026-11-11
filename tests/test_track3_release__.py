@@ -72,7 +72,7 @@ def test_roles_acl_denial_audit_and_kpi(env):
     did=env['ids']['documents']['private_budget']
     assert p.get(f'/api/meet/documents/{did}/download').status_code==404
     assert p.post('/api/meet/meetings',json={'title':'Denied'}).status_code==403
-    audit=i.get('/api/meet/audit',params={'scope':'my_objects'}).json()['audit']
+    audit=i.get('/api/meet/audit',params={'scope':'my_objects'}).json()['events']
     assert any(a['action']=='access_denied' for a in audit)
     r=i.get('/api/meet/overview',params={'as_of':'2026-11-11T12:00:00+00:00'})
     assert r.status_code==200,r.text
@@ -86,7 +86,7 @@ def test_roles_acl_denial_audit_and_kpi(env):
 
 
 def test_task_cancel_confirm_idempotent_and_restart(env):
-    i=env['irina'];task=i.get('/api/meet/tasks').json()['tasks'][0];tid=task['id']
+    i=env['irina'];task=next(t for t in i.get('/api/meet/tasks').json()['tasks'] if t['status']=='open');tid=task['id']
     preview=i.post(f'/api/meet/tasks/{tid}/preview',json={'changes':{'status':'done'}}).json()
     cid=preview['confirmation_id']
     assert i.post(f'/api/meet/confirmations/{cid}/cancel').status_code==200
