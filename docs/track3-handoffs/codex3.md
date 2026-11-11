@@ -28,7 +28,7 @@ integration SHA, Checks и список blockers. База cb2614b86f3b83636e670
 
 - Общий Python: 259 passed / 15 skipped / 0 failed, 30.17 s; gzip исходника и hash сохранены.
 - Собственный release/gateway/scorer:73 passed локально и в clean Windows CI, PYTHONUTF8=0.
-- JS 46 passed; UI 35 passed; браузер→реальный HTTP 44 responses / 3 widths / 0 errors с явным
+- JS 46 passed; UI 35 passed; браузер→реальный HTTP 49 responses / 3 widths / 0 errors с явным
   model double. Product HTTP без LLM double прошёл обе роли/аудит/confirm/restart/KPI.
 - pip/ownership/compile/final diff checks passed локально. Data/ не очищалась, torch не нужен.
 - Live scorer3 **NOT RUN**: нет gateway/model env/согласованного GPU-окна, 0 inference calls.
@@ -38,7 +38,7 @@ integration SHA, Checks и список blockers. База cb2614b86f3b83636e670
 
 1. Knowledge #7/#8 закрыто авторским согласованием3104d0c (#10), не ручной правкой
    Codex3: проверяется полный исходный текст с валютой/условием. Общий повтор259 passed.
-   Новый «Фокус» UI включён из main; финальный browser CI проверять по последнему head.
+   Новый «Фокус» UI включён из main; финальный clean CI43043682513 на1eaee60 прошёл целиком, включая новый UI.
 2. GPU/operator #8: передать исходные JSON и выполнить scorer3 в одном согласованном
    окне. Endpoint/model/key задаются через env, секреты не помещать в PR/git.
    `python scripts/live_meetings_check.py --track3 --exclusive-gpu-window --output <новый абсолютный report.json>`.
@@ -57,3 +57,6 @@ integration SHA, Checks и список blockers. База cb2614b86f3b83636e670
 Все обязательные gates должны пройти до main merge. Не выдавать narrative результат,
 пропущенный прогон или double за независимую реальную оценку. Remote host получает
 данные; Cloudflare — внешний посредник, не полностью локальный режим у пользователя.
+
+Итоговое наблюдение: reports/focus-ci.json, 259 passed/15 skipped/0 failed; Windows73,
+JS46, browser35, real HTTP49 responses/3 widths. Модельная оценка NOT RUN.

@@ -1,0 +1,41 @@
+{
+  "head_sha": "1eaee60b3ae029f3ba677b8e22f771b96eb297a6",
+  "merge_sha": "353099b3695224e91cf4224c6d9bd99805169beb",
+  "run_id": 43043682513,
+  "conclusion": "success",
+  "linux_job": 130601886953,
+  "windows_job": 130601886677,
+  "python": {
+    "passed": 259,
+    "skipped": 15,
+    "failed": 0,
+    "seconds": 41.92
+  },
+  "windows": {
+    "passed": 73,
+    "seconds": 8.25,
+    "pythonutf8": 0
+  },
+  "javascript": {
+    "passed": 46
+  },
+  "browser_fixture": {
+    "passed": 35,
+    "seconds": 65.406
+  },
+  "artifact": {
+    "id": 13866703106,
+    "sha256": "03dc3e078aeb598edc3898665a9dcc86745000d3d88ca18be6f9d3ca0c418112",
+    "retention_days": 7
+  },
+  "model_quality": "not_run",
+  "pip_check": "passed",
+  "syntax_diff": "passed",
+  "source_url": "https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43043682513",
+  "observed_log_lines": [
+    "2026-11-11T15:00:32.4091818Z 259 passed, 15 skipped, 6 warnings in 41.92s",
+    "2026-11-11T15:00:36.1157600Z {\"status\": \"passed\", \"test_kind\": \"real HTTP + human-authored protocol; no model quality measurement\", \"commit\": \"353099b3695224e91cf4224c6d9bd99805169beb\", \"voice_weights_required\": false, \"torch_installed\": false, \"restart_cookie_and_state\": \"passed\", \"kpi_before_mutations\": {\"open_tasks\": 2, \"overdue_tasks\": 1, \"on_time_orders\": 90.0, \"defect_rate\": 2.0, \"capacity_utilization\": 75.0}, \"elapsed_seconds\": 3.0233456250000046}",
+    "2026-11-11T15:01:42.1816331Z Ran 35 tests in 65.406s",
+    "2026-11-11T15:01:48.6547760Z {\"status\": \"passed\", \"model_kind\": \"explicit_test_double\", \"live_model_quality\": \"not_run\", \"elapsed_seconds\": 6.131253098999991, \"browser\": {\"result\": \"passed\", \"browser_errors\": [], \"HTTP_responses\": 49, \"sizes\": [360, 768, 1440], \"model\": \"explicit test double; no Ollama quality claim\", \"real_calendar_conflict\": 409, \"due_words_preserved\": true}, \"artifacts\": \"/tmp/track3-ui-http\", \"observed_at\": \"2026-11-11T15:01:48.651305+00:00\", \"commit\": \"353099b3695224e91cf4224c6d9bd99805169beb\"}"
+  ]
+}
