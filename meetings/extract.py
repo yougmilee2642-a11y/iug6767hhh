@@ -158,6 +158,11 @@ def _verify_item(raw, part, allowed, by_id, order, utterances, participants, mee
                 quotes.append({'utterance_id': uid, 'speaker': by_id[uid]['speaker'],
                                'text': by_id[uid]['text'].strip(), 'verified': True})
                 break
+    if quotes and kind in ('decision', 'task'):
+        support = ' '.join(by_id[q['utterance_id']]['text'] for q in quotes)
+        if tu.overlap(text, support) < 0.34:
+            warnings.append(f'{KIND_RU[kind]} «{text}» не включено: цитата не подтверждает формулировку.')
+            return None
     if not quotes:
         warnings.append(f'{KIND_RU[kind]} «{text}» не включено: модель не дала подтверждающей цитаты из расшифровки.')
         return None
@@ -316,6 +321,8 @@ def prepare(llm, meeting: dict, fragments: list[dict], max_chars: int = 4500) ->
                                 'document_title': by_id[candidate]['document_title'],
                                 'location': by_id[candidate]['location'], 'quote': verified, 'verified': True}
                     break
+            if citation and tu.overlap(text, by_id[citation['fragment_id']]['text']) < 0.34:
+                citation = None  # real quote, but it does not support this claim
             if text and citation and not any(tu.overlap(text, f['text']) >= 0.8 for f in facts):
                 facts.append({'text': text, 'citations': [citation]})
             elif text and not citation:

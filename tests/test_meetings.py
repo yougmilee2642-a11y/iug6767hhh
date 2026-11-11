@@ -283,7 +283,50 @@ def test_textutil_dates_and_quotes():
     assert tu.parse_due('к 15.01', reference) == '2027-01-15'
     assert tu.parse_due('до 3 мая 2027', reference) == '2027-05-03'
     assert tu.parse_due('на следующей неделе', reference) is None
+    assert tu.parse_due('до двадцатого ноября', reference) == '2026-11-20'
+    assert tu.parse_due('к двадцать пятому декабря', reference) == '2026-12-25'
+    assert tu.parse_due('до первого марта', reference) == '2027-03-01'
+    assert tu.parse_due('до пятницы', reference) is None
     source = 'Тогда решили: перенос запуска отклоняем, запуск остаётся 1 декабря.'
     assert tu.find_exact('ПЕРЕНОС запуска отклоняем', source) == 'перенос запуска отклоняем'
     assert tu.verify_quote('совсем другой текст про бюджет', source) is None
     assert tu.name_mentioned('Анна', 'Анне нужно подготовить') and not tu.name_mentioned('Пётр', source)
+
+
+def test_saved_prep_is_filtered_by_viewer_document_access(env):
+    irina, petr = login(env['app'], 'irina'), login(env['app'], 'petr')
+    launch = env['launch_meeting']
+    assert irina.post(f'/api/meet/meetings/{launch}/prepare').json()['prep']['brief']
+    irina.patch(f'/api/meet/meetings/{launch}', json={'access_user_ids': [2]})
+    seen = petr.get(f'/api/meet/meetings/{launch}').json()
+    assert seen['documents'] == [] and seen['hidden_documents'] == 3
+    prep = seen['prep']
+    assert prep['brief'] == [] and prep['restricted'] and 'предоплаты' not in str(prep)
+    assert irina.get(f'/api/meet/meetings/{launch}').json()['prep']['brief']
+
+
+def test_real_quote_that_does_not_support_claim_is_rejected(env):
+    class Mismatch(FakeLLM):
+        def json(self, system, user, schema, predict=1500):
+            if system == extract.PROTOCOL_SYSTEM:
+                uid = re.search(r'^(U\d+) \|', user, re.M)[1]
+                return {'items': [{'kind': 'task', 'text': 'Уволить подрядчика и закрыть проект', 'outcome': 'none',
+                                   'assignee': '', 'due_text': '', 'utterance_ids': [uid], 'quote': 'Коллеги, начинаем'}]}
+            return {'kind': 'none', 'text': '', 'outcome': 'none', 'assignee': '', 'due_text': ''}
+    llm.set_llm(Mismatch())
+    client = login(env['app'], 'irina')
+    launch = env['launch_meeting']
+    client.put(f'/api/meet/meetings/{launch}/transcript', json={'text': (DEMO / 'transcript.txt').read_text(encoding='utf-8')})
+    protocol = client.post(f'/api/meet/meetings/{launch}/protocol/draft').json()['protocol']
+    assert protocol['items'] == [] and any('не подтверждает' in w for w in protocol['warnings'])
+
+
+def test_input_bounds_and_broken_archives(env):
+    import io, zipfile
+    client = login(env['app'], 'irina')
+    launch = env['launch_meeting']
+    assert client.post(f'/api/meet/meetings/{launch}/utterances', json={'text': 'x', 'start_ms': 10**20}).status_code == 422
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w') as archive:
+        archive.writestr('word/document.xml', '<broken')
+    assert client.post('/api/meet/documents', files={'file': ('b.docx', buffer.getvalue())}).status_code == 422

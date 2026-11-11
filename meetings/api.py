@@ -1,6 +1,8 @@
 """HTTP API for CallWise Meetings. Access is checked on the server for every read, search, download
 and before building any model context. Inaccessible resources answer 404 (existence is not revealed)."""
 import hashlib
+import os
+import sqlite3
 import json
 import re
 from datetime import date, datetime
@@ -31,7 +33,8 @@ def model_error(error: LocalAIError):
 
 
 def install(app):
-    ensure_demo_users()
+    if os.getenv('MEETINGS_DEMO_USERS', 'true').lower() == 'true':
+        ensure_demo_users()
 
     @app.exception_handler(MeetError)
     async def _handle(_request, error: MeetError):
@@ -74,7 +77,7 @@ class UtteranceIn(BaseModel):
     text: str = Field(min_length=1, max_length=5000)
     speaker_label: str = Field(default='Говорящий ?', max_length=60)
     source: str = Field(default='manual', pattern='^(voice|manual)$')
-    start_ms: int | None = None
+    start_ms: int | None = Field(default=None, ge=0, le=7 * 24 * 3600 * 1000)
 
 
 class UtterancePatch(BaseModel):
@@ -163,8 +166,45 @@ def _full_meeting(connection, user, row):
         'SELECT * FROM tasks WHERE meeting_id=? ORDER BY id', (row['id'],))]
     return {'meeting': store.meeting_out(connection, row),
             'documents': [store.document_out(connection, d) for d in visible], 'hidden_documents': hidden,
-            'utterances': store.utterances(connection, row['id']), 'prep': store.prep(connection, row['id']),
+            'utterances': store.utterances(connection, row['id']), 'prep': _visible_prep(connection, user, store.prep(connection, row['id'])),
             'protocol': store.protocol(connection, row['id']), 'tasks': tasks}
+
+
+def _visible_prep(connection, user, prep):
+    """A saved briefing is derived from documents. Show it only within the viewer's own document access:
+    claims citing a document the viewer cannot read are removed, model-written gaps are hidden then."""
+    if not prep:
+        return prep
+    readable = {}
+
+    def allowed(claim):
+        for citation in claim.get('citations') or []:
+            document_id = citation.get('document_id')
+            if document_id is None:
+                try:
+                    fragment = connection.execute('SELECT document_id FROM fragments WHERE id=?',
+                                                  (_sid(citation.get('fragment_id', ''), 'F'),)).fetchone()
+                except MeetError:
+                    return False
+                document_id = fragment['document_id'] if fragment else None
+            if document_id is None:
+                return False
+            if document_id not in readable:
+                readable[document_id] = store.can_read_document(connection, user['id'], document_id)
+            if not readable[document_id]:
+                return False
+        return True
+
+    result = dict(prep)
+    hidden = 0
+    for key in ('brief', 'agenda', 'questions'):
+        kept = [c for c in prep.get(key) or [] if allowed(c)]
+        hidden += len(prep.get(key) or []) - len(kept)
+        result[key] = kept
+    if hidden:
+        result['gaps'] = [f'Скрыто пунктов справки: {hidden} — они опираются на документы, к которым у вас нет доступа.']
+        result['restricted'] = True
+    return result
 
 
 def parse_transcript(text: str) -> list[dict]:
@@ -564,12 +604,17 @@ def router():
                     continue
                 quotes = json.loads(row['quotes'])
                 stamp = store.now()
-                cursor = connection.execute(
+                try:
+                    cursor = connection.execute(
                     'INSERT INTO tasks(meeting_id,protocol_item_id,text,assignee,assignee_status,due,due_text,due_status,status,'
                     'source_quote,confirmed_by,confirmed_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
                     (meeting_id, item_id, row['text'], row['assignee'], row['assignee_status'], row['due'], row['due_text'],
                      row['due_status'], 'open', json.dumps(quotes[0] if quotes else {}, ensure_ascii=False), user['id'],
                      stamp, stamp, stamp))
+                except sqlite3.IntegrityError:  # concurrent confirmation won the race
+                    already.append(store.task_out(connection, connection.execute(
+                        'SELECT * FROM tasks WHERE protocol_item_id=?', (item_id,)).fetchone()))
+                    continue
                 connection.execute('UPDATE protocol_items SET confirmed_by=?, confirmed_at=?, task_id=? WHERE id=?',
                                    (user['id'], stamp, cursor.lastrowid, item_id))
                 store.audit(connection, user['id'], 'task_confirmed', item_id=item_id, task_id=cursor.lastrowid)

@@ -173,9 +173,10 @@ async function runAction(button, task, { model = false, label = 'Выполня�
 
 function dateLabel(value) {
   if (!value) return 'Дата не указана';
-  const date = new Date(value);
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(String(value));
+  const date = dateOnly ? new Date(`${value}T12:00:00`) : new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
-  return new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  return new Intl.DateTimeFormat('ru-RU', dateOnly ? { dateStyle: 'medium' } : { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
 
 function fileKind(documentItem) {
@@ -471,6 +472,11 @@ function renderMeeting(app) {
     const tab = makeButton(label, () => {
       if (state.voiceCapture?.recording && key !== 'materials') void stopVoiceCapture();
       state.tab = key;
+      tabs.querySelectorAll('.meeting-tab').forEach((other) => {
+        const active = other === tab;
+        other.classList.toggle('active', active);
+        other.setAttribute('aria-current', active ? 'step' : 'false');
+      });
       renderMeetingContent();
     }, key === state.tab ? 'meeting-tab active' : 'meeting-tab');
     tab.setAttribute('aria-current', key === state.tab ? 'step' : 'false');
@@ -585,7 +591,7 @@ function renderPreparation(target) {
   heading.append(headingCopy, generate);
   prep.append(heading);
   const result = data.prep;
-  if (!result) prep.append(emptyState('Справки пока нет', 'Сначала прикрепите документы, затем сформируйте краткую справку.'));
+  if (!result) prep.append(emptyState('Справки пока нет', (data.documents || []).length ? 'Нажмите «Сформировать справку» — локальная модель соберёт факты со ссылками на фрагменты.' : 'Сначала прикрепите документы, затем сформируйте краткую справку.'));
   else {
     if (result.status === 'insufficient_data') {
       const gaps = node('div', 'gap-state');
@@ -665,6 +671,7 @@ function renderMaterials(target) {
       const result = await request(`/meetings/${encodeURIComponent(meetingId)}/transcript`, { method: 'PUT', body: { text: value } });
       state.meetingData.utterances = result.utterances || [];
       state.transcriptDrafts[meetingId] = '';
+      editor.input.value = '';
       renderUtteranceList();
       renderSpeakerMapping();
       toast('Стенограмма сохранена');
@@ -681,10 +688,17 @@ function renderMaterials(target) {
   voiceState.textContent = state.voiceCapture?.recording ? 'Идёт запись · фрагменты до 15 секунд'
     : state.voiceCapture ? 'Завершается распознавание фрагментов…' : 'Микрофон выключен';
   voice.append(voiceState);
+  const consentLabel = node('label', 'record-consent');
+  const consent = node('input', '');
+  consent.type = 'checkbox';
+  consentLabel.append(consent, node('span', '', 'Я подтвердил(а), что все участники согласны на запись и расшифровку встречи.'));
+  consentLabel.hidden = Boolean(state.voiceCapture?.recording);
+  voice.append(consentLabel);
   const voiceButton = makeButton(state.voiceCapture?.recording ? 'Остановить запись' : state.voiceCapture ? 'Распознавание…' : 'Начать запись', null,
     state.voiceCapture?.recording ? 'stop-recording-button' : 'primary-button');
-  voiceButton.disabled = Boolean(state.voiceCapture && !state.voiceCapture.recording);
+  voiceButton.disabled = Boolean(state.voiceCapture && !state.voiceCapture.recording) || (!state.voiceCapture?.recording && !consent.checked);
   voiceButton.id = 'voice-capture-toggle';
+  consent.addEventListener('change', () => { voiceButton.disabled = Boolean(state.voiceCapture && !state.voiceCapture.recording) || !consent.checked; });
   voiceButton.addEventListener('click', () => {
     if (state.voiceCapture?.recording) void stopVoiceCapture();
     else void startVoiceCapture(meetingId, voiceButton);
@@ -702,7 +716,9 @@ function renderMaterials(target) {
   const uh = $('.section-heading', utterances);
   uh.append(node('div', '')); 
   $('.section-heading > div', utterances).append(node('p', 'eyebrow', 'СОХРАНЁННЫЕ МАТЕРИАЛЫ'), node('h2', '', 'Реплики'));
-  uh.append(node('span', 'small-chip', `${(data.utterances || []).length} шт.`));
+  const counter = node('span', 'small-chip', `${(data.utterances || []).length} шт.`);
+  counter.id = 'utterance-count';
+  uh.append(counter);
   const mapping = node('div', 'speaker-mapping');
   mapping.id = 'speaker-mapping';
   utterances.append(mapping);
@@ -720,6 +736,8 @@ function renderUtteranceList() {
   if (!list || !state.meetingData) return;
   list.replaceChildren();
   const utterances = state.meetingData.utterances || [];
+  const counter = $('#utterance-count');
+  if (counter) counter.textContent = `${utterances.length} шт.`;
   if (!utterances.length) {
     list.append(node('p', 'empty-copy', 'Пока нет реплик. Вставьте стенограмму или включите запись.'));
     return;
@@ -820,32 +838,35 @@ function renderVoiceDraft(record) {
   const speaker = makeInput({ label: 'Метка говорящего', value: record.speakerLabel || 'Говорящий ?' });
   speaker.input.addEventListener('input', () => { record.speakerLabel = speaker.input.value; });
   const transcript = makeTextarea({ label: 'Распознанный текст', value: record.text || '', rows: 3, placeholder: 'Результат появится здесь. Его можно исправить.' });
-  transcript.input.addEventListener('input', () => { record.text = transcript.input.value; });
+  let saveButton = null;
+  transcript.input.addEventListener('input', () => {
+    record.text = transcript.input.value;
+    if (saveButton) saveButton.disabled = Boolean(record.loading) || !record.text.trim();
+  });
   card.append(speaker.wrap, transcript.wrap);
   const actions = node('div', 'inline-actions');
   if (!record.transcribed) {
     const retry = makeButton(record.loading ? 'Распознаётся…' : record.error ? 'Повторить' : 'Распознать фрагмент', () => void recognizeVoiceDraft(record), 'secondary-button');
     retry.disabled = Boolean(record.loading);
     actions.append(retry);
-  } else {
-    const save = makeButton('Добавить в материалы', async () => {
-      const success = await runAction(save, async () => {
-        const result = await request(`/meetings/${encodeURIComponent(record.meetingId)}/utterances`, {
-          method: 'POST',
-          body: { text: transcript.input.value.trim(), speaker_label: speaker.input.value.trim() || 'Говорящий ?', source: 'voice', start_ms: record.startMs },
-        });
-        record.saved = true;
-        state.meetingData.utterances = [...(state.meetingData.utterances || []), result.utterance];
-        state.voiceDrafts[record.meetingId] = (state.voiceDrafts[record.meetingId] || []).filter((item) => item !== record);
-        card.remove();
-        renderUtteranceList();
-        renderSpeakerMapping();
-      });
-      if (success) toast('Реплика добавлена');
-    }, 'primary-button');
-    save.disabled = !record.text?.trim();
-    actions.append(save);
   }
+  saveButton = makeButton('Добавить в материалы', async () => {
+    const success = await runAction(saveButton, async () => {
+      const result = await request(`/meetings/${encodeURIComponent(record.meetingId)}/utterances`, {
+        method: 'POST',
+        body: { text: transcript.input.value.trim(), speaker_label: speaker.input.value.trim() || 'Говорящий ?', source: 'voice', start_ms: record.startMs },
+      });
+      record.saved = true;
+      state.meetingData.utterances = [...(state.meetingData.utterances || []), result.utterance];
+      state.voiceDrafts[record.meetingId] = (state.voiceDrafts[record.meetingId] || []).filter((item) => item !== record);
+      card.remove();
+      renderUtteranceList();
+      renderSpeakerMapping();
+    });
+    if (success) toast('Реплика добавлена');
+  }, 'primary-button');
+  saveButton.disabled = Boolean(record.loading) || !record.text?.trim();
+  actions.append(saveButton);
   if (record.error) card.append(node('p', 'inline-error', record.error));
   card.append(actions);
   return card;
@@ -874,6 +895,8 @@ async function recognizeVoiceDraft(record) {
     form.append('file', record.blob, 'meeting-voice.wav');
     form.append('mode', 'final');
     form.append('speaker_mode', 'all');
+    form.append('meeting_consent', 'true');
+    form.append('meeting_id', String(record.meetingId));
     const result = await request('/api/transcribe', { method: 'POST', body: form });
     const segments = Array.isArray(result.segments) ? result.segments.filter((segment) => segment.text?.trim()) : [];
     if (segments.length) {
@@ -888,12 +911,12 @@ async function recognizeVoiceDraft(record) {
       const list = $('#voice-drafts');
       if (list) {
         record.node?.remove();
-    [...replacements].reverse().forEach((item) => list.prepend(renderVoiceDraft(item)));
+        [...replacements].reverse().forEach((item) => list.prepend(renderVoiceDraft(item)));
       }
       return;
     }
     record.text = String(result.raw_text || result.text || '').trim();
-    record.transcribed = true;
+    record.transcribed = Boolean(record.text);
     record.status = record.text ? 'Распознано · проверьте перед сохранением' : 'Речь не распознана';
     if (!record.text) record.error = 'Попробуйте записать фрагмент ещё раз или добавьте текст вручную.';
   } catch (error) {
@@ -1002,7 +1025,9 @@ function queueVoiceTranscription(capture, frames, startMs) {
 async function stopVoiceCapture() {
   const capture = state.voiceCapture;
   if (!capture) return;
+  if (capture.stopping) return capture.stopping;
   capture.recording = false;
+  capture.stopping = (async () => {
   const status = $('#voice-capture-status');
   if (status) status.textContent = 'Завершение последнего фрагмента…';
   const control = $('#voice-capture-toggle');
@@ -1027,6 +1052,8 @@ async function stopVoiceCapture() {
   if (status) status.textContent = 'Микрофон выключен';
   if (control) { control.disabled = false; control.textContent = 'Начать запись'; control.className = 'primary-button'; }
   toast('Запись остановлена');
+  })();
+  return capture.stopping;
 }
 
 function citationButton(id, quote, kind = 'fragment', label = '') {
@@ -1201,7 +1228,7 @@ function renderProtocolItem(item) {
   dueText.input.disabled = Boolean(item.confirmed);
   dueText.input.addEventListener('input', () => { drafts[item.id] = { ...(drafts[item.id] || {}), dueText: dueText.input.value }; });
   fields.append(assignee.wrap, due.wrap, dueText.wrap);
-  card.append(fields);
+  if (item.kind === 'task') card.append(fields);
   if (item.due_text && !due.input.value) card.append(node('p', 'task-meta', `Срок: ${item.due_text} (дата не распознана)`));
   if (item.kind === 'task') {
     const warning = node('div', 'protocol-warning-badges');

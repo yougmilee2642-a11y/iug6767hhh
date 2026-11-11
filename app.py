@@ -297,17 +297,27 @@ def start_conversation(request: Request, payload: ChatRequest | None = None):
 
 
 @app.post("/api/transcribe")
-def transcribe(file: UploadFile = File(...), context: str = Form(default=""), interaction_id: str = Form(default=""),
+def transcribe(request: Request, file: UploadFile = File(...), context: str = Form(default=""), interaction_id: str = Form(default=""),
                mode: Literal['whole','preview','final'] = Form(default='whole'),
                stream_id: str = Form(default='',max_length=100), sequence: int = Form(default=0,ge=0,le=1200),
                speaker_mode: Literal['primary','all'] = Form(default='primary'),
-               meeting_consent: bool = Form(default=False)):
+               meeting_consent: bool = Form(default=False), meeting_id: int | None = Form(default=None)):
     state = get_interaction(interaction_id) if interaction_id else None
     if interaction_id and state is None: raise HTTPException(404,'Разговор не найден.')
     meeting_capture = speaker_mode == 'all' and not interaction_id and mode in {'whole','final'}
-    if meeting_capture and not meeting_consent:
-        raise HTTPException(403,'Подтвердите, что все участники согласны на запись и расшифровку встречи.')
-    meeting_capture = meeting_capture and meeting_consent
+    if meeting_capture:
+        if not meeting_consent:
+            raise HTTPException(403,'Подтвердите, что все участники согласны на запись и расшифровку встречи.')
+        if meeting_id is None:
+            raise HTTPException(422,'Для записи укажите встречу.')
+        from meetings import store as meeting_store
+        from meetings.auth import user_from_request
+        user = user_from_request(request)
+        if not user:
+            raise HTTPException(401,'Войдите в демо-профиль встречи.')
+        with meeting_store.db() as connection:
+            if not meeting_store.can_read_meeting(connection,user['id'],meeting_id):
+                raise HTTPException(404,'Встреча не найдена или недоступна.')
     if customer_safety.enabled() and not meeting_capture:
         if state is None: raise HTTPException(404, 'Начните разговор и выберите согласие до записи голоса.')
         if not state.get('safety', {}).get('enabled') or not customer_safety.accepted(state):
@@ -324,7 +334,7 @@ def transcribe(file: UploadFile = File(...), context: str = Form(default=""), in
             if mode=='preview':
                 if not state or not stream_id: raise HTTPException(400,'Для потока нужен разговор и идентификатор реплики.')
                 return local_speech.transcribe_preview(data,interaction_id,stream_id,sequence)
-            if mode=='final' or mode=='whole' and state is not None:
+            if mode=='final' or mode=='whole' and (state is not None or meeting_capture):
                 if speaker_mode == 'all':
                     result=local_speech.transcribe_final(data,context,interaction_id,stream_id,speaker_mode='all')
                 else:

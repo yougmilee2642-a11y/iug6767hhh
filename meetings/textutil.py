@@ -80,11 +80,34 @@ def resolve_participant(name: str, participants: list[str]) -> str:
     return name.strip()
 
 
+_ORD_UNITS = {'перв': 1, 'втор': 2, 'трет': 3, 'четверт': 4, 'пят': 5, 'шест': 6, 'седьм': 7, 'восьм': 8, 'девят': 9}
+_ORD_TEENS = {'десят': 10, 'одиннадцат': 11, 'двенадцат': 12, 'тринадцат': 13, 'четырнадцат': 14, 'пятнадцат': 15,
+              'шестнадцат': 16, 'семнадцат': 17, 'восемнадцат': 18, 'девятнадцат': 19, 'двадцат': 20, 'тридцат': 30}
+
+
+def _ordinal_day(text: str) -> str:
+    """ASR writes dates in words: «до двадцать пятого ноября» -> «до 25 ноября»."""
+    def number(match):
+        tens, unit = match[1], match[2]
+        value = 0
+        if tens:
+            value = 20 if tens.startswith('двадцать') else 30
+        if unit:
+            word = unit.lower()
+            value += next((v for k, v in sorted(_ORD_TEENS.items(), key=lambda kv: -len(kv[0])) if word.startswith(k)),
+                          0) or next((v for k, v in _ORD_UNITS.items() if word.startswith(k)), 0)
+        return f' {value} ' if 1 <= value <= 31 else match[0]
+    pattern = (r'(?:\b(двадцать|тридцать)\s+)?\b((?:перв|втор|трет|четверт|пят|шест|седьм|восьм|девят|десят|одиннадцат|'
+               r'двенадцат|тринадцат|четырнадцат|пятнадцат|шестнадцат|семнадцат|восемнадцат|девятнадцат|двадцат|'
+               r'тридцат)\w*)(?=\s+[а-я]+)')
+    return re.sub(pattern, number, text)
+
+
 def parse_due(text: str, reference: date) -> str | None:
     """Explicit dates only. Relative phrases ('на следующей неделе') stay unparsed -> shown as text."""
     if not text:
         return None
-    lowered = text.lower().replace('ё', 'е')
+    lowered = _ordinal_day(text.lower().replace('ё', 'е'))
     m = re.search(r'\b(\d{4})-(\d{2})-(\d{2})\b', lowered)
     if m:
         return _safe(int(m[1]), int(m[2]), int(m[3]))

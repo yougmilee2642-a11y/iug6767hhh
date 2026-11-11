@@ -41,7 +41,7 @@ def _docx(data: bytes) -> list[tuple[int | None, str]]:
         if sum(i.file_size for i in archive.infolist()) > MAX_UNZIPPED:
             raise DocumentError('DOCX слишком большой после распаковки.')
         root = ElementTree.fromstring(archive.read(info))
-    except (zipfile.BadZipFile, KeyError, ElementTree.ParseError):
+    except (zipfile.BadZipFile, KeyError, ElementTree.ParseError, NotImplementedError, RuntimeError, ValueError, EOFError):
         raise DocumentError('Файл DOCX повреждён или не является документом Word.') from None
     paragraphs = []
     for paragraph in root.iter(W + 'p'):

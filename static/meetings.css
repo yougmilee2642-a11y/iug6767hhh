@@ -147,6 +147,8 @@ body.meetings-page {
 .transcript-textarea textarea { min-height: 180px; }
 .voice-capture-panel { display: grid; align-content: start; }
 .voice-capture-status { margin: 2px 0 12px; color: #667180; font-size: 13px; }
+.record-consent { display: flex; align-items: flex-start; gap: 9px; margin: 0 0 13px; padding: 10px 11px; border: 1px solid #e8ebef; border-radius: 10px; background: #fafbfc; color: #535e6d; font-size: 12px; }
+.record-consent input { width: 17px; height: 17px; flex: 0 0 auto; margin: 2px 0 0; accent-color: var(--meet-green); }
 .voice-note { display: block; margin-top: 10px; color: #7c8591; }
 .voice-drafts { display: grid; gap: 10px; margin-top: 14px; }
 .voice-draft-card { padding: 13px; border: 1px solid #e3e6ec; border-radius: 12px; background: #fbfcfd; }
