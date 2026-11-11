@@ -21,16 +21,17 @@ Codex 3 меняет лишь свою release-зону; verify_ownership.py п�
 
 ## Проверки: passed
 
-- 199 passed, 10 skipped по общей целевой команде, 23.79 s на срезе 4ec358b;
+- 203 passed, 10 skipped по общей целевой команде, 23.00 s на срезе 2d3eb95;
   10 skips — явные opt-in real Ollama/real-model HTTP tests. Полный лог reports/python.log.
-  Финальные значения после новых тестов cleanup/scoring зафиксированы в итоговом логе.
+  После safe-reset/test-isolation изменения на f2bf0c2 дополнительно прошли 13 release-тестов и два CLI reset.
+  Неудачный промежуточный запуск из смешанных checkout исправлен выбором ROOT в check.py; итоговый лог не смешивает процессы.
 - 46/46 Node regressions и syntax трёх модулей. Речевые алгоритмы не менялись;
   Python базовые meetings/voice-routing/gateway включены в целевой набор.
 - Настоящий HTTP существующего app.py, **без двойника LLM**: 30 запросов (точный список
   в reports/http.json), две роли/404/403/аудит, ручной протокол→confirm без дублей,
   task cancel/confirm, calendar cancel/confirm/local_outbox, QA-отказ по 2030,
   KPI 90/2/75 и 2 open/1 overdue, cookies/состояние после перезапуска.
-  3.29 s; torch отсутствует, речевые веса не нужны. Grounded QA/генерацию он не доказывает.
+  2.98 s на f2bf0c2; torch отсутствует, речевые веса не нужны. Grounded QA/генерацию он не доказывает.
 - Новый seed повторяется без новых строк, совместим с отдельной «Орбитой».
 - Повтор установки в чистый venv: 22.11 s, в том числе pip 19.83 s, **тёплый кэш**,
   тот же участник. Скачивания модели/первый cold start исключены; reports/install.json.

@@ -1,0 +1,48 @@
+{
+  "status": "not_ready",
+  "base": "cb2614b86f3b83636e670c83a0afb8f4c9d6c3c3",
+  "integration_code_sha": "f2bf0c2ac6102f07479b7a571cc22572baf11d83",
+  "release_code_sha": "62a0f276313fa992fb937445c8d4cb840ce8caad",
+  "python": {
+    "passed": 203,
+    "skipped": 10,
+    "failed": 0,
+    "elapsed_seconds": 23.0,
+    "sha": "2d3eb9514991801f1f5423c9739d9454e1b00bff",
+    "log": "python.log"
+  },
+  "final_marker_and_isolation": {
+    "passed": 13,
+    "failed": 0,
+    "legacy_seed_reset_repetitions": 2,
+    "sha": "f2bf0c2ac6102f07479b7a571cc22572baf11d83"
+  },
+  "javascript": {
+    "passed": 46,
+    "failed": 0,
+    "syntax_modules": 3
+  },
+  "http": "passed",
+  "browser": {
+    "status": "not_run",
+    "setup": "failed",
+    "reason": "Chromium socket() Operation not permitted"
+  },
+  "live_model": {
+    "status": "not_run",
+    "reason": "Ollama loopback ConnectError; no exclusive GPU window"
+  },
+  "independent_install": "not_run",
+  "github_ci": "not_run",
+  "publication": {
+    "status": "blocked",
+    "account": "Listopad33",
+    "pull": true,
+    "push": false,
+    "cli": "No HTTPS credentials"
+  },
+  "source_ownership": "passed; Codex 3 paths only",
+  "main_unchanged": true,
+  "license_review": "pending; see LICENSES.md",
+  "contract_agreement": "pending"
+}
