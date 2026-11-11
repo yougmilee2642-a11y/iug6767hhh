@@ -49,7 +49,8 @@ def score_tasks(gold, predictions, utterances, reviews=()):
                   and q['text'] in source[q['utterance_id']]['text']]
         grounded[i] = bool(quotes)
         evidence = [g for g in gold if any(q['utterance_id']==index.get(g['utterance_index'])
-                    and (q['text'] in g['quote'] or g['quote'] in q['text']) for q in quotes)]
+                    and (q['text'] in g['quote'] or g['quote'] in q['text'])
+                    and any(norm(a) in norm(q['text']) for a in g['alternatives']) for q in quotes)]
         candidates = [g for g in evidence if any(norm(a) in norm(p.get('text')) for a in g['alternatives'])]
         r = review_map.get(i)
         if r:
@@ -67,28 +68,38 @@ def score_tasks(gold, predictions, utterances, reviews=()):
             uncertain.append({'prediction_index':i,'gold_candidates':[g['id'] for g in evidence],
                               'reason':'Wording outside frozen alternatives; independent human review required'})
         edges[i] = [g['id'] for g in candidates]
-    # Maximum bipartite matching: an alternative collision must not greedily lower recall.
-    matched = {}
-    def augment(i,seen):
-        for gid in edges[i]:
-            if gid in seen: continue
-            seen.add(gid)
-            if gid not in matched or augment(matched[gid],seen):
-                matched[gid]=i
-                return True
-        return False
-    for i in edges: augment(i,set())
+    # Prefer strictly correct predictions before counting action-only matches. A wrong
+    # duplicate encountered first must not hide a later correct prediction.
     by_id={g['id']:g for g in gold}
-    owner_errors, due_errors, pairs = [], [], []
-    correct=0
-    for gid,i in matched.items():
-        g,p=by_id[gid],actual[i]
+    def fields_ok(g,p):
         owner_ok=norm(p.get('assignee'))==norm(g.get('assignee'))
         due_ok=(p.get('due') or None)==g.get('due')
         if g.get('due') is None:
             due_ok=due_ok and not p.get('due_text') and p.get('due_status','unknown')=='unknown'
         if g.get('assignee') is None:
             owner_ok=owner_ok and p.get('assignee_status','unknown')=='unknown'
+        return owner_ok,due_ok
+    def matching(candidates):
+        assigned={}
+        def augment(i,seen):
+            for gid in candidates[i]:
+                if gid in seen: continue
+                seen.add(gid)
+                if gid not in assigned or augment(assigned[gid],seen):
+                    assigned[gid]=i
+                    return True
+            return False
+        for i in candidates: augment(i,set())
+        return assigned
+    strict={i:[gid for gid in gids if all(fields_ok(by_id[gid],actual[i]))] for i,gids in edges.items()}
+    matched=matching(strict)
+    remaining={i:[gid for gid in gids if gid not in matched] for i,gids in edges.items() if i not in matched.values()}
+    matched.update(matching(remaining))
+    owner_errors, due_errors, pairs = [], [], []
+    correct=0
+    for gid,i in matched.items():
+        g,p=by_id[gid],actual[i]
+        owner_ok,due_ok=fields_ok(g,p)
         if not owner_ok: owner_errors.append({'gold_id':gid,'prediction_index':i,'expected':g.get('assignee'),'actual':p.get('assignee')})
         if not due_ok: due_errors.append({'gold_id':gid,'prediction_index':i,'expected':g.get('due'),'actual':p.get('due'),'due_text':p.get('due_text')})
         correct += owner_ok and due_ok
