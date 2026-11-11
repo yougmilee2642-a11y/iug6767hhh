@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>CallWise — голосовой помощник для бизнеса · Прототип</title>
+    <meta
+      name="description"
+      content="Неофициальный концепт Callwise в стиле МТС Беларусь: локальный AI и единый кабинет владельца."
+    />
+    <meta name="theme-color" content="#e30611" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="module" src="./app.mjs"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Перейти к содержимому</a>
+    <div class="prototype-strip">
+      <span class="prototype-dot"></span> Концепт для демонстрации
+      <span class="strip-separator">/</span> Не официальный сервис МТС
+      <span class="strip-mode">UI PROTOTYPE</span>
+    </div>
+    <header class="site-header">
+      <div class="audience-bar wrap">
+        <div>
+          <a
+            href="https://www.mts.by/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Частным клиентам ↗</a
+          ><a class="selected" href="#home">Бизнесу</a
+          ><a
+            href="https://www.mts.by/company/comp/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >О компании ↗</a
+          >
+        </div>
+        <span>Беларусь <span class="tiny-dot"></span> Русский</span>
+      </div>
+      <div class="main-bar wrap">
+        <a class="brand" href="#home" aria-label="МТС · CallWise, главная"
+          ><span class="mts-logo"><span class="egg"></span><b>МТС</b></span
+          ><span class="brand-divider"></span
+          ><span class="product-brand"
+            >CallWise<small>для бизнеса</small></span
+          ></a
+        >
+        <nav class="public-nav" aria-label="Навигация сайта">
+          <a href="#home/how">Возможности</a
+          ><a href="#home/demo">Демо помощника</a
+          ><a href="#home/faq">Вопросы и ответы</a>
+        </nav>
+        <div class="header-actions">
+          <a class="btn btn-dark cabinet-link" href="/#overview"
+            ><span data-icon="user"></span> Личный кабинет</a
+          >
+        </div>
+      </div>
+    </header>
+    <main id="main" tabindex="-1">
+      <div id="landing">
+        <div class="wrap breadcrumb">
+          <a
+            href="https://www.mts.by/corp/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Бизнесу ↗</a
+          ><span>/</span> Цифровые решения <span>/</span><b>CallWise</b>
+        </div>
+        <section class="hero wrap">
+          <div class="hero-copy">
+            <span class="overline"><i></i> ГОЛОСОВОЙ AI-ПОМОЩНИК</span>
+            <h1>Ваш бизнес.<br /><span>Начните с разговора.</span></h1>
+            <p>
+              У каждого звонка есть значение.<br />Поручите рутину голосовому
+              помощнику,<br />а себе оставьте главное — ваш бизнес.
+            </p>
+            <div class="hero-actions">
+              <button class="btn btn-red" data-action="demo">
+                Попробовать помощника <span data-icon="arrow"></span></button
+              ><a class="btn btn-white" href="/#quick"
+                >Создать своего</a
+              >
+            </div>
+            <div class="hero-note">
+              <span data-icon="spark"></span> Qwen, T-one, GigaAM и Silero.
+              Голосовой тест на вашем компьютере.
+            </div>
+          </div>
+          <div class="hero-art" aria-label="Визуализация голосового помощника">
+            <div class="art-grid"></div>
+            <span class="art-label"
+              >ЧЕЛОВЕЧНЫЙ ДИАЛОГ.<br />ЦИФРОВЫЕ ВОЗМОЖНОСТИ.</span
+            >
+            <div class="orbit orbit-one"></div>
+            <div class="orbit orbit-two"></div>
+            <div class="orbit orbit-three"></div>
+            <div class="voice-sphere">
+              <div class="sphere-gloss"></div>
+              <div class="waveform hero-wave" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i
+                ><i></i><i></i>
+              </div>
+            </div>
+            <div class="float-card float-top">
+              <span class="mini-agent" data-icon="spark"></span>
+              <div>
+                <strong>CallWise</strong><small>Помощник вашего бизнеса</small>
+              </div>
+              <span class="tiny-dot green"></span>
+            </div>
+            <div class="float-card float-bottom">
+              <span class="check-round" data-icon="check"></span>
+              <div>
+                <strong>Диалог под контролем</strong
+                ><small>Диалог → понятное обращение</small>
+              </div>
+            </div>
+            <button
+              class="art-mic"
+              data-action="demo"
+              aria-label="Открыть демо голосового помощника"
+            >
+              <span data-icon="mic"></span></button
+            ><span class="art-caption">Нажмите, чтобы познакомиться</span>
+          </div>
+        </section>
+        <section class="benefit-strip wrap" aria-label="Возможности проекта">
+          <div>
+            <span data-icon="voice"></span
+            ><span>Голос, а не меню из кнопок</span>
+          </div>
+          <div>
+            <span data-icon="book"></span
+            ><span>Ответы на основе знаний бизнеса</span>
+          </div>
+          <div>
+            <span data-icon="sliders"></span
+            ><span>Ваши агенты — ваши правила</span>
+          </div>
+        </section>
+        <section id="demo" class="demo-section wrap section-space">
+          <div class="section-kicker">УСЛЫШЬТЕ, КАК ЭТО МОЖЕТ РАБОТАТЬ</div>
+          <div class="section-heading">
+            <h2>Меньше ожидания.<br />Больше разговора.</h2>
+            <p>
+              Проверьте справочный демо-сценарий.<br />Выберите вопрос и пройдите
+              разговор с локальным AI.
+            </p>
+          </div>
+          <div class="demo-showcase">
+            <div class="demo-showcase-copy">
+              <span class="badge badge-neutral">Локальный AI</span>
+              <h3>Просто спросите.</h3>
+              <p>
+                Баланс, интернет, поддержка —<br />привычные вопросы, новый
+                интерфейс.
+              </p>
+              <div class="topic-list">
+                <button data-action="demo-topic" data-topic="balance">
+                  <span data-icon="wallet"></span>Как проверить баланс?<span
+                    data-icon="arrow"
+                  ></span></button
+                ><button data-action="demo-topic" data-topic="internet">
+                  <span data-icon="globe"></span>Не работает интернет<span
+                    data-icon="arrow"
+                  ></span></button
+                ><button data-action="demo-topic" data-topic="human">
+                  <span data-icon="user"></span>Хочу поговорить с
+                  оператором<span data-icon="arrow"></span>
+                </button>
+              </div>
+              <small
+                >Ответы по Q&A и контексту агента.<br />Обработка аудио — на
+                вашем компьютере.</small
+              >
+            </div>
+            <div class="demo-visual">
+              <span class="demo-chip"
+                ><i class="tiny-dot"></i> Демо в стиле МТС</span
+              >
+              <div class="small-sphere">
+                <div class="waveform" aria-hidden="true">
+                  <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                </div>
+              </div>
+              <h3>Здравствуйте!<br />Чем могу помочь?</h3>
+              <button
+                class="round-mic"
+                data-action="demo"
+                aria-label="Начать голосовой разговор с локальным AI"
+              >
+                <span data-icon="mic"></span></button
+              ><span class="muted">Начать разговор · дальше слушаем автоматически</span>
+            </div>
+          </div>
+        </section>
+        <section id="how" class="wrap section-space">
+          <div class="section-kicker">ОТ ИДЕИ ДО ВАШЕГО ПОМОЩНИКА</div>
+          <div class="section-heading">
+            <h2>Настройте под себя.</h2>
+            <a class="text-link" href="/#assistant"
+              >Открыть кабинет <span data-icon="arrow"></span
+            ></a>
+          </div>
+          <div class="steps-grid">
+            <article>
+              <span class="step-num">01</span>
+              <h3>Познакомьте с бизнесом</h3>
+              <p>
+                Добавьте информацию о компании, частые вопросы и правила
+                общения.
+              </p>
+              <div class="step-example">
+                <span data-icon="book"></span><span>База знаний компании</span
+                ><span data-icon="check"></span>
+              </div>
+            </article>
+            <article>
+              <span class="step-num">02</span>
+              <h3>Создайте своего агента</h3>
+              <p>
+                Выберите задачу, задайте приветствие и настройте сценарий
+                диалога.
+              </p>
+              <div class="step-example">
+                <span data-icon="spark"></span><span>Ваш новый AI-помощник</span
+                ><span data-icon="check"></span>
+              </div>
+            </article>
+            <article>
+              <span class="step-num">03</span>
+              <h3>Проверьте в разговоре</h3>
+              <p>
+                Протестируйте поведение, посмотрите диалог и доработайте
+                настройки.
+              </p>
+              <div class="step-example">
+                <span data-icon="voice"></span><span>Тестовый разговор</span
+                ><span data-icon="check"></span>
+              </div>
+            </article>
+          </div>
+          <p class="fine-print">
+            Веб-разговор работает с локальным AI. Телефония и внешние интеграции
+            не подключены.
+          </p>
+        </section>
+        <section class="cabinet-promo wrap">
+          <div>
+            <span class="overline">ОДИН КАБИНЕТ. ВСЕ ПОМОЩНИКИ.</span>
+            <h2>Управляйте диалогом.<br />Не каждым звонком.</h2>
+            <p>
+              Агенты, знания, тесты и история обращений —<br />в одном рабочем
+              пространстве.
+            </p>
+            <a href="/#assistant" class="btn btn-white"
+              >Заглянуть в кабинет <span data-icon="arrow"></span
+            ></a>
+          </div>
+          <div class="promo-window" aria-hidden="true">
+            <div class="window-bar">
+              <i></i><i></i><i></i><span>Мои агенты</span>
+            </div>
+            <div class="preview-agent">
+              <span data-icon="spark"></span>
+              <div>Помощник МТС<small>Поддержка клиентов</small></div>
+              <span class="preview-status">Демо</span>
+            </div>
+            <div class="preview-agent">
+              <span data-icon="phone"></span>
+              <div>Приём обращений<small>Обратный звонок</small></div>
+              <span class="preview-status">Демо</span>
+            </div>
+            <div class="preview-add">＋ Создать агента</div>
+          </div>
+        </section>
+        <section id="faq" class="wrap section-space faq-section">
+          <div>
+            <div class="section-kicker">ЕСТЬ ВОПРОС?</div>
+            <h2>Давайте разберёмся.</h2>
+            <p>О прототипе и следующем этапе.</p>
+          </div>
+          <div class="faq-items">
+            <details>
+              <summary>
+                Это официальный продукт МТС?<span data-icon="plus"></span>
+              </summary>
+              <p>
+                Нет. Это концепт CallWise для демонстрации команде в визуальном
+                стиле МТС Беларусь. Продукт не опубликован от имени оператора.
+              </p>
+            </details>
+            <details>
+              <summary>
+                Можно уже поговорить с настоящим AI?<span
+                  data-icon="plus"
+                ></span>
+              </summary>
+              <p>
+                Да, при работающем локальном сервере. В диалоге нажмите микрофон
+                и разрешите доступ. Речь распознают T-one и GigaAM, отвечает локальная Qwen,
+                озвучивает Silero. Можно продолжить текстом.
+              </p>
+            </details>
+            <details>
+              <summary>
+                Что можно делать в кабинете?<span data-icon="plus"></span>
+              </summary>
+              <p>
+                Создавать помощников, проверять знания и управлять историей в едином кабинете Callwise. Настройки проходят серверную проверку и подтверждение; данные хранятся на этом компьютере.
+              </p>
+            </details>
+            <details>
+              <summary>
+                Как связан макет с Callwise?<span data-icon="plus"></span>
+              </summary>
+              <p>
+                Голосовое демо использует локальный API, а «Личный кабинет» открывает настоящее рабочее пространство Callwise. Помощники и FAQ сохраняются через проверку и подтверждение. Старые браузерные черновики можно перенести вручную.
+              </p>
+            </details>
+          </div>
+        </section>
+        <footer class="site-footer">
+          <div class="wrap">
+            <div>
+              <span class="mts-logo"><span class="egg"></span><b>МТС</b></span
+              ><strong>CallWise. Ближе к вашему клиенту.</strong>
+            </div>
+            <nav>
+              <a href="/#assistant">Демо-кабинет</a
+              ><a
+                href="https://www.mts.by/help/"
+                target="_blank"
+                rel="noopener noreferrer"
+                >Поддержка МТС ↗</a
+              ><button class="text-button" data-action="about">
+                О прототипе
+              </button>
+            </nav>
+            <p>
+              Неофициальный демонстрационный прототип. Бренд МТС принадлежит
+              правообладателю.<br />Нет входа через МТС ID, платежей и подключения номеров. Кабинет использует существующий доступ владельца Callwise. AI работает локально; для демо используйте вымышленные данные.
+            </p>
+          </div>
+        </footer>
+      </div>
+    </main>
+    <dialog id="modal" aria-labelledby="modalTitle">
+      <div id="modalContent"></div>
+    </dialog>
+    <div id="toast" role="status" aria-live="polite" hidden></div>
+    <noscript
+      ><p>
+        Для интерфейса прототипа и локального голосового теста включите
+        JavaScript.
+      </p></noscript
+    >
+  </body>
+</html>

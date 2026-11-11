@@ -1,0 +1,9 @@
+{
+  "YOUR_BOOKING_AGENT_ID": {
+    "calendars": {
+      "YOUR_EMPLOYEE_ID": "YOUR_DEDICATED_CALENDAR_ID@group.calendar.google.com"
+    },
+    "google_credentials_env": "CALLWISE_GOOGLE_CREDENTIALS",
+    "bitrix_webhook_env": "CALLWISE_BITRIX_WEBHOOK"
+  }
+}

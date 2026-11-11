@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Callwise — рабочее место владельца</title><meta name="description" content="Настройте AI-помощника, проверьте знания и управляйте обращениями в одном кабинете.">
+<meta property="og:title" content="Callwise — помощник бизнеса"><meta property="og:description" content="Роль, знания, веб-проверка и обращения в одном кабинете владельца"><meta property="og:type" content="website"><meta property="og:image" content="__PUBLIC_ORIGIN__/static/og.png">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Callwise — помощник бизнеса"><meta name="twitter:description" content="Роль, знания и проверка помощника в браузере"><meta name="twitter:image" content="__PUBLIC_ORIGIN__/static/og.png">
+<link rel="icon" href="/static/favicon.svg"><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/details.css"><link rel="stylesheet" href="/static/builder.css"><link rel="stylesheet" href="/static/product.css"></head>
+<body><div class="app-shell"><aside class="sidebar">
+<a class="brand" href="#overview" aria-label="Callwise"><span class="brand-mark" data-ui-icon="voice"></span><span><b>Callwise</b><small>РАБОЧЕЕ ПРОСТРАНСТВО</small></span></a>
+<span class="nav-caption">РАБОЧЕЕ МЕСТО</span><nav aria-label="Основная навигация">
+<button class="nav-item active" data-view="overview" aria-label="Обзор" title="Обзор"><span class="nav-symbol" data-ui-icon="grid"></span> Обзор</button>
+<button class="nav-item" data-view="assistant" aria-label="Помощники" title="Помощники"><span class="nav-symbol" data-ui-icon="spark"></span> Помощники</button>
+<button class="nav-item" data-view="knowledge" aria-label="Знания" title="Знания"><span class="nav-symbol" data-ui-icon="book"></span> Знания</button>
+<button class="nav-item" data-view="call" aria-label="Проверка" title="Проверка"><span class="nav-symbol" data-ui-icon="voice"></span> Проверка</button>
+<button class="nav-item" data-view="applications" aria-label="Обращения" title="Обращения"><span class="nav-symbol" data-ui-icon="clock"></span> Обращения</button>
+<button class="nav-item" data-view="channels" aria-label="Каналы" title="Каналы"><span class="nav-symbol" data-ui-icon="link"></span> Каналы</button></nav>
+<div class="sidebar-bottom"><button class="advanced-link" data-product-view="agents">Расширенный конструктор ↗</button><button class="advanced-link" data-product-view="setup">Настройки демо</button>
+<div class="sidebar-note"><span class="live-dot"></span><div><b id="healthTitle">Проверяю AI</b><small id="healthMeta">Локальный прототип</small></div></div><p class="side-disclaimer">Трек 1 · Space CorpAcc<br>Телефонная линия не подключена</p><a class="sidebar-site" href="/static/mts-shell/index.html#home"><span data-ui-icon="arrow-left"></span> К концепту МТС</a></div></aside>
+<main class="workspace"><header class="topbar"><div><p class="eyebrow" id="pageEyebrow">ВАШ БИЗНЕС · ПОД КОНТРОЛЕМ</p><h1 id="pageTitle">Обзор</h1></div><div class="topbar-right"><a class="concept-link" href="/static/mts-shell/index.html#home">Концепт МТС <span data-ui-icon="arrow"></span></a><span class="local-badge">Веб-прототип</span><span id="status" class="status-pill"><i></i> Готов</span></div></header>
+<div class="access-line"><span id="accessNote">Локальный кабинет владельца.</span><button id="ownerLogout" type="button" class="secondary-button" hidden>Выйти</button></div>
+<a class="mobile-concept-link" href="/static/mts-shell/index.html#home">К концепту МТС <span data-ui-icon="arrow"></span></a>
+<section id="view-overview" class="view active">
+<div class="overview-hero"><div class="hero-copy"><span class="hero-kicker">ВАШ CALLWISE</span><h2>Меньше рутины.<br><span>Больше контроля.</span></h2><p>Настройте помощника под свой бизнес.<br>Проверьте ответы и сохраните важное.</p><div class="hero-actions"><button class="primary-button" data-new-assistant>Создать помощника <span data-ui-icon="plus"></span></button><button class="secondary-button" data-product-view="call">Проверить диалог <span data-ui-icon="arrow"></span></button></div><span class="hero-footnote">Сейчас — голос и текст в браузере. Телефонная линия ещё не подключена.</span></div><div class="hero-visual" aria-hidden="true"><div class="hero-orbit"></div><div class="hero-orbit inner"></div><div class="workspace-sphere"><div class="workspace-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><div class="sphere-caption"><span data-ui-icon="voice"></span> Сначала проверьте в разговоре</div></div></div>
+<div class="metric-grid"><article class="metric"><span>Помощники</span><b id="metricAssistants">—</b><small>Созданы в вашем кабинете</small></article><article class="metric"><span>Веб-диалоги</span><b id="metricConversations">—</b><small>Телефонные звонки не учитываются</small></article><article class="metric"><span>Подтверждённые обращения</span><b id="metricConfirmed">—</b><small>После согласия клиента</small></article><article class="metric"><span>Запросы человека</span><b id="metricHuman">—</b><small>Локальная фиксация запроса</small></article></div>
+<div class="overview-grid"><article class="panel next-step"><div class="section-heading"><span class="eyebrow">СЛЕДУЮЩИЙ ШАГ</span><span class="small-chip">01 → 03</span></div><h3 id="nextStepTitle">Начните с понятной роли</h3><p id="nextStepText">Секретарь принимает обращение. Справочный помощник отвечает на вопросы без обязательного сбора контактов.</p><div class="journey-row"><span><b>1</b> Настройте</span><i></i><span><b>2</b> Проверьте</span><i></i><span><b>3</b> Улучшайте</span></div><button class="text-button" id="nextStepButton" data-next-view="assistant">Открыть помощников →</button></article>
+<article class="panel trust-card"><span class="eyebrow">ДОВЕРИЕ ЧЕРЕЗ КОНТРОЛЬ</span><h3>Ваши знания. Ваше решение.</h3><p>Добавьте точные ответы на частые вопросы. Новые факты проверяет владелец; черновик применяется только после подтверждения.</p><button class="text-button" data-product-view="knowledge">Управлять знаниями →</button></article></div>
+<div class="section-heading recent-heading"><div><span class="eyebrow">КОРОТКАЯ НАСТРОЙКА</span><h3>Ваши помощники</h3></div><button class="text-button" data-product-view="assistant">Все помощники →</button></div><div id="overviewAgents" class="profile-grid"></div><p id="overviewError" role="status"></p>
+</section>
+<section id="view-assistant" class="view"><div class="page-intro"><div><h2>Должность с понятными границами</h2><p>Помощники короткого мастера. Дополнительные возможности не включаются автоматически.</p></div><button class="primary-button" data-new-assistant>＋ Новый помощник</button></div><div id="productAgentList" class="profile-grid"></div><button id="shellImportOpen" class="secondary-button import-entry" hidden><span data-ui-icon="download"></span> Перенести черновик из макета МТС</button><div class="supporting-note">«Настроен для веб-теста» означает готовность к проверке в браузере. Это не статус подключения телефонной услуги.<br>Ранее созданные агенты и дополнительные сценарии доступны отдельно. <button class="text-button" data-product-view="agents">Открыть расширенный конструктор →</button></div></section>
+<section id="view-quick" class="view"><div class="wizard-header"><div><span class="eyebrow">КОРОТКАЯ НАСТРОЙКА</span><h2 id="quickTitle">Ваш новый помощник</h2><p>Без обязательного каталога услуг, сотрудников и календаря.</p></div><span id="quickLifecycle" class="small-chip">Черновик</span></div>
+<div class="wizard-layout"><aside class="wizard-steps" aria-label="Шаги настройки"><button type="button" data-quick-step="0"><b>1</b><span>Компания и роль<small>Кто и зачем отвечает</small></span></button><button type="button" data-quick-step="1"><b>2</b><span>Приветствие<small>Первое впечатление</small></span></button><button type="button" data-quick-step="2"><b>3</b><span>Знания<small>Только ваши факты</small></span></button><button type="button" data-quick-step="3"><b>4</b><span>Границы и каналы<small>Что действительно доступно</small></span></button><button type="button" data-quick-step="4"><b>5</b><span>Проверка настроек<small>Ваше подтверждение</small></span></button><span id="draftSaveStatus" class="draft-status" role="status">Черновик ещё не сохранён</span><button id="quickRestore" class="text-button" type="button">Загрузить сохранённый черновик</button><button id="quickKeepMine" class="text-button" type="button" hidden>Сохранить мою версию поверх</button></aside>
+<article class="panel wizard-main"><form id="quickForm">
+<div class="quick-step" data-stage="0"><span class="eyebrow">ШАГ 1 ИЗ 5</span><h3>Кому помогает Callwise?</h3><p>Достаточно названия компании или имени владельца.</p><label>Компания / имя владельца<input name="business_name" required minlength="2" maxlength="100" placeholder="Например, Вектор IT" aria-label="Компания / имя владельца"></label><label>Роль помощника<select name="role" aria-label="Роль помощника"><option value="secretary">Секретарь — принять обращение</option><option value="support">Справочный помощник — ответить на вопрос</option></select></label><div id="quickRoleDescription" class="role-description"></div><details class="optional-details"><summary>Дополнительные сведения · необязательно</summary><div class="form-grid"><label>Сфера деятельности<input name="business_type" value="Компания" maxlength="100"></label><label>Город<input name="city" maxlength="100" placeholder="Не указан"></label><label>Часовой пояс<input name="timezone" value="Europe/Minsk" maxlength="100"></label></div></details></div>
+<div class="quick-step" data-stage="1" hidden><span class="eyebrow">ШАГ 2 ИЗ 5</span><h3>Как встретить клиента?</h3><p>Шаблон обозначает AI и компанию. Можно задать свой текст без обещаний неподключённых действий.</p><label>Приветствие<textarea name="greeting" rows="3" maxlength="450" placeholder="Оставьте пустым, чтобы использовать приветствие роли" aria-label="Приветствие"></textarea></label><label>Стиль общения<select name="tone" aria-label="Стиль общения"><option value="brief">Кратко и по делу</option><option value="friendly">Доброжелательно</option><option value="formal">Официально</option></select></label><div class="preview-bubble" id="greetingSample"></div></div>
+<div class="quick-step" data-stage="2" hidden><span class="eyebrow">ШАГ 3 ИЗ 5</span><h3>Что помощник должен знать?</h3><p>Добавьте ответы на частые вопросы. Если факта нет, помощник должен признать отсутствие информации.</p><div id="quickFAQ"></div><button id="quickAddFAQ" type="button" class="secondary-button">＋ Добавить вопрос и ответ</button><label class="facts-label">Другие подтверждённые факты<textarea name="facts" rows="4" aria-describedby="knowledgeCounter" placeholder="Чем занимается компания, адрес, условия обращения. Не добавляйте данные клиентов." aria-label="Другие подтверждённые факты"></textarea></label><p id="knowledgeCounter" class="knowledge-counter" role="status" aria-live="polite"></p><p id="knowledgeErrors" class="knowledge-errors" role="alert"></p><div class="supporting-note">Ответ владельца становится знанием только после проверки и подтверждения. Автоматического обучения на разговорах нет.</div></div>
+<div class="quick-step" data-stage="3" hidden><span class="eyebrow">ШАГ 4 ИЗ 5</span><h3>Границы — часть должности</h3><div class="guard-list"><p><span>✓</span> Только подтверждённые знания бизнеса</p><p><span>✓</span> Честный ответ, если информации нет</p><p><span>✓</span> Действия проверяет сервер; запись обращения требует согласия</p><p><span>✓</span> Просьба о человеке фиксируется как запрос, без обещания соединения</p></div><label>Предпочтение будущего маршрута<select name="routing_preference" aria-label="Предпочтение будущего маршрута"><option value="unspecified">Пока не выбрано</option><option value="voice">Ответ голосом</option><option value="chat_requested">Продолжение в чате — после уточнения МТС</option></select></label><div class="channel-mini"><div><span class="availability-dot available"></span><b>Веб-тест</b><small>Доступен</small></div><div><span class="availability-dot"></span><b>Телефония</b><small>Не подключена</small></div><div><span class="availability-dot"></span><b>Перевод в чат</b><small>Требует уточнения МТС</small></div></div><p class="muted">Предпочтение сохраняется, но не включает канал. Пять минут остаются целью настройки, а не доказанным временем подключения услуги.</p></div>
+<div class="quick-step" data-stage="4" hidden><span class="eyebrow">ШАГ 5 ИЗ 5</span><h3>Проверьте перед сохранением</h3><p>Подтверждаются роль, приветствие, знания и границы действий. Неподтверждённые изменения не влияют на текущие разговоры.</p><div id="quickPreview" hidden></div></div>
+<p id="quickStatus" role="status" aria-live="polite"></p><div class="wizard-actions"><button id="quickBack" class="secondary-button" type="button">Назад</button><button id="quickNext" class="primary-button" type="button">Далее →</button><button id="quickPreviewButton" type="submit" class="primary-button" hidden>Проверить настройки</button><button id="quickSave" type="button" class="primary-button" hidden>Подтвердить и сохранить</button><button id="quickTest" type="button" class="primary-button" hidden>Провести веб-тест →</button></div><button id="quickReset" type="button" class="text-button">Начать нового помощника</button></form></article></div></section>
+<section id="view-knowledge" class="view"><div class="page-intro"><div><h2>Знания, которым можно доверять</h2><p>У каждого ответа есть владелец. Разговоры не превращаются в правила автоматически.</p></div><button id="knowledgeEdit" class="primary-button" disabled>Изменить знания</button></div><label class="knowledge-picker">Помощник<select id="knowledgeAgent"><option value="">Выберите помощника</option></select></label><div id="knowledgeContent" class="knowledge-grid"></div><article class="panel knowledge-process"><span class="eyebrow">КАК ЗНАНИЯ РАСТУТ</span><h3>Вопрос клиента → ответ владельца → проверка → подтверждение</h3><p>Откройте разговор в «Обращениях», выберите вопрос и добавьте свой ответ в FAQ. Он применится к новым разговорам только после подтверждения настроек.</p><button class="text-button" data-product-view="applications">Перейти к обращениям →</button></article></section>
+<section id="view-channels" class="view"><div class="page-intro"><div><h2>Подключения без иллюзий</h2><p>Канал считается подключённым только после фактической проверки.</p></div><span class="small-chip">Локальный прототип</span></div><div class="channel-grid"><article class="panel channel-card"><span class="channel-symbol">◉</span><span class="status-label available">Доступен</span><h3>Веб-проверка</h3><p>Текст и микрофон в браузере. Локальные Qwen, T-one, GigaAM и Silero.</p><button class="text-button" data-product-view="call">Проверить помощника →</button></article><article class="panel channel-card"><span class="channel-symbol">☎</span><span class="status-label">Не подключена</span><h3>Телефонная линия</h3><p>Нужны тестовый интерфейс МТС и согласованный сценарий подключения. Callwise пока не принимает телефонные звонки.</p></article><article class="panel channel-card"><span class="channel-symbol">↗</span><span id="telegramChannelBadge" class="status-label">Отключён локально</span><h3>Уведомления владельцу</h3><p>Код Telegram-привязки и очереди есть. В полностью локальном режиме отправка отключена. Это отдельная функция от перевода звонка в чат.</p><button class="text-button" data-product-view="telegram">Посмотреть настройки →</button></article></div><article class="panel privacy-panel"><span class="eyebrow">ДАННЫЕ И ДОСТУП</span><h3>Локальная обработка — ещё не операторский допуск.</h3><p>В текущем режиме модели работают на этом компьютере. Для реального пилота отдельно нужны согласия, политика хранения, аудит доступа, изоляция клиентов и согласованный контур МТС. Используйте вымышленные данные для проверки.</p><div class="privacy-tags"><span>Локальный кабинет</span><span>Один владелец</span><span>Телефонии нет</span><span>Промышленная готовность не подтверждена</span></div></article></section>
+<section id="view-call" class="view">
+        <label class="agent-picker">AI-сотрудник <select id="agentSelect" aria-label="Выбор AI-сотрудника"></select></label>
+        <p id="channelNotice" class="track1-notice">Веб-демо. Телефония не подключена. Telegram-доставка настраивается отдельно. Пока используйте синтетические данные клиентов.</p>
+        <div class="call-layout">
+          <article class="call-card">
+            <div class="call-card-top">
+              <span class="call-label">Веб-проверка</span>
+              <span id="timer" class="call-time">00:00</span>
+            </div>
+            <div id="orb" class="voice-orb"><span>☎</span><i></i><i></i></div>
+            <h2 id="callBusinessName">Линия — демо-салон</h2>
+            <p id="callBusinessMeta">Минск · салон красоты · тестовые данные</p>
+            <p id="state" class="call-state">Нажмите кнопку, чтобы начать разговор</p>
+            <button id="start" class="call-button"><span>●</span> Начать разговор</button>
+            <button id="startText" type="button" class="secondary-button">Начать веб-чат без микрофона</button>
+            <button id="sendVoice" type="button" class="secondary-button" hidden>Отправить фразу сейчас</button>
+            <label class="review-toggle"><input id="reviewVoiceToggle" type="checkbox"> Проверять распознанный текст перед отправкой</label>
+            <button id="downloadVoiceMetrics" type="button" class="secondary-button">Скачать замеры задержек (JSON)</button>
+            <div id="voiceReview" class="voice-review" hidden role="group" aria-labelledby="voiceReviewTitle"><b id="voiceReviewTitle">Проверьте распознанную фразу</b><small>Исправьте имя, телефон, суммы и отрицания. Отправленный текст станет репликой клиента.</small><textarea id="voiceReviewText" rows="3" aria-label="Распознанная фраза"></textarea><div class="voice-review-actions"><button id="voiceReviewSend" type="button" class="primary-button">Отправить</button><button id="voiceReviewRetry" type="button" class="secondary-button">Отбросить и сказать заново</button></div></div>
+            <div id="silenceNote" class="silence-note">Фраза отправляется после секунды тишины. Во время записи можно отправить её сразу по кнопке.</div>
+          </article>
+
+          <article class="panel conversation-panel">
+            <div class="panel-heading">
+              <div><p class="eyebrow">Расшифровка</p><h2>Диалог</h2></div>
+              <span class="language-chip">RU</span>
+            </div>
+            <div id="chat" class="chat" aria-live="polite">
+              <div class="empty-state"><span>✦</span><b>Диалог появится здесь</b><p>Выберите помощника и проверьте его в роли клиента. Разговор сохраняется в истории.</p></div>
+            </div>
+            <form id="textAnswerForm" class="text-answer">
+              <input id="textAnswer" autocomplete="off" placeholder="Или введите ответ вручную…" aria-label="Ответ клиента текстом">
+              <button type="submit" aria-label="Отправить ответ">↑</button>
+            </form>
+          </article>
+        </div>
+
+        <article class="panel result-panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">Структурированные данные</p><h2>Результат разговора</h2></div>
+            <span id="resultBadge" class="result-badge">Ожидает разговора</span>
+          </div>
+          <div id="application" class="application-grid">
+            <div class="empty-state wide"><span>⌁</span><b>Результат появится здесь</b><p>Запись сохраняется только после явного подтверждения. Перевод сотруднику пока фиксируется как запрос.</p></div>
+          </div>
+        </article>
+      </section><section id="view-applications" class="view">
+        <div class="setup-intro">
+          <div><p class="eyebrow">Входящие обращения</p><h2>Все обращения под рукой</h2><p>Расшифровка, подтверждённые данные и фактический результат. Незавершённые разговоры тоже сохраняются.</p></div>
+          <button id="refreshApplications" class="secondary-button">Обновить</button>
+        </div>
+        <div class="history-toolbar"><label>Помощник<select id="historyAgent"><option value="">Все помощники</option></select></label><label>Источник<select id="historySource"><option value="">Все разговоры</option><option value="own">Мои помощники</option><option value="demo">Демо концепта МТС</option><option value="other">Прочие агенты и архив</option></select></label><label>Состояние<select id="historyState"><option value="">Все состояния</option><option value="completed">Обращение подтверждено</option><option value="escalated">Запрос человека</option><option value="stopped">Разговор завершён вручную</option></select></label></div><div id="applicationsList" class="applications-list">
+          <div class="panel empty-state wide"><span>▤</span><b>Заявок пока нет</b><p>Завершите тестовый разговор, чтобы увидеть первую заявку.</p></div>
+        </div>
+      </section><section id="view-agents" class="view">
+        <div class="setup-intro"><div><h2>Ваши AI-сотрудники</h2><p>Сначала проверьте черновик. Только после вашего подтверждения агент будет создан и активирован.</p></div><button id="newAgent" class="primary-button">Создать AI-сотрудника</button></div>
+        <div id="agentList" class="agent-list"></div>
+        <article id="builderPanel" class="panel builder-panel" hidden>
+          <h2>Создать AI-сотрудника</h2>
+          <p id="builderStepLabel" class="eyebrow"></p>
+          <form id="builderForm">
+            <div class="builder-step" data-step="0"><div class="form-grid">
+              <label><span>Название бизнеса</span><input name="business_name" required minlength="2" maxlength="100" placeholder="Nova Beauty"></label>
+              <label><span>Сфера бизнеса</span><input name="business_type" required minlength="2" maxlength="100" placeholder="Салон красоты"></label>
+              <label><span>Город</span><input name="city" required minlength="2" maxlength="100" placeholder="Минск"></label>
+              <label><span>Часовой пояс</span><input name="timezone" required value="Europe/Minsk"></label>
+              <label class="span-2"><span>Описание</span><textarea name="description" maxlength="2000" rows="2"></textarea></label>
+              <label class="span-2"><span>Сайт (необязательно, без автоматического чтения)</span><input name="website" maxlength="500" placeholder="https://…"></label>
+            </div><h3>Недельное расписание</h3><div id="builderHours"></div></div>
+            <div class="builder-step" data-step="2" hidden>
+              <label class="builder-block"><span>Сотрудники бизнеса (каждое имя с новой строки)</span><textarea name="employees" rows="3" maxlength="3000" placeholder="Анна&#10;Мария"></textarea></label>
+              <p>Сначала задайте общий каталог сотрудников. Затем выберите сотрудников для каждой услуги. Пустой выбор означает всех из каталога.</p>
+              <h3>Услуги, цены и длительность</h3><p>Без JSON. Валюта — трёхбуквенный код, например BYN. Выберите сотрудников каждой услуги из общего каталога.</p>
+              <div id="builderServices"></div><button type="button" id="builderAddService" class="secondary-button">Добавить услугу</button>
+              <div id="builderRequirements" hidden></div>
+            </div>
+            <div class="builder-step" data-step="1" hidden><div class="form-grid">
+              <label class="span-2"><span>Кем должен быть AI-сотрудник?</span><input name="desired_role" required value="Администратор" maxlength="100"></label>
+              <label class="span-2"><span>Задачи (каждая с новой строки)</span><textarea name="tasks" required rows="4" maxlength="5000" placeholder="Рассказать об услугах и ценах&#10;Записать клиента&#10;Передать запрос человеку"></textarea></label>
+              <label class="span-2"><span>Дополнительная информация</span><textarea name="notes" rows="3" maxlength="3000"></textarea></label>
+            </div><h3>Когда AI может сам предложить сотрудника?</h3>
+              <label><input type="checkbox" name="escalation" value="complaint" checked> Жалоба</label>
+              <label><input type="checkbox" name="escalation" value="unsupported" checked> Неподдерживаемый запрос</label>
+              <label><input type="checkbox" name="escalation" value="tool_failure" checked> Ошибка инструмента</label>
+              <p>Явный запрос человека всегда обрабатывается немедленно, если перевод подключён.</p>
+            </div>
+            <div class="builder-step" data-step="3" hidden><div id="builderPreview"></div></div>
+            <p id="builderStatus" role="status" aria-live="polite"></p>
+            <div class="builder-actions"><button id="builderBack" type="button" class="secondary-button">Назад</button><button id="builderNext" type="button" class="primary-button">Далее</button><button id="builderGenerate" type="button" class="primary-button" hidden>Сформировать черновик</button><button id="builderCreate" type="button" class="primary-button" hidden>Создать и активировать агента</button></div>
+          </form>
+        </article>
+      </section>
+<section id="view-setup" class="view">
+        <div class="setup-intro">
+          <div><p class="eyebrow">Настройки демо-агента</p><h2>Расскажите AI о компании</h2><p>Эта страница изменяет только исходного демо-агента. Для нового бизнеса используйте раздел «Агенты».</p></div>
+          <span class="save-state" id="configState">Все изменения сохранены</span>
+        </div>
+        <form id="configForm" class="config-form">
+          <article class="panel form-section">
+            <div class="section-number">01</div>
+            <div class="section-copy"><h3>Основная информация</h3><p>То, как компания представляется клиенту.</p></div>
+            <div class="form-grid">
+              <label><span>Название компании</span><input name="business_name" required maxlength="100"></label>
+              <label><span>Сфера бизнеса</span><input name="industry" required maxlength="120" placeholder="Например, салон красоты"></label>
+              <label><span>Город</span><input name="city" required maxlength="100"></label>
+              <label><span>Email для заявок</span><input name="notification_email" type="email" placeholder="manager@example.com"></label>
+              <label class="span-2"><span>Приветствие</span><textarea name="greeting" required rows="3" maxlength="600"></textarea></label>
+            </div>
+          </article>
+
+          <article class="panel form-section">
+            <div class="section-number">02</div>
+            <div class="section-copy"><h3>Знания о компании</h3><p>Контекст помогает распознавать услуги и имена мастеров.</p></div>
+            <div class="form-grid">
+              <label class="span-2"><span>Услуги</span><textarea name="services" rows="4" placeholder="JSON: name, price, currency, duration_minutes, employees"></textarea></label>
+              <label class="span-2"><span>Описание бизнеса</span><textarea name="description" rows="3" maxlength="2000"></textarea></label>
+              <label><span>Часы работы</span><input name="opening_hours"></label>
+              <label><span>Часовой пояс (IANA)</span><input name="timezone" placeholder="Europe/Minsk" required></label>
+              <label><span>Что сказать об обратном звонке</span><input name="callback_message"></label>
+              <label class="span-2"><span>База знаний и правила для AI</span><textarea name="knowledge_base" rows="5" maxlength="5000" placeholder="Адрес, ориентировочные цены, правила записи, что можно и нельзя обещать клиенту…"></textarea></label>
+            </div>
+          </article>
+
+          <article class="panel form-section questions-section">
+            <div class="section-number">03</div>
+            <div class="section-copy"><h3>Дополнительные вопросы</h3><p>Основные поля задаёт AgentConfig. Здесь можно добавить вопросы; сценарии и инструменты пока редактируются в JSON.</p></div>
+            <div class="questions-area">
+              <div id="questionsList" class="questions-list"></div>
+              <button id="addQuestion" type="button" class="secondary-button">＋ Добавить вопрос</button>
+            </div>
+          </article>
+          <div class="form-actions"><button type="submit" class="primary-button">Сохранить и применить к AI</button></div>
+        </form>
+      </section>
+<section id="view-evaluation" class="view">
+        <article class="panel builder-panel">
+          <h2 id="evaluationAgentName">Проверка помощника</h2>
+          <p>Проверка исходных требований и текстовых сценариев. Это не production-сертификация. Реальные обращения и записи не изменяются.</p>
+          <div class="builder-actions"><label>Режим <select id="evaluationMode"><option value="CORE">Базовая проверка</option><option value="STANDARD">Расширенная проверка</option></select></label><label>Лимит сценариев <input id="evaluationCount" type="number" min="12" max="40" value="20"></label>
+            <button id="evaluationStart" class="primary-button">Запустить проверку</button><button id="evaluationBack" class="secondary-button">К помощникам</button></div>
+          <p id="evaluationHint">Сценарии проверяют ответы и действия помощника. Ошибки и неполный прогон показываются отдельно. Во время проверки модель может отвечать медленнее.</p>
+          <label class="builder-block">Прошлые проверки <select id="evaluationHistory" aria-label="Прошлые проверки"></select></label>
+          <p id="evaluationProviderNote" class="evaluation-provider-note"></p><p id="evaluationStatus" role="status" aria-live="polite"></p>
+          <div id="evaluationReport"></div>
+        </article>
+      </section>
+<section id="view-telegram" class="view">
+        <article class="panel builder-panel">
+          <p class="eyebrow">УВЕДОМЛЕНИЯ · РЕГИСТРАЦИЯ</p><h2>Telegram для вашего бизнеса</h2>
+          <p>Привяжите личный чат к конкретному помощнику. Это доставка обращений владельцу, не перевод клиентского звонка в чат.</p>
+          <label class="builder-block">Помощник <select id="telegramAgent" aria-label="Помощник для Telegram"><option value="">Выберите помощника</option></select></label>
+          <p id="telegramState" class="track1-notice" role="status"></p><p id="telegramRecipient"></p><p id="telegramMiniapp"></p>
+          <div class="builder-actions"><button id="telegramRefresh" class="secondary-button">Обновить статус</button><button id="telegramConnect" class="primary-button" disabled>Создать ссылку привязки</button><button id="telegramDisconnect" class="secondary-button" hidden>Отключить получателя</button></div>
+          <p><a id="telegramLink" target="_blank" rel="noopener noreferrer" hidden></a></p>
+          <div class="builder-actions"><button id="telegramCheck" class="secondary-button" hidden>Проверить получателя</button><button id="telegramApprove" class="primary-button" hidden>Подтверждаю получателя</button></div>
+          <p id="telegramActionStatus" role="status" aria-live="polite"></p>
+          <p>Бот: /register — регистрация, /profile — ваш профиль, /cancel — отмена. Локальный экран Mini App: <a href="/miniapp" target="_blank" rel="noopener">посмотреть форму</a>.</p>
+          <p>Статусы отправки видны в истории. При неизвестном результате повтор отключён: Telegram не гарантирует защиту от дубля при потере ответа. Привязка нового получателя не пересылает старые обращения.</p>
+        </article>
+      </section>
+</main></div><dialog id="shellImportDialog" aria-labelledby="shellImportTitle"><div class="import-dialog"><span class="eyebrow">ПЕРЕНОС В НАСТОЯЩИЙ КАБИНЕТ</span><h2 id="shellImportTitle">Выберите черновик</h2><p>Перенесём компанию, приветствие и FAQ в короткий мастер. Перед применением вы проверите и подтвердите настройки.</p><label>Сохранено в этом браузере<select id="shellImportSelect"></select></label><p class="muted">Статус «включён» в макете не активирует помощника. Голос и темп макета не переносятся. Исходные записи остаются на месте.</p><p id="shellImportError" role="status"></p><div class="wizard-actions"><button id="shellImportCancel" class="secondary-button">Отмена</button><button id="shellImportBegin" class="primary-button">Перенести в мастер</button></div></div></dialog><div id="toast" class="toast" role="status"></div><script src="/static/workspace-icons.js"></script><script src="/static/shell-draft-import.js"></script><script src="/static/access.js"></script><script src="/static/voice-playback.js"></script><script src="/static/transcript-review.js"></script><script src="/static/voice-metrics.js"></script>
+<script src="/static/app.js"></script><script src="/static/builder.js"></script><script src="/static/knowledge-limits.js"></script>
+<script src="/static/track1.js"></script><script src="/static/telegram.js"></script><script src="/static/evaluation.js"></script><script src="/static/product.js"></script></body></html>
