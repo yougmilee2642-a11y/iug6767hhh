@@ -42,7 +42,7 @@ class Model:
         if self.reply is not None:
             return self.reply
         row = json.loads(user)['untrusted_documents'][0]
-        return {'claims': [{'text': row['text'], 'quote': row['text'], 'fragment_id': row['fragment_id']}]}
+        return {'excerpt_ids': [row['excerpts'][0]['excerpt_id']]}
 
 
 @pytest.fixture()
