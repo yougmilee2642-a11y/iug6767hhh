@@ -184,7 +184,8 @@ def test_summary_failed_transcript_stays_in_denominator():
     from scripts.track3.evaluate import summarize
     gold,u,p=scoring_fixture()
     score=score_tasks(gold,p,u)
-    report={'transcripts':[{'scores':score},{'http_status':503},{'http_status':503}],'questions':[]}
+    report={'transcripts':[{'key':'delay','http_status':200,'scores':score},
+                           {'key':'planning','http_status':503},{'key':'control','http_status':503}], 'questions':[]}
     summarize(report)
     assert report['overall']['gold_tasks']==18 and report['overall']['recall']==6/18
     assert report['status']=='failed'
@@ -403,3 +404,47 @@ def test_cleanup_retains_marker_if_later_artifact_delete_fails(env, monkeypatch)
     monkeypatch.setattr(Path, 'unlink', original)
     cleanup(str(env['path']), True, [str(report)])
     assert not report.exists()
+
+
+@pytest.mark.parametrize('missing', ['version', 'digest'])
+def test_model_metadata_cannot_succeed_without_observed_version_and_digest(monkeypatch, missing):
+    import httpx
+    from scripts.track3.evaluate import model_info
+    from providers import ollama
+    monkeypatch.setattr(ollama, 'endpoint', lambda: ('http://127.0.0.1:11434', {}))
+    def respond(request):
+        if request.url.path == '/api/version':
+            return httpx.Response(200, json={} if missing == 'version' else {'version': 'unit-test'})
+        model = {'name': 'unit-model', 'digest': 'unit-digest', 'size': 123}
+        if missing == 'digest': model.pop('digest')
+        return httpx.Response(200, json={'models': [model]})
+    with pytest.raises(ValueError):
+        model_info('unit-model', transport=httpx.MockTransport(respond))
+
+
+def test_metadata_checks_bearer_without_proxy_redirect_or_inference(monkeypatch):
+    import httpx
+    from scripts.track3.evaluate import model_info
+    from providers import ollama
+    monkeypatch.setattr(ollama, 'endpoint', lambda: ('https://gateway.example', {'Authorization': 'Bearer unit-secret'}))
+    seen = []
+    def respond(request):
+        seen.append((request.method, request.url.path, request.headers['Authorization']))
+        return httpx.Response(200, json={'version': 'unit-test'} if request.url.path == '/api/version' else
+                              {'models': [{'name': 'unit-model', 'digest': 'unit-digest', 'size': 123}]})
+    observed = model_info('unit-model', transport=httpx.MockTransport(respond))
+    assert observed['ollama_version'] == 'unit-test' and observed['model_digest'] == 'unit-digest'
+    assert seen == [('GET', '/api/version', 'Bearer unit-secret'), ('GET', '/api/tags', 'Bearer unit-secret')]
+    assert 'unit-secret' not in json.dumps(observed)
+
+
+def test_frozen_dataset_failure_still_produces_not_run_report(monkeypatch, tmp_path):
+    from scripts.track3 import evaluate
+    path = tmp_path / 'frozen-error.json'
+    monkeypatch.setattr('sys.argv', ['evaluate', '--output', str(path)])
+    def changed(): raise ValueError('synthetic wrong digest')
+    monkeypatch.setattr(evaluate, 'frozen_check', changed)
+    assert evaluate.main() == 2
+    saved = json.loads(path.read_text())
+    assert saved['status'] == 'not_run' and saved['stage'] == 'dataset_integrity'
+    assert not saved['transcripts'] and saved['model_metadata_status'] == 'not_run'

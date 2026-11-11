@@ -40,6 +40,8 @@ jobs:
           node --test tests/*.cjs
       - name: UI owner's exact browser command
         run: python -m unittest discover -s tests/ui_track3 -p 'test_browser.py' -v
+      - name: Browser against real HTTP handlers (explicit model double)
+        run: python scripts/track3/ui_http_check.py --output /tmp/track3-ui-http.json --artifacts /tmp/track3-ui-http
       - name: Product HTTP, persistence and two roles (no model quality claim)
         run: python scripts/track3/http_smoke.py --output /tmp/track3-http.json
       - name: Python syntax and whitespace
@@ -50,5 +52,8 @@ jobs:
         if: always()
         with:
           name: track3-cpu-observations
-          path: /tmp/track3-http.json
+          path: |
+            /tmp/track3-http.json
+            /tmp/track3-ui-http.json
+            /tmp/track3-ui-http/
           retention-days: 7
