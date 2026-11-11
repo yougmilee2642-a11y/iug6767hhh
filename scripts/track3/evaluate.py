@@ -21,7 +21,7 @@ sys.path.insert(0,str(ROOT))
 from scripts.track3.reporting import ReportFile
 
 GOLD = ROOT/'evaluation/track3/gold.json'
-SCORER_VERSION = 2
+SCORER_VERSION = 3
 
 
 def norm(text):
@@ -153,15 +153,30 @@ def model_info(model, transport=None):
 
 
 def complete_excerpt(quote, text):
-    """Independent sentence-boundary check: a quote cannot clip a negation."""
-    if not isinstance(quote, str) or not quote:
+    """Independent conservative boundaries; line wrapping is not a sentence break.
+
+    Do not import the product's excerpt helper: evaluation must catch a regression
+    in that helper. Currency abbreviations and initials cannot end an excerpt.
+    """
+    if not isinstance(quote, str) or not quote or not isinstance(text, str):
         return False
+    abbreviations = {'тыс', 'млн', 'млрд', 'руб', 'коп', 'г', 'гг', 'стр', 'рис',
+                     'табл', 'п', 'пп', 'т', 'д', 'е', 'им', 'ул', 'пр', 'обл',
+                     'мин', 'сек', 'ч', 'др', 'mr', 'mrs', 'ms', 'dr', 'etc'}
+    starts = {len(text) - len(text.lstrip())}
+    ends = {len(text.rstrip())}
+    for boundary in re.finditer(r'[.!?](?=\s|$)', text):
+        if boundary.group() == '.':
+            token = re.search(r'([^\W\d_]+)$', text[:boundary.start()], flags=re.UNICODE)
+            if token and (token[1].casefold() in abbreviations
+                          or len(token[1]) == 1 and token[1].isupper()):
+                continue
+        ends.add(boundary.end())
+        remainder = text[boundary.end():]
+        starts.add(boundary.end() + len(remainder) - len(remainder.lstrip()))
     start = text.find(quote)
     while start >= 0:
-        left, right = text[:start], text[start + len(quote):]
-        left_ok = not left.strip() or re.search(r'(?:[.!?]\s+|\n\s*)$', left)
-        right_ok = not right.strip() or right.startswith('\n') or (quote[-1] in '.!?' and right[0].isspace())
-        if left_ok and right_ok:
+        if start in starts and start + len(quote) in ends:
             return True
         start = text.find(quote, start + 1)
     return False
