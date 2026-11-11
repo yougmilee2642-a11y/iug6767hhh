@@ -21,6 +21,8 @@ PROTOCOL_SYSTEM = (
     'расшифровке как исполнитель, иначе пустая строка. due_text — срок дословно из расшифровки, иначе пустая '
     'строка. Не придумывай исполнителей и сроки.\n'
     '- open_question: вопрос, который остался без ответа или требует решения позже.\n'
+    '- risk: риск, который участники прямо назвали (угроза срокам, деньгам, качеству: «есть риск…», «может '
+    'сорвать…», «если не успеем — потеряем…»). Не придумывай рисков, которых нет в расшифровке.\n'
     'Для каждого пункта укажи utterance_ids (идентификаторы реплик вида U12, на которые опираешься) и quote — '
     'точный фрагмент текста этой реплики, скопированный дословно. Пиши text кратко, на русском.\n'
     'Порядок работы: пройди по КАЖДОЙ реплике. Каждое «предлагаю…», «давайте…», «может, стоит…» — отдельный пункт '
@@ -37,14 +39,17 @@ PROTOCOL_SCHEMA = {
     'properties': {'items': {'type': 'array', 'items': {
         'type': 'object', 'required': ['kind', 'text', 'outcome', 'assignee', 'due_text', 'utterance_ids', 'quote'],
         'properties': {
-            'kind': {'type': 'string', 'enum': ['decision', 'proposal', 'task', 'open_question']},
+            'kind': {'type': 'string', 'enum': ['decision', 'proposal', 'task', 'open_question', 'risk']},
             'text': {'type': 'string'},
             'outcome': {'type': 'string', 'enum': ['accepted', 'rejected', 'discussed', 'none']},
             'assignee': {'type': 'string'}, 'due_text': {'type': 'string'},
             'utterance_ids': {'type': 'array', 'items': {'type': 'string'}},
             'quote': {'type': 'string'}}}}}}
 
-KIND_RU = {'decision': 'Решение', 'proposal': 'Предложение', 'task': 'Поручение', 'open_question': 'Открытый вопрос'}
+KIND_RU = {'decision': 'Решение', 'proposal': 'Предложение', 'task': 'Поручение', 'open_question': 'Открытый вопрос',
+           'risk': 'Риск'}
+OUTCOME_RU = {'accepted': 'принято', 'rejected': 'отклонено', 'discussed': 'обсуждалось'}
+NEEDS_CLARIFICATION = 'требует уточнения'
 
 
 def chunk(items: list, size_of, max_chars: int, overlap: int = 0) -> list[list]:
@@ -158,7 +163,7 @@ def _verify_item(raw, part, allowed, by_id, order, utterances, participants, mee
                 quotes.append({'utterance_id': uid, 'speaker': by_id[uid]['speaker'],
                                'text': by_id[uid]['text'].strip(), 'verified': True})
                 break
-    if quotes and kind in ('decision', 'task'):
+    if quotes and kind in ('decision', 'task', 'risk'):
         support = ' '.join(by_id[q['utterance_id']]['text'] for q in quotes)
         if tu.overlap(text, support) < 0.34:
             warnings.append(f'{KIND_RU[kind]} «{text}» не включено: цитата не подтверждает формулировку.')
@@ -266,6 +271,94 @@ def _unique(values):
             seen.add(value)
             result.append(value)
     return result
+
+
+# ---------------- summary (§7.2.3) ----------------
+
+SUMMARY_SYSTEM = (
+    'Ты секретарь совещания. По проверенным пунктам протокола напиши краткое резюме встречи: 2–5 утверждений. '
+    'Каждое утверждение опирается на номера пунктов в item_ids. Не добавляй сведений, которых нет в пунктах. '
+    'Отклонённое или только обсуждавшееся предложение никогда не называй решением. ' + DATA_RULES)
+
+SUMMARY_SCHEMA = {'type': 'object', 'required': ['claims'], 'properties': {'claims': {'type': 'array', 'items': {
+    'type': 'object', 'required': ['text', 'item_ids'], 'properties': {
+        'text': {'type': 'string'}, 'item_ids': {'type': 'array', 'items': {'type': 'integer'}}}}}}}
+
+_DECIDED = re.compile(r'(реши\w*|решени\w*|договорил\w*|утверд\w*|принял\w*|принят\w*|согласова\w*)', re.I)
+
+
+def _item_line(number, item):
+    label = KIND_RU.get(item['kind'], item['kind'])
+    if item['kind'] == 'proposal':
+        label += f" ({OUTCOME_RU.get(item.get('outcome') or 'discussed')})"
+    extra = ''
+    if item['kind'] == 'task':
+        extra = f"; ответственный: {item.get('assignee') or 'не назван'}; срок: {item.get('due') or item.get('due_text') or 'не назван'}"
+    return f'{number}. {label}: {item["text"]}{extra}'
+
+
+def _claim_quotes(selected):
+    quotes = []
+    for item in selected:
+        for quote in item.get('quotes') or []:
+            if quote.get('verified') and all(q['utterance_id'] != quote['utterance_id'] for q in quotes):
+                quotes.append({'utterance_id': quote['utterance_id'], 'speaker': quote.get('speaker'),
+                               'text': quote['text'], 'verified': True})
+    return quotes
+
+
+def _fallback_summary(items, limit):
+    claims = []
+    for item in items:
+        if item['kind'] in ('decision', 'risk') or (item['kind'] == 'proposal' and item.get('outcome') in ('accepted', 'rejected')):
+            text = f"{KIND_RU[item['kind']]}: {item['text']}"
+            if item['kind'] == 'proposal':
+                text += f" — {OUTCOME_RU[item['outcome']]}"
+            quotes = _claim_quotes([item])
+            claims.append({'text': text, 'status': 'verified' if quotes else 'needs_clarification', 'quotes': quotes,
+                           'note': None if quotes else NEEDS_CLARIFICATION, 'source': 'items'})
+    return claims[:limit]
+
+
+def summarize(llm, items: list[dict], warnings: list[str], limit: int = 5) -> list[dict]:
+    """Summary claims built ONLY from verified protocol items; each claim inherits the quotes of the items it
+    cites. A claim without valid item references, not supported by their wording, or calling a rejected/discussed
+    proposal a decision is kept but marked «требует уточнения» — it is never shown as a verified fact."""
+    from providers.local_settings import LocalAIError
+    if not items:
+        return []
+    numbered = '\n'.join(_item_line(n, item) for n, item in enumerate(items, 1))
+    try:
+        result = llm.json(SUMMARY_SYSTEM, f'Пункты протокола (данные):\n<<<\n{numbered}\n>>>', SUMMARY_SCHEMA, predict=700)
+    except LocalAIError:
+        warnings.append('Резюме собрано без модели (модель не ответила): показаны ключевые пункты протокола.')
+        return _fallback_summary(items, limit)
+    claims = []
+    for raw in result.get('claims') if isinstance(result.get('claims'), list) else []:
+        if not isinstance(raw, dict):
+            continue
+        text = str(raw.get('text') or '').strip()[:400]
+        if not text:
+            continue
+        numbers = [n for n in dict.fromkeys(raw.get('item_ids') or []) if isinstance(n, int) and 1 <= n <= len(items)]
+        selected = [items[n - 1] for n in numbers]
+        quotes = _claim_quotes(selected)
+        support = ' '.join([i['text'] for i in selected] + [q['text'] for q in quotes])
+        reasons = []
+        if not quotes:
+            reasons.append('нет проверенной цитаты')
+        elif tu.overlap(text, support) < 0.34:
+            reasons.append('формулировка не подтверждается пунктами')
+        if selected and _DECIDED.search(text) and all(
+                i['kind'] == 'proposal' and i.get('outcome') != 'accepted' for i in selected):
+            reasons.append('предложение не было принято')
+        claims.append({'text': text, 'status': 'needs_clarification' if reasons else 'verified', 'quotes': quotes,
+                       'note': f"{NEEDS_CLARIFICATION}: {', '.join(reasons)}" if reasons else None, 'source': 'model'})
+        if len(claims) >= limit:
+            break
+    if not claims:
+        return _fallback_summary(items, limit)
+    return claims
 
 
 # ---------------- preparation ----------------

@@ -136,6 +136,12 @@ def m007_knowledge_and_management(connection):
     """)
 
 
+def m008_management_indexes(connection):
+    """Indexes requested by Codex 2 for ACL-filtered overview queries."""
+    connection.execute('CREATE INDEX IF NOT EXISTS production_metric_access_user ON production_metric_access(user_id, metric_id)')
+    connection.execute('CREATE INDEX IF NOT EXISTS production_metrics_scope_asof ON production_metrics(scope, as_of)')
+
+
 MIGRATIONS = [
     (1, 'roles', m001_roles),
     (2, 'audit', m002_audit),
@@ -144,6 +150,7 @@ MIGRATIONS = [
     (5, 'calendar', m005_calendar),
     (6, 'feedback', m006_feedback),
     (7, 'knowledge_and_management', m007_knowledge_and_management),
+    (8, 'management_indexes', m008_management_indexes),
 ]
 LATEST = MIGRATIONS[-1][0]
 
