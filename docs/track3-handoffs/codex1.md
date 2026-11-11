@@ -3,7 +3,7 @@
 База: `cb2614b86f3b83636e670c83a0afb8f4c9d6c3c3`.
 Ветка: `codex/track3-ui`.
 SHA реализации и тестов: `836e3813dd833e5dd0418a52b7be0215931b8fc9`.
-Следующий коммит содержит только этот handoff.
+Последующие коммиты содержат только этот handoff.
 
 ## Поставка и зависимости
 
@@ -43,7 +43,7 @@ git diff --check
 Серверы объединены **только во временном detached worktree**, без push и без включения чужих файлов в UI:
 
 - core/calendar: `891a986` (PR #2, актуальный срез после hardening);
-- knowledge/overview: `3376ecf` (PR #1).
+- knowledge/overview: `9330edc` (PR #1, последний hardening). Предыдущий прогон также прошёл на `3376ecf`.
 
 ```bash
 TRACK3_SERVER_ROOT=/path/to/combined-server TRACK3_SMOKE_PORT=8768 \
