@@ -617,6 +617,35 @@ def test_purge_removes_only_spent_confirmations(env):
             confirmations.purge(connection, datetime(2026, 1, 1))
 
 
+def test_cancelled_assignment_becomes_a_decision_not_a_task():
+    """Found on qwen2.5:7b (Фотопринт evaluation): «Поручение … отменено, закупку не делать» was extracted as a task.
+    A new assignment in the same line, quoted on its own, stays a task."""
+    utterances = [
+        {'id': 'U1', 'speaker': 'Ирина', 'text': 'Поручение заказать глянцевую обложку отменено, закупку не делать.'},
+        {'id': 'U2', 'speaker': 'Ирина', 'text': 'Ночную смену отменяем. Пётр, подготовь отчёт по браку до пятницы.'},
+        {'id': 'U3', 'speaker': 'Ирина', 'text': 'Анна, нужно отменить бронь зала до 20 ноября.'}]
+
+    class Double:
+        model = 'double'
+
+        def json(self, system, user, schema, predict=1500):
+            if system == extract.PROTOCOL_SYSTEM:
+                return {'items': [
+                    {'kind': 'task', 'text': 'Закупку глянцевой обложки не делать', 'outcome': 'none', 'assignee': '',
+                     'due_text': '', 'utterance_ids': ['U1'], 'quote': 'Поручение заказать глянцевую обложку отменено, закупку не делать'},
+                    {'kind': 'task', 'text': 'Подготовить отчёт по браку', 'outcome': 'none', 'assignee': 'Пётр',
+                     'due_text': '', 'utterance_ids': ['U2'], 'quote': 'Пётр, подготовь отчёт по браку до пятницы'},
+                    {'kind': 'task', 'text': 'Отменить бронь зала', 'outcome': 'none', 'assignee': 'Анна',
+                     'due_text': 'до 20 ноября', 'utterance_ids': ['U3'], 'quote': 'Анна, нужно отменить бронь зала до 20 ноября'}]}
+            return {'kind': 'none', 'text': '', 'outcome': 'none', 'assignee': '', 'due_text': ''}
+    items, warnings = extract.draft_protocol(Double(), utterances, ['Ирина', 'Пётр', 'Анна'], datetime(2026, 11, 12).date())
+    by_quote = {i['quotes'][0]['utterance_id']: i for i in items}
+    assert by_quote['U1']['kind'] == 'decision' and by_quote['U1']['text'].startswith('Поручение отменено:')
+    assert by_quote['U2']['kind'] == 'task' and by_quote['U2']['assignee'] == 'Пётр'
+    assert by_quote['U3']['kind'] == 'task' and by_quote['U3']['due'] == '2026-11-20'  # «отменить бронь» is real work
+    assert any('отменённое поручение' in w for w in warnings)
+
+
 def test_model_accepted_outcome_contradicted_by_transcript_becomes_discussed():
     """Found on qwen2.5:7b: Anna's line became an «accepted» proposal although the next relevant line rejects it."""
     lines = (DEMO / 'transcript.txt').read_text(encoding='utf-8')

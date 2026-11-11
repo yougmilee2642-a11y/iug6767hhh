@@ -98,6 +98,9 @@ def draft_protocol(llm, utterances: list[dict], participants: list[str], meeting
 
 
 RISK_CUE = re.compile(r'\b(риск\w*|сорв\w*|срыв\w*|потер\w*|отста\w*|задерж\w*|угроз\w*)\b', re.I)
+# «Пётр, проверь цветопробу…»: a name followed by an imperative verb is a direct assignment (missed once by the model).
+ADDRESSED = re.compile(r'(?:^|[.!?]\s+)[А-ЯЁ][а-яё]+,\s+(?:пожалуйста,\s+)?'
+                       r'(?!(?:если|когда|что|чтобы|пока|так|тогда|ведь|и|или|но|привет)\b)[а-яё]+(?:й|и|ь|йте|ите|ьте)\b')
 CUE = re.compile(r'\b(предлага\w*|давайте|может,? стоит|стоит ли|надо|нужно|необходимо|следует|сделай\w*|подготов\w*'
                  r'|риск\w*|сорв\w*|срыв\w*|потер\w*|отста\w*|задерж\w*|угроз\w*)\b', re.I)
 
@@ -122,7 +125,7 @@ def _second_pass(llm, utterances, items, by_id, order, participants, meeting_dat
     risk_cited = {q['utterance_id'] for i in items if i['kind'] == 'risk' for q in i['quotes']}
     candidates = []
     for u in utterances:
-        if u['id'] not in cited and CUE.search(u['text']):
+        if u['id'] not in cited and (CUE.search(u['text']) or ADDRESSED.search(u['text'])):
             candidates.append((u, ('proposal', 'task', 'risk')))
         elif u['id'] in cited and u['id'] not in risk_cited and RISK_CUE.search(u['text']):
             # a line already used for a proposal/task may also name a risk; only a risk may be added from it
@@ -186,6 +189,11 @@ def _verify_item(raw, part, allowed, by_id, order, utterances, participants, mee
     if not quotes:
         warnings.append(f'{KIND_RU[kind]} «{text}» не включено: модель не дала подтверждающей цитаты из расшифровки.')
         return None
+    if kind == 'task' and all(CANCELLED.search(q['text']) for q in quotes):
+        # «Поручение X отменено, не делать» is a decision to cancel, never a task to confirm. The cue must be in
+        # the cited quote itself, so a new assignment elsewhere in the same line is not affected.
+        kind, text = 'decision', f'Поручение отменено: {text}'[:500]
+        warnings.append(f'«{text}»: отменённое поручение записано как решение, задача не создаётся.')
     first = order[quotes[0]['utterance_id']]
     context = ' '.join(u['text'] for u in utterances[max(0, first - 1):first + 3])
     item = {'kind': kind, 'text': text, 'outcome': None, 'assignee': None, 'assignee_status': 'unknown',
@@ -214,6 +222,8 @@ def _verify_item(raw, part, allowed, by_id, order, utterances, participants, mee
 
 
 REJECT = re.compile(r'(отклоня\w*|отклон[её]н\w*|не будем|против|отказ\w*)', re.I)
+CANCELLED = re.compile(r'(отмен[её]н\w*|отменяем|отменили|не выполняем|выполнять не нужно|не делать|'
+                       r'делать не нужно|не нужно делать)', re.I)
 ACCEPT = re.compile(r'(принимаем|принято|согласны|согласен|согласна|договорились|утверждаем|поддерживаю)', re.I)
 
 

@@ -85,10 +85,11 @@ def verified_excerpt(quote, text):
         starts.add(start)
         ends.add(end)
         cursor = end
-    normalized, start_map, end_map, position = [], {}, {}, 0
+    normalized, start_map, end_map, spans, position = [], {}, {}, [], 0
     for token in re.finditer(r'\S+', text):
         start_map[position] = token.start()
         normalized.append(token.group())
+        spans.append((position, position + len(token.group()), token))
         position += len(token.group())
         end_map[position] = token.end()
         position += 1
@@ -96,12 +97,28 @@ def verified_excerpt(quote, text):
     if not needle:
         return None
     offset = haystack.find(needle)
+    partial = None
     while offset >= 0:
         start, end = start_map.get(offset), end_map.get(offset + len(needle))
         if start in starts and end in ends:
             return text[start:end]
+        if partial is None and start is not None:
+            if end is None:  # the quote may stop before trailing punctuation of its last word («года» / «года.»)
+                stop = offset + len(needle)
+                inside = next(((a, t) for a, b, t in spans if a < stop < b), None)
+                if inside is not None and not re.search(r'\w', inside[1].group()[stop - inside[0]:]):
+                    end = inside[1].end()
+            if end is not None:
+                partial = (start, end)
         offset = haystack.find(needle, offset + 1)
-    return None
+    if partial is None:
+        return None
+    # A word-aligned part of a sentence («отгрузка 12 ноября 2026 года») is widened to the complete stored
+    # sentence(s) around it. The user always sees the whole original sentence, so a negation or condition
+    # elsewhere in it can never be cut off; a quote that splits a word is still rejected above.
+    start = max(s for s in starts if s <= partial[0])
+    end = min(e for e in ends if e >= partial[1])
+    return text[start:end]
 
 
 def check_meeting(connection, actor, meeting_id):
@@ -179,6 +196,15 @@ def stale_saved():
     return MeetError(409, 'stale_sources', 'Сохранённые источники изменились или повреждены. Повторите вопрос.')
 
 
+def copied_text(text, quote, fragment):
+    """The model's `text` is never shown (claims display the verified stored excerpt), but it must not say
+    anything of its own: it is either the quote itself, or a verbatim copy of fragment text that contains the
+    quote (e.g. the quote with the document's heading lines). Any other wording rejects the claim."""
+    flat = lambda value: ' '.join(value.split())
+    text, quote = flat(text), flat(quote)
+    return text == quote or (quote in text and text in flat(fragment))
+
+
 def validated_claims(raw, selected, question):
     if not isinstance(raw, dict) or not isinstance(raw.get('claims'), list) or len(raw['claims']) > 50:
         raise LocalAIError('invalid_reply')
@@ -192,7 +218,7 @@ def validated_claims(raw, selected, question):
             continue
         row = by_id.get(fid)
         if (not row or not matches_scope(row, named_scopes(question))
-                or ' '.join(text.split()) != ' '.join(quote.split()) or not 12 <= len(quote) <= 1000):
+                or not copied_text(text, quote, row['text']) or not 12 <= len(quote) <= 1000):
             continue
         excerpt = verified_excerpt(quote, row['text'])
         if (not excerpt or len(excerpt) > 1000 or excerpt in seen or INSTRUCTION.search(excerpt)
