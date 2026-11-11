@@ -231,9 +231,14 @@ def _proposal_outcome(item, utterances, first, window=6):
                 if all(q['utterance_id'] != u['id'] for q in item['quotes']):
                     item['quotes'].append({'utterance_id': u['id'], 'speaker': u['speaker'], 'text': u['text'].strip(),
                                            'verified': True, 'role': 'outcome'})
+            else:
+                # The model said «accepted» but the transcript rejects it: never keep the model's version.
+                item['outcome'] = 'discussed'
             return
     if item['outcome'] == 'accepted':
         item['outcome'] = 'discussed'  # model claimed acceptance without any supporting line
+    # A model «rejected» without a matching line is kept on purpose: it is the safe direction (a rejected
+    # proposal never becomes a decision) and rejections are often phrased without cue words («Нет, оставляем…»).
 
 
 def _merge(items, order):

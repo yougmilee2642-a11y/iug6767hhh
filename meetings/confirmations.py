@@ -83,3 +83,15 @@ def cancel(connection, user, confirmation_id: str) -> dict:
                     object_id=row['object_id'], confirmation_id=confirmation_id, result='cancelled',
                     action_kind=row['action'], stage='cancel')
     return {'confirmation_id': confirmation_id, 'status': 'cancelled'}
+
+
+def purge(connection, older_than: datetime) -> int:
+    """Retention (§7.4): delete spent tokens — confirmed/cancelled ones finished before `older_than`, and pending
+    ones that expired before it. Live pending tokens are never touched. The audit trail keeps the
+    confirmation_id, so the chain preview → confirm stays traceable. Returns the number of deleted rows."""
+    if older_than.tzinfo is None:
+        raise ValueError('older_than must be timezone-aware')
+    cutoff = store.iso_utc(older_than)
+    return connection.execute(
+        "DELETE FROM confirmations WHERE (status IN ('confirmed','cancelled') AND finished_at < ?) "
+        "OR (status='pending' AND expires_at < ?)", (cutoff, cutoff)).rowcount
