@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Request, Response
 
-from meetings.knowledge.common import run
+from meetings.knowledge.common import ExtensionRoute, run
 from . import service
 
 
 def router():
-    api = APIRouter()
+    api = APIRouter(route_class=ExtensionRoute)
 
     @api.get('/api/meet/overview')
     def overview(request: Request, response: Response, as_of: str | None = None):

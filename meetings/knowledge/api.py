@@ -1,18 +1,19 @@
 from fastapi import APIRouter, Request, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from meetings.auth import MeetError
 from . import service
-from .common import run
+from .common import ExtensionRoute, run
 
 
 class Question(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     question: str = Field(min_length=1, max_length=2000)
-    meeting_id: int | None = Field(default=None, gt=0, le=2**63 - 1)
+    meeting_id: int | None = Field(default=None, strict=True, gt=0, le=2**63 - 1)
 
 
 def router():
-    api = APIRouter()
+    api = APIRouter(route_class=ExtensionRoute)
 
     @api.post('/api/meet/qa')
     def ask(payload: Question, request: Request, response: Response):

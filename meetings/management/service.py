@@ -4,6 +4,7 @@ import json
 import math
 import re
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal, localcontext
 from zoneinfo import ZoneInfo
 
 from meetings import auth, store
@@ -76,14 +77,48 @@ def metric_rows(connection, actor, cutoff, warnings):
     return sorted(selected, key=lambda row: row['source_id'])
 
 
-def aggregate_source(key, cutoff, rows, source_at, title):
-    payload = json.dumps({'key': key, 'rows': rows}, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()
+def microseconds(value):
+    delta = value.astimezone(timezone.utc) - EPOCH
+    return (delta.days * 86400 + delta.seconds) * 1_000_000 + delta.microseconds
+
+
+def aggregate_source(key, cutoff, observed, rows, source_at, title):
+    payload = json.dumps({'key': key, 'cutoff': iso(cutoff), 'observed_at': iso(observed), 'rows': rows}, ensure_ascii=False,
+                         sort_keys=True, separators=(',', ':')).encode()
     # A keyed fingerprint cannot be used to guess private counts offline. It is
     # only an identifier: the resolver still rechecks ACL on every underlying row.
     digest = hmac.new(auth._secret(), payload, hashlib.sha256).hexdigest()
-    delta = cutoff.astimezone(timezone.utc) - EPOCH
-    micros = (delta.days * 86400 + delta.seconds) * 1_000_000 + delta.microseconds
-    return {'kind': 'metric', 'id': f'A~{key}~{micros}~{digest}', 'title': title, 'source_at': source_at}
+    return {'kind': 'metric', 'id': f'A~{key}~{microseconds(cutoff)}~{microseconds(observed)}~{digest}',
+            'title': title, 'source_at': source_at}
+
+
+def json_number(value):
+    """Keep extreme but valid source totals representable in JSON clients."""
+    converted = float(value)
+    if not math.isfinite(converted):
+        return str(value)
+    return int(value) if value == value.to_integral_value() else converted
+
+
+def ratio(rows, numerator, denominator, label, warnings):
+    # Summing finite IEEE floats can overflow before division, even when their
+    # ratio is exactly 100%. Decimal avoids that intermediate overflow.
+    with localcontext() as context:
+        context.prec = 64
+        top = sum((Decimal(str(row[numerator])) for row in rows), Decimal(0))
+        bottom = sum((Decimal(str(row[denominator])) for row in rows), Decimal(0))
+        if not bottom:
+            warnings.append(f'{label}: значение не рассчитано, знаменатель равен нулю.')
+            value = None
+        else:
+            percentage = top / bottom * 100
+            value = float(percentage)
+            if not math.isfinite(value):
+                value = None
+                warnings.append(f'{label}: результат выходит за допустимый числовой диапазон.')
+            else:
+                value = round(value, 2)
+    return value, json_number(top), json_number(bottom)
 
 
 def build(connection, actor, cutoff, generated):
@@ -91,7 +126,15 @@ def build(connection, actor, cutoff, generated):
     tasks = visible_tasks(connection, actor)
     open_rows = [task for task in tasks if task['status'] != 'done']
     late_rows = [task for task in open_rows if overdue(task, cutoff.astimezone(MINSK).date())]
-    task_stamp = max((task['updated_at'] for task in tasks), key=lambda value: aware(value), default=iso(generated))
+    task_dates = []
+    for task in tasks:
+        try:
+            task_dates.append(aware(task['updated_at']))
+        except (ValueError, TypeError):
+            warnings.append('У части доступных задач неизвестна дата обновления; счётчики рассчитаны по текущему реестру.')
+    # An as_of deadline cutoff is not the observation time of a current registry.
+    # Persist the latter in the signed ID so reopening preserves its provenance.
+    task_stamp = iso(max(task_dates, default=generated))
     for key, label, rows, formula in (
         ('open_tasks', 'Открытые задачи', open_rows, "count(status != 'done'); текущий реестр"),
         ('overdue_tasks', 'Просроченные задачи', late_rows,
@@ -99,7 +142,7 @@ def build(connection, actor, cutoff, generated):
     ):
         # Include all visible tasks in fingerprint: changing a closed task to open
         # must invalidate an old source even if the old result was zero.
-        source = aggregate_source(key, cutoff, tasks, task_stamp, label + ': реестр задач')
+        source = aggregate_source(key, cutoff, generated, tasks, task_stamp, label + ': реестр задач')
         metric = {'key': key, 'label': label, 'value': len(rows), 'unit': 'задач', 'formula': formula, 'source': source}
         metrics.append(metric)
         manifests[source['id']] = {'metric': metric, 'tasks': [store.task_out(connection, task) for task in rows],
@@ -111,19 +154,15 @@ def build(connection, actor, cutoff, generated):
     if snapshots:
         period = f"[{snapshots[0]['period_start']}, {snapshots[0]['period_end']})"
         for key, label, numerator, denominator in RATIOS:
-            top = sum(row[numerator] for row in snapshots)
-            bottom = sum(row[denominator] for row in snapshots)
-            value = round(top / bottom * 100, 2) if bottom else None
-            if not bottom:
-                warnings.append(f'{label}: значение не рассчитано, знаменатель равен нулю.')
-            source = aggregate_source(key, cutoff, snapshots, iso(freshness), label + ': производственная витрина')
+            value, top, bottom = ratio(snapshots, numerator, denominator, label, warnings)
+            source = aggregate_source(key, cutoff, generated, snapshots, iso(freshness), label + ': производственная витрина')
             metric = {'key': key, 'label': label, 'value': value, 'unit': '%',
                       'formula': f'sum({numerator}) / sum({denominator}) × 100; период {period}', 'source': source}
             metrics.append(metric)
             manifests[source['id']] = {'metric': metric, 'numerator': top, 'denominator': bottom,
                                        'period_start': snapshots[0]['period_start'], 'period_end': snapshots[0]['period_end'],
                                        'snapshots': snapshots}
-    if cutoff.date() != generated.date():
+    if cutoff.astimezone(MINSK).date() != generated.astimezone(MINSK).date():
         warnings.append('Статусы задач взяты из текущего реестра; as_of задаёт дату просрочки и срез витрины, а не историю статусов.')
     summary = [{'text': f"{metric['label']}: {metric['value']} {metric['unit']}.", 'sources': [metric['source']]}
                for metric in metrics if metric['value'] is not None]
@@ -135,7 +174,7 @@ def build(connection, actor, cutoff, generated):
 
 def overview(actor, as_of, audit):
     generated = utc_now()
-    cutoff = parse_cutoff(as_of) if as_of else generated
+    cutoff = parse_cutoff(as_of) if as_of is not None else generated
     with store.db() as connection:
         connection.execute('BEGIN')  # consistent ACL + aggregate snapshot
         result, _ = build(connection, actor, cutoff, generated)
@@ -153,6 +192,13 @@ def parse_cutoff(value):
         raise MeetError(422, 'invalid_date', 'as_of должен быть ISO 8601 с часовым поясом.') from None
 
 
+def source_timestamp(value):
+    try:
+        return iso(aware(value))
+    except (ValueError, TypeError, OverflowError):
+        raise MeetError(409, 'invalid_source_date', 'В источнике нет корректной даты. Требуется обновление данных.') from None
+
+
 def resolve(actor, kind, source_id, audit):
     with store.db() as connection:
         connection.execute('BEGIN')
@@ -162,19 +208,20 @@ def resolve(actor, kind, source_id, audit):
             task = connection.execute('SELECT * FROM tasks WHERE id=?', (int(source_id),)).fetchone()
             if not task or not store.can_read_meeting(connection, actor, task['meeting_id']):
                 raise not_found()
-            source = {'kind': 'task', 'id': source_id, 'title': task['text'], 'source_at': task['updated_at'],
+            source = {'kind': 'task', 'id': source_id, 'title': task['text'], 'source_at': source_timestamp(task['updated_at']),
                       'quote': task['text'], 'locator': f"meeting:{task['meeting_id']}"}
             data = store.task_out(connection, task)
         elif kind == 'metric':
             if source_id.startswith('A~'):
-                match = re.fullmatch(r'A~([a-z_]+)~(\d{1,18})~([0-9a-f]{64})', source_id)
+                match = re.fullmatch(r'A~([a-z_]+)~(\d{1,18})~(\d{1,18})~([0-9a-f]{64})', source_id)
                 if not match:
                     raise not_found()
                 try:
                     cutoff = EPOCH + timedelta(microseconds=int(match[2]))
+                    observed = EPOCH + timedelta(microseconds=int(match[3]))
                 except (ValueError, OverflowError, OSError):
                     raise not_found() from None
-                _, manifests = build(connection, actor, cutoff, utc_now())
+                _, manifests = build(connection, actor, cutoff, observed)
                 data = manifests.get(source_id)
                 if data is None:
                     raise not_found()
@@ -189,7 +236,7 @@ def resolve(actor, kind, source_id, audit):
                     raise not_found()
                 data = dict(row)
                 source = {'kind': 'metric', 'id': row['source_id'], 'title': 'Производственный снимок: ' + row['scope'],
-                          'source_at': row['as_of'], 'locator': f"[{row['period_start']}, {row['period_end']})"}
+                          'source_at': source_timestamp(row['as_of']), 'locator': f"[{row['period_start']}, {row['period_end']})"}
         else:
             raise not_found()
     audit.update(object_id=source_id, source_ids=[source_id])
