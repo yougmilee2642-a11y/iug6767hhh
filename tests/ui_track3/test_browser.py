@@ -10,7 +10,10 @@ from pathlib import Path
 import threading
 import unittest
 
-from playwright.sync_api import sync_playwright, expect
+try:
+    from playwright.sync_api import sync_playwright, expect
+except ImportError:  # optional test tool: without it these scenarios are skipped, never the whole pytest run
+    raise unittest.SkipTest('Playwright не установлен: браузерные сценарии track 3 пропущены (pip install playwright)')
 from fixtures import FixtureAPI
 
 ROOT = Path(__file__).resolve().parents[2]
