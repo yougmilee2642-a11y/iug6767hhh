@@ -2,7 +2,7 @@
 
 **Выпуск заблокирован.** [Draft PR #4](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/4)
 содержит актуальный integration SHA и Checks. Ветки release/integration опубликованы.
-Codex 3 main не менял; обновление main сопровождающим включено обычным merge.
+Codex 3 main не менял; обновление main сопровождающим `0e99e32` включено обычным merge.
 
 ## Состав и владение
 
@@ -10,10 +10,11 @@ Codex 3 main не менял; обновление main сопровождающ
 
 | Поставка | Включённый авторский SHA / PR |
 |---|---|
-| Core, migration v8, роли, календарь | `cd06b4d` / #2; затем main сопровождающего `35ba34c` / #5 |
+| Core, migration v8, роли, календарь | `cd06b4d` / #2; затем main сопровождающего `0e99e32` |
 | Knowledge, overview, KPI | `9eecb94` / #7, поверх исходного #1 |
 | Отмена поручений, разные задачи с общим сроком, legacy QA | Claude `58ec401` / #8 |
-| UI | `d95b252` / #3 |
+| UI | `d95b252` / #3; «Фокус» `1ea0a5a`, включённый сопровождающим |
+| Согласование knowledge | `3104d0c` / #10: точный полный answer/source вместо обрезанной цитаты |
 | Release | `codex/track3-release`; scorer 3, schema 2 |
 | Интеграция | `codex/track3-integration`; обычные merge без rebase авторов |
 
@@ -26,9 +27,9 @@ Codex 3 не редактировал. Интеграционные замеча
 | Проверка | Наблюдение и предел применимости |
 |---|---|
 | Release/gateway/scorer v3 | 73 passed локально, 2.01 s; [Windows CI](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43041468303/job/130596033605): 73 passed, 7.34 s, PYTHONUTF8=0 |
-| Общий Python: прошедшая часть | 256 passed; весь набор **не прошёл**, см. failed ниже. reports/scorer3-joint-* |
-| JavaScript | 46 passed; syntax трёх UI-модулей. reports/joint-javascript.log |
-| Настоящий app HTTP/restart | Без LLM double: две роли, ACL/аудит отказа, ручной protocol→confirm без дублей, task/calendar cancel-confirm, KPI 90/2/75, cookies/state после restart. 3.84 s; reports/joint-http.json |
+| Общий Python после нового main | **259 passed, 15 skipped, 0 failed**, 30.17 s; reports/focus-checks.json и focus-python.* |
+| JavaScript | 46 passed; syntax трёх UI-модулей. reports/focus-javascript.log |
+| Настоящий app HTTP/restart | Без LLM double: две роли, ACL/аудит отказа, ручной protocol→confirm без дублей, task/calendar cancel-confirm, KPI 90/2/75, cookies/state после restart. 4.08 s; reports/focus-http.json |
 | Browser fixtures | 35 passed, 39.744 s на `0844d0e` / merge `79862bb`; [CI job](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43041468303/job/130596032970) |
 | Browser → настоящий HTTP | 44 ответа, 360/768/1440, 0 browser errors, настоящий calendar conflict409, сохранён unknown due; 5.66 s. **Явный LLM double**, качество модели не измерялось |
 | Изоляция | Временные БД, torch отсутствует, voice weights не нужны; data/ не очищалась |
@@ -42,37 +43,24 @@ Codex 3 не редактировал. Интеграционные замеча
 в reports/publication-map.json; дальнейшие коммиты имеют Source-Local-Commit trailer.
 Git tree каждого опубликованного коммита сверялся с исходным локальным.
 
-## Failed
+## Закрытые сбои и история проверок
 
-Общий повтор scorer v3: **256 passed / 15 skipped / 3 failed**, 29.42 s.
-Начальный checkout и hash исходного лога — reports/scorer3-joint-checks.json.
-Raw bytes сохранены в scorer3-joint-python.raw.log.gz; readable .log убирает только
-trailing whitespace. Предыдущий совместный прогон 251/15/3 сохранён отдельно.
+Текущий общий Python не имеет failed. Три расхождения #7/#8 закрыты **авторским**
+согласованием `3104d0c`: тесты требуют полный исходный answer/source с валютой и
+предоплатой. Заголовок без полной остановки считается частью исходного предложения;
+политика явно описана автором. Codex 3 foreign-тесты и product logic не редактировал.
 
-Чистый CI на `0844d0e` подтвердил те же **256/15/3**, 42.94 s; Windows 73,
-JS 46, UI 35, оба HTTP, browser setup, pip/syntax/diff прошли. Overall workflow
-**FAILED** из-за Python. reports/scorer3-ci-observations.json.
+Предыдущие 259/256/251 — разные наблюдения, не суммируются. На старом `0844d0e`
+clean CI имел 256 passed/15 skipped/3 failed, остальные steps прошли;
+reports/scorer3-ci-observations.json. Raw bytes и hashes исторических локальных
+сбоев сохранены в scorer3-joint-* и joint-*.
 
-Все три failed находятся в knowledge после совместного #7/#8:
-
-1. `test_claim_text_may_copy_document_heading_around_the_quote`: ответ включает
-   заголовок/дату вместо ожидаемой одной цитаты факта.
-2. Два `test_excerpt_boundaries_cannot_drop_currency_or_newline_condition`: тест #7
-   требует отказ, а #8 безопасно расширяет частичную цитату до полного исходного
-   предложения. Прямая проверка подтвердила сохранение валюты и предоплаты;
-   фактическая потеря условия **не подтверждена**. Нужна согласованная политика
-   владельца с проверкой точного output, не снятие assertions.
-
-Воспроизведение направлено владельцам в #7/#8. Codex 3 их логику/тесты не правил.
-
-Исторический Linux CI на 3046943 завершился FAILED: DNS azure.archive.ubuntu.com
-при `playwright install --with-deps` и whitespace в readable raw pytest log.
-Несмотря на это, JS/UI/оба HTTP шага прошли; Python suite тогда был skipped.
-Причины зафиксированы в reports/joint-ci-observations.json. Сейчас CPU диагностика
-выполняется первой; apt --with-deps убран, установка Chromium выполняется явно при отсутствии исполняемого файла и
-ограничена 5 минутами. Наличие файла не считается passed: UI suites обязаны
-успешно запустить его, как в точной команде владельца. Whitespace устранён отдельной readable копией при сохранении
-байтового raw gzip. Это не превращает старый workflow в зелёный.
+Исторический Linux CI на 3046943 провалил apt DNS и whitespace readable log,
+хотя 35 UI и оба HTTP прошли; reports/joint-ci-observations.json. Эти причины
+исправлены: CPU диагностика первая, исходный raw log в gzip, readable без лишних
+пробелов. Browser setup использует уже доступный Chromium или явно устанавливает
+его при отсутствии; реальный launch проверяют UI suites. Setup ограничен 5 минутами.
+Старый failed workflow не объявлен зелёным.
 
 ## Not run / открытые критерии
 
@@ -103,7 +91,9 @@ Scorer v3 дополнительно закрыл обрезание цитат 
 
 Remote gateway обрабатывает данные на машине хоста; Cloudflare добавляет внешнего
 посредника. Такой режим не полностью локален на машине пользователя. UI-владельцу
-в #3 передана просьба уточнить текст empty state «локальная модель».
+в #3 передана просьба уточнить текст empty state «локальная модель». Новый «Фокус»
+загружает Jost через Google Fonts: это внешний asset request, не inference. Полностью
+автономный UI пока не подтверждён; запрос self-host/system fallback передан владельцу.
 
 Синтетический набор не доказывает качество на реальных встречах. SSO, публичный
 production deployment, encrypted-at-rest, настоящая почта и автоматическая

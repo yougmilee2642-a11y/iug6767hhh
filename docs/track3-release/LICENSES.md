@@ -80,3 +80,19 @@ API и существующие модули репозитория, новог�
 [замечание с воспроизведением](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/4#issuecomment-6797897713).
 Текстовый сценарий этих весов не использует. Подтверждённые ограничения не означают,
 что решение о лицензировании всей коммерческой голосовой поставки уже принято.
+
+
+## Шрифты нового UI «Фокус»
+
+Авторский rebrand `1ea0a5a` (в main `0e99e32`) реально подключает Jost400/500/600
+через Google Fonts CSS в static/meetings.html. [Upstream OFL.txt](https://github.com/google/fonts/blob/c30b221beb0c1da59d563feb91ec8656a1fa972a/ofl/jost/OFL.txt)
+проверен на google/fonts commit `c30b221beb0c1da59d563feb91ec8656a1fa972a`,
+license blob `85b6b99d12470b54d8cbc919bc45102d99f23437`: SIL Open Font License1.1.
+Это привязка источника лицензии, не идентификация текущего CDN binary: HTML CDN URL
+не закрепляет binary hash/version. При self-host нужно сохранить notice/лицензию
+проверенного конкретного файла; Codex3 шрифты не скачивал в поставку и UI не менял.
+
+Futura PT упомянут в CSS font-family; поставляемый бинарник и право его распространения
+не подтверждены. Одно CSS-имя не означает, что эти веса/файлы включены в репозиторий,
+и лицензия Jost на Futura PT не переносится. Внешний font fetch и автономный fallback
+переданы владельцу UI; это реальные assets нового интерфейса, не технологии ресерча.

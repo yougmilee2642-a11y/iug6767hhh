@@ -3,7 +3,7 @@
 **Выпуск не готов.** Ветки codex/track3-release и codex/track3-integration опубликованы;
 [Draft PR #4](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/4) содержит актуальный
 integration SHA, Checks и список blockers. База cb2614b86f3b83636e670c83a0afb8f4c9d6c3c3.
-Отдельные clone/worktree; main Codex 3 не менял, обновление сопровождающего35ba34c
+Отдельные clone/worktree; main Codex 3 не менял, обновление сопровождающего 0e99e32
 включено обычным merge. Коллегам rebase не требуется.
 
 ## Поставка
@@ -19,14 +19,14 @@ integration SHA, Checks и список blockers. База cb2614b86f3b83636e670
 - Scorer 3/schema 2, one-to-one source-verified task matching, independent human review
   для перефразирования, raw checkpoints, новые absolute output paths, offline review.
 - Lock, Linux/Windows CI, API/architecture/retention/licenses/runbook/demo/slide outline.
-- Авторские core→knowledge→UI merge; затем main 35ba34c, knowledge 9eecb94 и Claude 58ec401.
+- Авторские core→knowledge→UI merge; затем main 0e99e32, knowledge 9eecb94 и Claude 58ec401; авторское согласование 3104d0c и UI «Фокус» 1ea0a5a.
   Зоны владения сверены. Чужая продуктовая логика вручную не исправлялась.
 
 ## Наблюдаемые проверки
 
 Подробности, SHA и первичные артефакты: [STATUS](../track3-release/STATUS.md).
 
-- Общий Python: 256 passed / 15 skipped /**3 failed**, 29.42 s; gzip исходника и hash сохранены.
+- Общий Python: 259 passed / 15 skipped / 0 failed, 30.17 s; gzip исходника и hash сохранены.
 - Собственный release/gateway/scorer:73 passed локально и в clean Windows CI, PYTHONUTF8=0.
 - JS 46 passed; UI 35 passed; браузер→реальный HTTP 44 responses / 3 widths / 0 errors с явным
   model double. Product HTTP без LLM double прошёл обе роли/аудит/confirm/restart/KPI.
@@ -36,9 +36,9 @@ integration SHA, Checks и список blockers. База cb2614b86f3b83636e670
 
 ## Следующие действия владельцев
 
-1. Knowledge #7/#8: согласовать 3 failed. Heading/date показываются вместо одной цитаты;
-   два других — противоречие политики отказа и безопасного расширения partial quote.
-   Валюта/предоплата сохраняются; потери условия не подтверждено. Воспроизведения в PR.
+1. Knowledge #7/#8 закрыто авторским согласованием3104d0c (#10), не ручной правкой
+   Codex3: проверяется полный исходный текст с валютой/условием. Общий повтор259 passed.
+   Новый «Фокус» UI включён из main; финальный browser CI проверять по последнему head.
 2. GPU/operator #8: передать исходные JSON и выполнить scorer3 в одном согласованном
    окне. Endpoint/model/key задаются через env, секреты не помещать в PR/git.
    `python scripts/live_meetings_check.py --track3 --exclusive-gpu-window --output <новый абсолютный report.json>`.
@@ -48,7 +48,9 @@ integration SHA, Checks и список blockers. База cb2614b86f3b83636e670
    этот же участник с тёплым кэшем, без модели; это не обещание 15 минут.
 4. Команда: согласовать CONTRACT. Product owner: закрыть лицензии PyMuPDF/Silero и
    неподтверждённые конкретные voice-assets по LICENSES.md. ASR/installers не патчились.
-5. UI #3: уточнить empty-state «локальная модель» для разрешённого remote gateway.
+5. UI #3: уточнить empty-state «локальная модель» для разрешённого remote gateway;
+   устранить внешний Google Fonts request для автономного режима либо явно согласовать
+   его. Font inventory обновлён по первичному Jost OFL source, точный CDN binary не pinned.
 6. Проверить финальные Checks PR #4. Исторический apt DNS failure разобран; CPU checks
    выполняются до browser install, --with-deps убран, raw whitespace сохранён gzip.
 

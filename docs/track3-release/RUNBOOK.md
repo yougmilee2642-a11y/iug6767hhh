@@ -161,3 +161,13 @@ symlinks/relative paths/default data/ отклоняются даже с фла�
 Резервные копии и отчёты в других местах удаляются отдельно по RETENTION.md.
 Унаследованный `seed_meetings_demo.py --reset` теперь требует явный маркированный
 тестовый --db и --confirm-delete; рабочую data/ не удаляет.
+
+
+## Внешние UI-assets после rebrand
+
+«Фокус» из main0e99e32 подключает CSS Jost с fonts.googleapis.com и font-assets
+Google Fonts; браузер делает внешний asset request независимо от local Ollama.
+Это не отправка prompt/документов модели, но такой UI не следует называть полностью
+автономным без проверки сетевых запросов. Без сети действует системный fallback;
+точный офлайн-вид отдельно не подтверждён. Владелец UI получил запрос self-host
+с лицензией конкретного файла либо системный font stack; Codex3 frontend не патчил.
