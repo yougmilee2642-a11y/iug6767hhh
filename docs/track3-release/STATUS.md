@@ -173,3 +173,17 @@ reports/scorer3-joint-checks.json; readable — scorer3-joint-python.log.
 Это те же три owner-разногласия, новых failures от scorer v3 нет.
 CI запускается по PR или вручную, без дублирующего push; superseded PR run
 может отменяться новым run и не засчитывается ни passed, ни product failure.
+
+
+Завершён Linux CI на `3046943` (merge `1ad3d2a`): overall FAILED. Причина установки
+— DNS azure.archive.ubuntu.com при --with-deps, а не недоступный Chromium. Фактически
+**35 UI passed (42.398 s)**; браузер → реальный HTTP **passed**, 44 ответа,
+360/768/1440, 0 browser errors, настоящий calendar conflict 409, явный LLM double.
+Product HTTP без LLM double тоже passed (3.53 s). Python suite тогда skipped после
+install failure; diff failure из trailing whitespace уже закрыт отдельно.
+Машинная выжимка: reports/joint-ci-observations.json; весь workflow не назван зелёным.
+
+В текущем workflow browser install больше не вызывает apt --with-deps: на проверенном
+ubuntu-24.04 runner необходимые библиотеки и рабочий Chromium уже есть. Явная
+установка Playwright Chromium сохранена; реальный launch/UI suite проверяют пригодность
+браузера. Если системных библиотек на другом runner нет, сценарий упадёт явно.

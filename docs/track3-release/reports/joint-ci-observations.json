@@ -1,0 +1,37 @@
+{
+  "head_sha": "3046943cee8c62d676a7bf9048efda37cf1331ff",
+  "merge_sha": "1ad3d2ab538157edce7254aee539c68b33a4159e",
+  "run_id": 43039018306,
+  "linux_job": 130585515448,
+  "overall": "failed",
+  "browser_install": "failed: DNS azure.archive.ubuntu.com while installing optional system packages with --with-deps",
+  "python_suite": "skipped after install failure; local joint failure recorded separately",
+  "js_tests": 46,
+  "ui_tests": 35,
+  "ui_seconds": 42.398,
+  "ui_http": {
+    "status": "passed",
+    "model_kind": "explicit_test_double",
+    "live_model_quality": "not_run",
+    "http_responses": 44,
+    "sizes": [
+      360,
+      768,
+      1440
+    ],
+    "browser_errors": [],
+    "real_calendar_conflict": 409,
+    "due_words_preserved": true,
+    "seconds": 6.769028203000062
+  },
+  "product_http": {
+    "status": "passed",
+    "model_kind": "none; human-authored protocol",
+    "voice_weights_required": false,
+    "torch_installed": false,
+    "restart": "passed",
+    "seconds": 3.525079068000082
+  },
+  "diff_check": "failed: whitespace in original pytest presentation; fixed by separate compressed raw plus trimmed readable copy in later commits",
+  "source_url": "https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43039018306/job/130585515448"
+}
