@@ -89,7 +89,7 @@ with `speaker_label="Говорящий ?"` and the user maps speakers manually.
 
 # Track 3 current API extensions
 
-Source of truth: integrated core/calendar, maintainer main 35ba34c, knowledge 9eecb94,
+Source of truth: integrated core/calendar, maintainer main 0e99e32, knowledge 9eecb94,
 Claude eval fixes 58ec401, UI d95b252 and their handoffs. Joint regressions are in
 track3-release/STATUS.md; a merged API does not mean release acceptance.
 All dates for new meetings/calendar have an offset or an explicit timezone; Europe/Minsk
@@ -132,5 +132,7 @@ statuses even with historical as_of. Aggregated source IDs are opaque signed IDs
 never authorization. QA asks the model to select offered excerpt_ids; the server renders the stored text.
 The legacy quotation envelope remains supported. Lexical retrieval normalizes common
 Russian inflections/polite wording and the release synonym, but can still miss relevant
-wording. Current legacy quotation policy integration disagreements remain release blockers. Model failures → 503 model_*; no hidden
+wording. The owner reconciled legacy quotation policy in 3104d0c: a partial quote is widened
+to the full stored sentence including units/conditions; unpunctuated heading lines
+remain part of that sentence. Tests assert the full exact answer and source. Model failures → 503 model_*; no hidden
 cloud fallback. Remote inference/data boundaries are in the runbook.
