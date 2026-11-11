@@ -3,9 +3,9 @@
 База: `cb2614b86f3b83636e670c83a0afb8f4c9d6c3c3`.
 Ветка: `codex/track3-knowledge-overview`.
 Рабочая копия: `D:/projects/Callwise-track3-knowledge-overview`.
-SHA последней реализации: `9e094864406721a15c971f500724ed325580756b` (включает первоначальную реализацию `3f3307c6d5d6a38e5f338ebb15f3c77591807a0e` и усиление `8f637aa`/`8d95b64`). Следующий коммит обновляет только этот handoff. [PR №1](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/1).
+SHA последней реализации: `9e094864406721a15c971f500724ed325580756b` (включает первоначальную реализацию `3f3307c6d5d6a38e5f338ebb15f3c77591807a0e` и усиление `8f637aa`/`8d95b64`). Исходный [PR №1](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/1) объединён; новые доработки выпускаются отдельно в [PR №7](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/7).
 
-**Текущая проверенная сборка:** код `9e09486` + ядро Claude `cd06b4d696147805ed0f2a4dfa62e485a1b6d865`. Весь проект: **857 passed, 28 skipped**; отдельно реальная Ollama **14 passed**, HTTP с перезапуском **1 passed**. Детали последнего прогона — в конце файла.
+**Текущая проверенная сборка:** код `9e09486` поверх уже объединённого `main` **`35ba34cab3b194eb0e66d71ebacba813e0560b99`**. Весь проект: **857 passed, 29 skipped**, HTTP с перезапуском **1 passed**. Дополнительно на ядре Claude `cd06b4d` реальная Ollama — **14 passed**. Детали последних прогонов — в конце файла.
 
 ## Схема и подключение Claude
 
@@ -266,3 +266,20 @@ $env:TRACK3_HTTP_SMOKE='0'
 - Настоящий HTTP/uvicorn, реальный QA, два запуска, постоянная временная БД, отзыв ACL, feedback и KPI: **1 passed in 9.60s**.
 
 Это расширение малого контрольного набора, не оценка всей предметной области. Синонимы вне явно поддержанных, сложные сравнения и новые формы имён всё ещё могут давать честный отказ; новые непроверенные выводы ради полноты не добавляются.
+
+## Проверка после объединения первоначального PR
+
+Во время работы интегратор объединил исходные PR в main `35ba34c`. Новые изменения `9e09486` **не входили** в объединённый head исходного PR (`e03536b`), поэтому для них создан отдельный **PR №7**. Описание PR №1 приведено к его фактически объединённому содержимому.
+
+Проверено новое пробное слияние без конфликтов, с уже интегрированными ядром и UI:
+
+```powershell
+git worktree add --detach D:/projects/Callwise-track3-knowledge-overview/.venv/main-followup-check 35ba34cab3b194eb0e66d71ebacba813e0560b99
+git -C D:/projects/Callwise-track3-knowledge-overview/.venv/main-followup-check merge --no-commit --no-ff 9e094864406721a15c971f500724ed325580756b
+Set-Location D:/projects/Callwise-track3-knowledge-overview/.venv/main-followup-check
+$env:TRACK3_REAL_OLLAMA='0'
+$env:TRACK3_HTTP_SMOKE='0'
+& D:/projects/Callwise-track3-knowledge-overview/.venv/Scripts/python.exe -m pytest -q tests
+```
+
+**857 passed, 29 skipped in 225.26s.** В этом main дополнительная UI-проверка имеет свой штатный пропуск. Падений и неразрешённых конфликтов нет. Затем настоящий HTTP-сценарий с реальной Ollama, перезапуском и отзывом ACL на той же копии: **1 passed in 21.21s** (`TRACK3_HTTP_SMOKE=1`, команда выше с одним `tests/test_track3_knowledge_http.py`). Основной рабочий main и чужие изменения не редактировались; копия слияния остаётся отдельной и без merge-коммита.
