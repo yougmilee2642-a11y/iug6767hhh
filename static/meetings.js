@@ -1,5 +1,6 @@
 import { track3UI } from './meetings/track3.js';
 import { protocolPayload } from './meetings/protocol.js';
+import { voiceAssistant } from './meetings/voice.js';
 
 const API = '/api/meet';
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -42,6 +43,9 @@ let searchSequence = 0;
 const ui = track3UI({ node, makeButton, makeInput, makeTextarea, makeSelect, request, runAction, state,
   dateLabel, render, openMeeting, openSource, showNotice, toast, refreshMeeting, markSaved, draftCheckpoint,
   navigate: setPage });
+const assistant = voiceAssistant({ node, makeButton, request, state, openSource, dateLabel, navigate: (page) => {
+  if (page === 'tasks') void openTasks(); else setPage(page);
+} });
 
 function operation(button, key) {
   key = `${state.epoch}:${key}`;
@@ -124,7 +128,7 @@ function clearIdentity({ keepDrafts = false } = {}) {
   state.searchQuery = ''; state.searchStatus = 'idle'; state.searchError = '';
   state.showCreateMeeting = false;
   state.page = 'meetings';
-  closeSource(); ui.reset({ keepDrafts });
+  closeSource(); ui.reset({ keepDrafts }); assistant.reset();
   clearNotice(); $('#toast').textContent = '';
   if (!keepDrafts) dirtyFields.clear();
 }
@@ -343,6 +347,7 @@ function updateAccount() {
   const account = $('#account');
   account.replaceChildren();
   if (!state.user) return;
+  assistant.mount(account);
   account.append(node('span', 'account-name', state.user.name || state.user.login));
   account.append(makeButton('Выйти', () => void logout(), 'logout-button'));
 }

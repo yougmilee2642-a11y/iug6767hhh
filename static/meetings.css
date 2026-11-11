@@ -327,3 +327,29 @@ body.meetings-page {
 
 .meetings-page .protocol-body { border: 0; padding: 0; margin: 0; min-width: 0; }
 .meetings-page .protocol-body:disabled { opacity: .75; }
+
+/* Manager voice assistant */
+.voice-talk-button { min-height: 40px; padding: 8px 14px; border: 1px solid var(--meet-line); border-radius: 999px; background: #fff; color: var(--meet-ink); font-weight: 800; }
+.voice-talk-button::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 8px; border-radius: 50%; background: var(--meet-green); vertical-align: 1px; }
+.voice-talk-button.recording { border-color: #d64750; background: #fff0f1; color: #a40d17; }
+.voice-talk-button.recording::before { background: var(--meet-accent); animation: voice-pulse 1s ease-in-out infinite; }
+@keyframes voice-pulse { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .voice-talk-button.recording::before { animation: none; } }
+.voice-panel { position: fixed; right: 20px; bottom: 20px; z-index: 30; width: min(420px, calc(100vw - 32px)); max-height: min(70vh, 640px); overflow: auto; padding: 16px 18px; border: 1px solid var(--meet-line); border-radius: var(--meet-radius); background: var(--meet-paper); box-shadow: 0 18px 50px rgba(20, 24, 33, .16); }
+.voice-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.voice-panel-head h2 { margin: 0; font-size: 17px; }
+.voice-status { margin: 8px 0 4px; color: var(--meet-muted); font-size: 13px; }
+.voice-heard { margin: 0 0 8px; font-weight: 700; }
+.voice-phrase { margin: 0 0 10px; padding: 10px 12px; border-radius: 10px; background: #eef7f2; }
+.voice-phrase-silent { background: #fafbfc; border: 1px dashed var(--meet-line); }
+.voice-claim { margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--meet-line); border-radius: 10px; }
+.voice-claim p { margin: 0 0 6px; }
+.voice-metrics { margin: 0 0 10px; padding-left: 18px; }
+.voice-warning { color: #8a5a00; font-size: 13px; }
+.voice-loud { display: flex; gap: 8px; align-items: flex-start; margin: 12px 0 8px; color: var(--meet-muted); font-size: 12px; }
+.voice-loud input { margin-top: 2px; accent-color: var(--meet-accent); }
+.voice-form { display: flex; gap: 8px; }
+.voice-form input { flex: 1; min-width: 0; min-height: 40px; padding: 8px 10px; border: 1px solid var(--meet-line); border-radius: 10px; }
+@media (max-width: 640px) { .voice-panel { right: 16px; left: 16px; bottom: 16px; width: auto; } .voice-talk-button { padding: 8px 10px; } }
+.voice-talk-button.listening::before { background: #2f6fde; box-shadow: 0 0 0 3px rgba(47, 111, 222, .18); }
+.voice-wake { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--meet-line); }
