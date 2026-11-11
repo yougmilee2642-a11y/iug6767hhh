@@ -1,0 +1,8 @@
+# CPU regression environment for the v2 prototype. No model weights or torch.
+-r requirements-track3-lock.txt
+# Existing dual_asr unit tests use only resampling/decoding plus scripted models.
+scipy==1.15.3
+soundfile==0.13.1
+av==16.1.0
+cffi==2.1.1
+pycparser==3.12

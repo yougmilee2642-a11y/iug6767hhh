@@ -100,3 +100,15 @@ Futura PT упомянут в CSS font-family; поставляемый бина
 Фактический browser CI зафиксировал Google Fonts CSS и два Jost CDN URL с `/v20/`;
 reports/focus-font-requests.json. Версия пути наблюдалась, но не закреплена HTML;
 SHA конкретных WOFF2 и их embedded notices в этом аудите не проверены.
+
+
+## Окружение CPU-регрессии v2 (E0)
+
+Для полного существующего pytest добавлены только CPU-библиотеки: PyAV16.1.0,
+SciPy1.15.3, SoundFile0.13.1 и зависимости cffi2.1.1/pycparser3.12. Модели не
+устанавливались/не запускались: ToneStream-тест использует scripted Model, decode
+проверяет синтетический WAV. Версии, METADATA, ссылки на upstream/PyPI и SHA256
+notice-файлов записаны в reports/v2-e0-dependencies.json. PyAV объявляет BSD-3-Clause,
+SoundFile — BSD3, SciPy включает bundled notices, cffi — MIT-0, pycparser — BSD3.
+Лицензии FFmpeg/libsndfile в binary wheels нельзя выводить из лицензии Python wrapper;
+их отдельная проверка остаётся в реестре ограничений поставки.

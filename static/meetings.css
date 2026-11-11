@@ -356,6 +356,8 @@ body.meetings-page {
 }
 @media (max-width: 620px) {
   .meetings-topbar { padding: 10px 16px; gap: 10px; }
+  /* TODO(design): keep the voice/account controls inside the mobile viewport. */
+  .meetings-account { flex: 0 1 auto; min-width: 0; max-width: 100%; flex-wrap: wrap; }
   .meetings-brand-mark { width: 32px; height: 32px; }
   .meetings-brand small { display: none; }
   .meetings-nav { order: 3; width: 100%; }
