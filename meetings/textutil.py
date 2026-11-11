@@ -19,10 +19,11 @@ def words(text: str) -> list[str]:
 
 
 def stem(word: str) -> str:
+    """Crude Russian stem: fixed prefix so that подготовить/подготовлю, перенос/перенести, Анна/Анне match."""
     word = word.lower().replace('ё', 'е')
-    if len(word) > 4:
-        return word[:max(3, len(word) - 2)]
-    return word[:3] if len(word) == 4 else word  # Анна/Анне/Анну -> анн
+    if len(word) <= 3:
+        return word
+    return word[:3] if len(word) == 4 else word[:4] if len(word) == 5 else word[:5]
 
 
 def overlap(quote: str, source: str) -> float:

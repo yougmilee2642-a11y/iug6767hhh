@@ -1,5 +1,6 @@
 """Chunked local-LLM extraction. The model only proposes; every quote, name and date is verified
 against stored utterances/fragments before it reaches the user. Unverifiable claims become warnings."""
+import re
 from datetime import date
 
 from meetings import textutil as tu
@@ -21,7 +22,15 @@ PROTOCOL_SYSTEM = (
     'строка. Не придумывай исполнителей и сроки.\n'
     '- open_question: вопрос, который остался без ответа или требует решения позже.\n'
     'Для каждого пункта укажи utterance_ids (идентификаторы реплик вида U12, на которые опираешься) и quote — '
-    'точный фрагмент текста этой реплики, скопированный дословно. Пиши text кратко, на русском.')
+    'точный фрагмент текста этой реплики, скопированный дословно. Пиши text кратко, на русском.\n'
+    'Порядок работы: пройди по КАЖДОЙ реплике. Каждое «предлагаю…», «давайте…», «может, стоит…» — отдельный пункт '
+    'proposal, даже если его потом отклонили (тогда outcome=rejected, а итоговое решение — отдельный пункт decision). '
+    'Каждое «надо/нужно сделать…» — пункт task, даже если исполнитель или срок не названы (тогда assignee и '
+    'due_text пустые).\n'
+    'Пример. Реплики: «U3 | Олег: Предлагаю сменить подрядчика.» «U4 | Мария: Нет, оставляем текущего. Олег, '
+    'пришли смету до 5 марта.» «U5 | Олег: Ещё надо обновить договор.» Ответ: proposal «Сменить подрядчика» '
+    'outcome=rejected (U3); decision «Оставить текущего подрядчика» (U4); task «Прислать смету» assignee=Олег '
+    'due_text=«до 5 марта» (U4); task «Обновить договор» assignee="" due_text="" (U5).')
 
 PROTOCOL_SCHEMA = {
     'type': 'object', 'required': ['items'],
@@ -77,7 +86,49 @@ def draft_protocol(llm, utterances: list[dict], participants: list[str], meeting
                 item = _verify_item(raw, part, allowed, by_id, order, utterances, participants, meeting_date, warnings)
                 if item:
                     raw_items.append(item)
+    raw_items += _second_pass(llm, utterances, raw_items, by_id, order, participants, meeting_date, warnings)
     return _merge(raw_items, order), _unique(warnings)
+
+
+CUE = re.compile(r'\b(предлага\w*|давайте|может,? стоит|стоит ли|надо|нужно|необходимо|следует|сделай\w*|подготов\w*)\b', re.I)
+
+CANDIDATE_SYSTEM = (
+    'Ты секретарь совещания. Тебе дана одна реплика-кандидат и следующие за ней реплики. ' + DATA_RULES + '\n'
+    'Определи, что содержит реплика-кандидат: proposal (кто-то что-то предлагает), task (что-то нужно сделать) '
+    'или none. Для proposal определи outcome по следующим репликам: rejected — отклонили, accepted — явно '
+    'согласились, discussed — вывода нет. Для task: assignee — только имя, явно названное как исполнитель, иначе '
+    'пустая строка; due_text — срок дословно, иначе пустая строка. text — суть пункта в 3–8 словах.')
+
+CANDIDATE_SCHEMA = {'type': 'object', 'required': ['kind', 'text', 'outcome', 'assignee', 'due_text'], 'properties': {
+    'kind': {'type': 'string', 'enum': ['proposal', 'task', 'none']}, 'text': {'type': 'string'},
+    'outcome': {'type': 'string', 'enum': ['accepted', 'rejected', 'discussed', 'none']},
+    'assignee': {'type': 'string'}, 'due_text': {'type': 'string'}}}
+
+
+def _second_pass(llm, utterances, items, by_id, order, participants, meeting_date, warnings, limit=20):
+    """Small local models skip rejected proposals and unassigned tasks in long prompts. Re-check every cue line
+    that no extracted item cites, one short call each (bounded)."""
+    cited = {q['utterance_id'] for i in items for q in i['quotes']}
+    candidates = [u for u in utterances if u['id'] not in cited and CUE.search(u['text'])][:limit]
+    found = []
+    for candidate in candidates:
+        position = order[candidate['id']]
+        following = utterances[position + 1:position + 5]
+        prompt = ('Реплика-кандидат (данные):\n<<<\n' + _utt_line(candidate) + '\n>>>\nСледующие реплики (данные):\n<<<\n'
+                  + '\n'.join(_utt_line(u) for u in following) + '\n>>>')
+        result = llm.json(CANDIDATE_SYSTEM, prompt, CANDIDATE_SCHEMA, predict=300)
+        if result.get('kind') not in ('proposal', 'task'):
+            continue
+        summary = str(result.get('text') or '')
+        # The item must be about THIS line: its words and every number must come from the candidate itself.
+        if tu.overlap(summary, candidate['text']) < 0.6 or not set(re.findall(r'\d+', summary)) <= set(re.findall(r'\d+', candidate['text'])):
+            continue
+        raw = {**result, 'utterance_ids': [candidate['id']], 'quote': candidate['text']}
+        allowed = {candidate['id']}
+        item = _verify_item(raw, [candidate], allowed, by_id, order, utterances, participants, meeting_date, warnings)
+        if item:
+            found.append(item)
+    return found
 
 
 def _verify_item(raw, part, allowed, by_id, order, utterances, participants, meeting_date, warnings):
@@ -103,7 +154,7 @@ def _verify_item(raw, part, allowed, by_id, order, utterances, participants, mee
     if not quotes:
         # Last resort: the line cited by the model must clearly support the item's wording.
         for uid in cited:
-            if tu.overlap(text, by_id[uid]['text']) >= 0.5:
+            if len(tu.words(text)) >= 3 and tu.overlap(text, by_id[uid]['text']) >= 0.75:
                 quotes.append({'utterance_id': uid, 'speaker': by_id[uid]['speaker'],
                                'text': by_id[uid]['text'].strip(), 'verified': True})
                 break
@@ -116,6 +167,7 @@ def _verify_item(raw, part, allowed, by_id, order, utterances, participants, mee
             'due': None, 'due_text': None, 'due_status': 'unknown', 'quotes': quotes, '_pos': first}
     if kind == 'proposal':
         item['outcome'] = raw.get('outcome') if raw.get('outcome') in ('accepted', 'rejected', 'discussed') else 'discussed'
+        _proposal_outcome(item, utterances, first)
     if kind == 'task':
         assignee = str(raw.get('assignee') or '').strip()
         if assignee and tu.name_mentioned(assignee, context):
@@ -136,6 +188,29 @@ def _verify_item(raw, part, allowed, by_id, order, utterances, participants, mee
     return item
 
 
+REJECT = re.compile(r'(отклоня\w*|отклон[её]н\w*|не будем|против|отказ\w*)', re.I)
+ACCEPT = re.compile(r'(принимаем|принято|согласны|согласен|согласна|договорились|утверждаем|поддерживаю)', re.I)
+
+
+def _proposal_outcome(item, utterances, first, window=6):
+    """Outcome must be backed by a later line about the same subject; that line becomes a second quote.
+    Without such a line the proposal stays «discussed» — it never silently becomes accepted."""
+    for u in utterances[first + 1:first + 1 + window]:
+        if tu.overlap(item['text'], u['text']) < 0.25 and tu.overlap(u['text'], item['text']) < 0.25:
+            continue
+        rejected, accepted = REJECT.search(u['text']), ACCEPT.search(u['text'])
+        if rejected or (accepted and item['outcome'] != 'rejected'):
+            outcome = 'rejected' if rejected else 'accepted'
+            if item['outcome'] in ('discussed', outcome):
+                item['outcome'] = outcome
+                if all(q['utterance_id'] != u['id'] for q in item['quotes']):
+                    item['quotes'].append({'utterance_id': u['id'], 'speaker': u['speaker'], 'text': u['text'].strip(),
+                                           'verified': True, 'role': 'outcome'})
+            return
+    if item['outcome'] == 'accepted':
+        item['outcome'] = 'discussed'  # model claimed acceptance without any supporting line
+
+
 def _merge(items, order):
     merged: list[dict] = []
     for item in sorted(items, key=lambda i: i['_pos']):
@@ -144,7 +219,8 @@ def _merge(items, order):
             same_kind = existing['kind'] == item['kind']
             same_quote = {q['utterance_id'] for q in existing['quotes']} & {q['utterance_id'] for q in item['quotes']}
             similar = tu.overlap(item['text'], existing['text']) >= 0.7 and tu.overlap(existing['text'], item['text']) >= 0.7
-            if same_kind and (similar or (same_quote and tu.overlap(item['text'], existing['text']) >= 0.4)):
+            near = abs(item['_pos'] - existing['_pos']) <= 2 and tu.overlap(item['text'], existing['text']) >= 0.5
+            if same_kind and (similar or near or (same_quote and tu.overlap(item['text'], existing['text']) >= 0.4)):
                 duplicate = existing
                 break
         if duplicate is None:
@@ -152,6 +228,9 @@ def _merge(items, order):
             continue
         if item['kind'] == 'proposal' and duplicate['outcome'] == 'discussed' and item['outcome'] != 'discussed':
             duplicate['outcome'] = item['outcome']
+        for quote in item['quotes']:
+            if all(q['utterance_id'] != quote['utterance_id'] for q in duplicate['quotes']):
+                duplicate['quotes'].append(quote)
         for key in ('assignee', 'due', 'due_text'):
             if not duplicate.get(key) and item.get(key):
                 duplicate[key] = item[key]

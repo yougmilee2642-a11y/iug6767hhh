@@ -27,6 +27,8 @@ class FakeLLM:
             raise LocalAIError(self.fail)
         if system == extract.PROTOCOL_SYSTEM:
             return {'items': self._protocol(user)}
+        if system == extract.CANDIDATE_SYSTEM:
+            return {'kind': 'none', 'text': '', 'outcome': 'none', 'assignee': '', 'due_text': ''}
         if system == extract.PREP_FACTS_SYSTEM:
             ids = {text: fid for fid, text in re.findall(r'^(F\d+) \| .+?\): (.+)$', user, re.M)}
             facts = []
