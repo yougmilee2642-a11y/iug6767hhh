@@ -9,6 +9,7 @@ sys.path.insert(0,str(ROOT))
 
 
 def main():
+    os.chdir(ROOT)
     with tempfile.TemporaryDirectory(prefix='track3-check-') as temp:
         os.environ.update(MEETINGS_DB_PATH=str(Path(temp)/'meetings.db'), MEETINGS_SECRET='isolated-ci-not-production',
                           TELEGRAM_ENABLED='false', CALLWISE_CLOUD_INTEGRATIONS_ENABLED='false', TRACK3_REAL_OLLAMA='0')
