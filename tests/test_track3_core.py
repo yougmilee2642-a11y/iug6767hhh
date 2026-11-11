@@ -646,6 +646,37 @@ def test_cancelled_assignment_becomes_a_decision_not_a_task():
     assert any('отменённое поручение' in w for w in warnings)
 
 
+def test_neighbouring_tasks_with_the_same_deadline_are_not_merged():
+    """Found on qwen2.5:7b: «Дмитрий, составь сменный план до 16 ноября» and «Пётр, проверь цветопробу до 16 ноября»
+    were merged into one task because the shared date inflated their similarity."""
+    utterances = [
+        {'id': 'U1', 'speaker': 'Ирина', 'text': 'Дмитрий, составь сменный план до 16 ноября 2026 года.'},
+        {'id': 'U2', 'speaker': 'Ирина', 'text': 'Пётр, проверь цветопробу до 16 ноября 2026 года.'},
+        {'id': 'U3', 'speaker': 'Ирина', 'text': 'Дмитрий, сменный план составь до 16 ноября 2026 года, это важно.'}]
+
+    class Double:
+        model = 'double'
+
+        def json(self, system, user, schema, predict=1500):
+            if system == extract.PROTOCOL_SYSTEM:
+                return {'items': [
+                    {'kind': 'task', 'text': 'Составить сменный план до 16 ноября 2026 года', 'outcome': 'none',
+                     'assignee': 'Дмитрий', 'due_text': 'до 16 ноября 2026 года', 'utterance_ids': ['U1'],
+                     'quote': 'Дмитрий, составь сменный план до 16 ноября 2026 года'},
+                    {'kind': 'task', 'text': 'Проверить цветопробу до 16 ноября 2026 года', 'outcome': 'none',
+                     'assignee': 'Пётр', 'due_text': 'до 16 ноября 2026 года', 'utterance_ids': ['U2'],
+                     'quote': 'Пётр, проверь цветопробу до 16 ноября 2026 года'},
+                    {'kind': 'task', 'text': 'Составить сменный план', 'outcome': 'none', 'assignee': 'Дмитрий',
+                     'due_text': '', 'utterance_ids': ['U3'], 'quote': 'Дмитрий, сменный план составь до 16 ноября 2026 года'}]}
+            return {'kind': 'none', 'text': '', 'outcome': 'none', 'assignee': '', 'due_text': ''}
+    items, _ = extract.draft_protocol(Double(), utterances, ['Ирина', 'Дмитрий', 'Пётр'], datetime(2026, 11, 12).date())
+    tasks = {i['text']: i for i in items if i['kind'] == 'task'}
+    assert set(tasks) == {'Составить сменный план до 16 ноября 2026 года', 'Проверить цветопробу до 16 ноября 2026 года'}
+    assert tasks['Проверить цветопробу до 16 ноября 2026 года']['assignee'] == 'Пётр'
+    # the real duplicate (same action, U1 and U3) is still merged into one task with both quotes
+    assert [q['utterance_id'] for q in tasks['Составить сменный план до 16 ноября 2026 года']['quotes']] == ['U1', 'U3']
+
+
 def test_model_accepted_outcome_contradicted_by_transcript_becomes_discussed():
     """Found on qwen2.5:7b: Anna's line became an «accepted» proposal although the next relevant line rejects it."""
     lines = (DEMO / 'transcript.txt').read_text(encoding='utf-8')

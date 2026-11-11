@@ -251,6 +251,22 @@ def _proposal_outcome(item, utterances, first, window=6):
     # proposal never becomes a decision) and rejections are often phrased without cue words («Нет, оставляем…»).
 
 
+_DATE_WORD = re.compile(r'^(?:\d+\w*|год|года|году|г|до|к|срок\w*|январ\w*|феврал\w*|март\w*|апрел\w*|ма[йяе]|'
+                        r'июн\w*|июл\w*|август\w*|сентябр\w*|октябр\w*|ноябр\w*|декабр\w*)$')
+
+
+def _action(text):
+    """Words that say WHAT is to be done: dates, numbers and «до … года» are dropped, so two different tasks
+    with the same deadline («составить план до 16 ноября» / «проверить цветопробу до 16 ноября») never look
+    alike (found on qwen2.5:7b: they were merged into one task)."""
+    return ' '.join(w for w in tu.words(text) if not _DATE_WORD.match(w))
+
+
+def _same_action(a, b, threshold):
+    left, right = _action(a), _action(b)
+    return bool(left and right) and tu.overlap(left, right) >= threshold
+
+
 def _merge(items, order):
     merged: list[dict] = []
     for item in sorted(items, key=lambda i: i['_pos']):
@@ -258,9 +274,9 @@ def _merge(items, order):
         for existing in merged:
             same_kind = existing['kind'] == item['kind']
             same_quote = {q['utterance_id'] for q in existing['quotes']} & {q['utterance_id'] for q in item['quotes']}
-            similar = tu.overlap(item['text'], existing['text']) >= 0.7 and tu.overlap(existing['text'], item['text']) >= 0.7
-            near = abs(item['_pos'] - existing['_pos']) <= 2 and tu.overlap(item['text'], existing['text']) >= 0.5
-            if same_kind and (similar or near or (same_quote and tu.overlap(item['text'], existing['text']) >= 0.4)):
+            similar = _same_action(item['text'], existing['text'], 0.7) and _same_action(existing['text'], item['text'], 0.7)
+            near = abs(item['_pos'] - existing['_pos']) <= 2 and _same_action(item['text'], existing['text'], 0.5)
+            if same_kind and (similar or near or (same_quote and _same_action(item['text'], existing['text'], 0.4))):
                 duplicate = existing
                 break
         if duplicate is None:
