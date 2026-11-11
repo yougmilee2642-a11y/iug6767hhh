@@ -41,14 +41,14 @@ def counts():
 
 def test_frozen_dataset_has_coverage():
     assert frozen_check()
-    data=json.loads((ROOT/'demo/track3/manifest.json').read_text())
-    gold=json.loads(GOLD.read_text())
+    data=json.loads((ROOT/'demo/track3/manifest.json').read_text(encoding='utf-8'))
+    gold=json.loads(GOLD.read_text(encoding='utf-8'))
     assert len(data['documents'])>=20 and len(data['meetings'])==3 and len(gold['questions'])>=15
     assert len({d['document_type'] for d in data['documents']})>=5
     assert len({d['authored_at'] for d in data['documents']})>5
     assert {t['status'] for t in data['history_tasks']}=={'open','in_progress','done'}
     for m,g in zip(data['meetings'],gold['transcripts']):
-        text=(ROOT/'demo/track3/transcripts'/m['transcript']).read_text()
+        text=(ROOT/'demo/track3/transcripts'/m['transcript']).read_text(encoding='utf-8')
         assert hashlib.sha256(text.encode()).hexdigest()==g['transcript_sha256']
         assert len(g['tasks'])==6
         for t in g['tasks']: assert t['quote'] in text
@@ -102,8 +102,8 @@ def test_task_cancel_confirm_idempotent_and_restart(env):
 
 
 def test_safe_cleanup_default_dry_run_and_explicit_artifacts(env,tmp_path):
-    report=tmp_path/'observations.json';report.write_text('{}')
-    unrelated=tmp_path/'unrelated.txt';unrelated.write_text('keep')
+    report=tmp_path/'observations.json';report.write_text('{}', encoding='utf-8')
+    unrelated=tmp_path/'unrelated.txt';unrelated.write_text('keep', encoding='utf-8')
     assert cleanup(str(env['path']),artifacts=[str(report)])['dry_run']
     assert env['path'].exists() and report.exists()
     cleanup(str(env['path']),True,[str(report)])
@@ -118,15 +118,20 @@ def test_cleanup_rejects_ambiguous_paths(path):
 def test_cleanup_refuses_live_and_symlinks(tmp_path):
     with pytest.raises(ValueError): explicit_db(str(ROOT/'data/meetings.db'))
     actual=tmp_path/'real.db';actual.touch()
-    link=tmp_path/'link.db';link.symlink_to(actual)
-    with pytest.raises(ValueError): explicit_db(str(link))
+    link=tmp_path/'link.db'
+    try:
+        link.symlink_to(actual)
+    except OSError:  # Windows without symlink privilege (WinError 1314): only this sub-case cannot be built
+        link=None
+    if link is not None:
+        with pytest.raises(ValueError): explicit_db(str(link))
     with pytest.raises(ValueError): cleanup(str(actual),True)
     with pytest.raises(ValueError): seed(str(actual))
     assert actual.exists()
 
 
 def scoring_fixture():
-    tasks=json.loads(GOLD.read_text())['transcripts'][0]['tasks']
+    tasks=json.loads(GOLD.read_text(encoding='utf-8'))['transcripts'][0]['tasks']
     utterances=[{'id':f'U{g["utterance_index"]}','idx':g['utterance_index'],'text':g['quote']} for g in tasks]
     predictions=[dict(kind='task',text=g['text'],assignee=g['assignee'],due=g['due'],
                       assignee_status='stated' if g['assignee'] else 'unknown',due_status='stated' if g['due'] else 'unknown',
@@ -168,14 +173,14 @@ def test_cleanup_tracks_start_files_but_rejects_tampered_marker(env,monkeypatch)
     configure(env['path'])
     cabinet=env['path'].with_name(env['path'].stem+'.cabinet.db')
     cabinet.touch()
-    unrelated=env['path'].parent/'not-owned.txt';unrelated.write_text('keep')
+    unrelated=env['path'].parent/'not-owned.txt';unrelated.write_text('keep', encoding='utf-8')
     marker=Path(str(env['path'])+'.track3.json')
-    declared=json.loads(marker.read_text())
+    declared=json.loads(marker.read_text(encoding='utf-8'))
     assert str(cabinet) in declared['start_files']
-    declared['start_files'].append(str(unrelated));marker.write_text(json.dumps(declared))
+    declared['start_files'].append(str(unrelated));marker.write_text(json.dumps(declared), encoding='utf-8')
     with pytest.raises(ValueError): cleanup(str(env['path']),True)
     assert unrelated.exists() and cabinet.exists()
-    declared['start_files'].remove(str(unrelated));marker.write_text(json.dumps(declared))
+    declared['start_files'].remove(str(unrelated));marker.write_text(json.dumps(declared), encoding='utf-8')
     cleanup(str(env['path']),True)
     assert not cabinet.exists() and unrelated.exists()
 
