@@ -448,3 +448,18 @@ def test_frozen_dataset_failure_still_produces_not_run_report(monkeypatch, tmp_p
     saved = json.loads(path.read_text())
     assert saved['status'] == 'not_run' and saved['stage'] == 'dataset_integrity'
     assert not saved['transcripts'] and saved['model_metadata_status'] == 'not_run'
+
+
+def test_doctor_preserves_http_status_without_leaking_credentials(monkeypatch):
+    import httpx
+    from scripts.track3 import doctor
+    monkeypatch.setattr(doctor, 'load_configuration', lambda: {'context': 8192})
+    def fail(_model):
+        request = httpx.Request('GET', 'https://gateway.example/api/tags?token=must-not-appear')
+        response = httpx.Response(401, request=request)
+        raise httpx.HTTPStatusError('must-not-appear', request=request, response=response)
+    monkeypatch.setattr(doctor, 'model_info', fail)
+    result = doctor.diagnose()
+    assert result['status'] == 'not_ready' and result['http_status'] == 401
+    assert result['inference_requests'] == result['database_mutations'] == 0
+    assert 'must-not-appear' not in json.dumps(result)
