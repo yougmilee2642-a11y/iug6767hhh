@@ -1,0 +1,16 @@
+# Text path for existing app.py, without torch / ASR / TTS weights.
+fastapi==0.115.12
+pydantic==2.11.4
+uvicorn==0.34.2
+python-multipart==0.0.20
+python-dotenv==1.1.0
+# These SDKs are imported by the existing app, but text meetings use MeetingLLM.
+openai==1.78.1
+edge-tts==7.0.2
+httpx==0.28.1
+tzdata==2025.2
+jsonschema==4.23.0
+google-auth==2.40.1
+requests==2.32.4
+numpy==2.2.5
+pypdf==5.4.0
