@@ -1,6 +1,6 @@
 # Track 3 release status — 11.11.2026
 
-**НЕ ГОТОВ К ВЫПУСКУ.** Локальная интеграция выполнена, main не менялся.
+**НЕ ГОТОВ К ВЫПУСКУ.** Обе ветки опубликованы; открыт [draft PR #4](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/4). Main не менялся.
 Точные commit в machine reports относятся к проверенному коду, не к последующим
 документационным checkpoint. Итоговый integration SHA выводится в handoff/сообщении.
 
@@ -11,8 +11,8 @@
 | Core, roles, migrations v8, calendar | claude/track3-core-calendar / cd06b4d696147805ed0f2a4dfa62e485a1b6d865 | #2 (draft у автора) |
 | Knowledge, overview | codex/track3-knowledge-overview / e03536b027fe20364d4233d4ffe35077340a5e2a | #1 |
 | UI | codex/track3-ui / d95b252e237e02141028359efa9023f50bf4497f | #3 |
-| Assignment / frozen gold | release: 9a51a28 / 9d1c2dc | Не опубликовано |
-| Integration | codex/track3-integration, merge в отдельной clone/worktree | Не опубликовано |
+| Assignment / frozen gold | release: 9a51a28 / 9d1c2dc | Опубликовано; mapping SHA в reports/publication-map.json |
+| Integration | codex/track3-integration, merge в отдельной clone/worktree | Опубликовано; mapping SHA в reports/publication-map.json |
 
 Пути каждого PR сверены через GitHub changed filenames и локальный diff от базы.
 Пакеты не меняют app.py/providers/ASR/старые requirements/start-gateway.ps1. Новые
@@ -45,8 +45,8 @@ Codex 3 меняет лишь свою release-зону; verify_ownership.py п�
 | NOT RUN | 3 расшифровки и 16 вопросов на настоящей модели | Loopback Ollama metadata preflight: ConnectError. reports/live-not-run.json. Нужны разрешённый gateway/установленная модель и одно согласованное GPU-окно |
 | NOT RUN | Новый recall ≥80%, precision/false tasks/latency | Модель не отвечала; значений нет. Эталон и оценщик готовы, прежняя «Орбита 3 из 3» не засчитывается |
 | NOT RUN | Независимая установка другим участником | Сценарий и точные зависимости готовы, но другой участник здесь не выполнял установку |
-| NOT RUN | GitHub CI | Workflow создан локально, не запущен на GitHub до публикации |
-| BLOCKED | Push / release PR / integration PR | Подключён Listopad33; get_repo: pull=true, push=false. Проверка collaborator permission → 403 Resource not accessible by integration. git push --dry-run → could not read Username (terminal prompts disabled). Не было push/PR |
+| RUNNING на момент публикационной записи | GitHub CI | Запущен [run 43030022726](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43030022726); актуальный результат — Checks PR #4. Локальный browser setup error не выдаётся за результат CI |
+| RESOLVED | Публикация | Выбран подключённый yougmilee2642-a11y с push=true; обе ветки опубликованы через GitHub API, PR #4 draft. Отдельный release → integration PR не нужен: release уже включён в integration. Первоначальная блокировка Primary Listopad33 оставлена в истории |
 | PENDING | Согласование общего CONTRACT | Файлов не было на remote; восстановлен проект контракта, согласование не выдумывается |
 | PENDING | Лицензирование поставки | PyMuPDF dual AGPL/commercial и неподтверждённые условия конкретных voice-assets; LICENSES.md |
 
@@ -58,7 +58,7 @@ Codex 3 меняет лишь свою release-зону; verify_ownership.py п�
 
 | Пункт | Поставка | Состояние |
 |---|---|---|
-| 1 Инструкции/база/ветки | Первый release commit 9a51a28; docs/track3-team | Локально готово, публикация/согласование заблокированы |
+| 1 Инструкции/база/ветки | Первый release commit 9a51a28; docs/track3-team | Опубликовано; согласование CONTRACT pending |
 | 2 Защищённый MeetingLLM | Общий endpoint(), Bearer, no redirects/proxy/cloud; unit checks | Passed |
 | 3 Фотопринт | 24 деловых документа, 3 transcript, ACL/status/calendar/KPI; idempotent seed | Passed в интеграции |
 | 4 Gold/QA | 18 задач, 16 вопросов, frozen SHA до оценки | Готово |
@@ -83,3 +83,8 @@ Codex 3 меняет лишь свою release-зону; verify_ownership.py п�
 Финальный UI owner update d95b252 добавлен обычным merge: зоны времени и retry.
 Python-продуктовые файлы он не менял. Локально повторены JS/syntax/diff, браузерные
 35 сценариев остаются NOT RUN из-за описанного ограничения Chromium.
+
+При публикации собственные commit SHA изменились из-за авторских метаданных API,
+**git tree каждого из 31 коммитов совпал с исходным локальным**. История коллег
+не переписывалась. Первоначальный gold commit 9d1c2dc опубликован как ca06d6eba2fe697073609181d40f1dfe24e3f459.
+Старые machine reports сохраняют первоначальные commit ID; соответствие — publication-map.json.

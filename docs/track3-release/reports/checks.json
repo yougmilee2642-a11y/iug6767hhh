@@ -35,13 +35,20 @@
     "reason": "Ollama loopback ConnectError; no exclusive GPU window"
   },
   "independent_install": "not_run",
-  "github_ci": "not_run",
+  "github_ci": {
+    "observed_status": "in_progress",
+    "run_id": 43030022726,
+    "current_status": "See PR #4 Checks"
+  },
   "publication": {
-    "status": "blocked",
-    "account": "Listopad33",
-    "pull": true,
-    "push": false,
-    "cli": "No HTTPS credentials"
+    "status": "published",
+    "account": "yougmilee2642-a11y",
+    "push": true,
+    "draft_pr": "https://github.com/yougmilee2642-a11y/iug6767hhh/pull/4",
+    "initial_release_sha": "32493d16c9d608ebe1a0c1bcfc7e714acdf48f1a",
+    "initial_integration_sha": "5f66956641dd31d9dbb599767a5087fe12c2d3d1",
+    "mapping": "publication-map.json",
+    "all_trees_equal": true
   },
   "source_ownership": "passed; Codex 3 paths only",
   "main_unchanged": true,
