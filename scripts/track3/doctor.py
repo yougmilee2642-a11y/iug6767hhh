@@ -33,8 +33,16 @@ def diagnose():
         result['model'] = model_info(result['configured_model'])
         result['status'] = 'metadata_ready'
     except Exception as error:
-        result.update(blocked_at=stage, error_type=type(error).__name__,
-                      next_action='Configure a running allowed Ollama gateway/model; supply credentials through environment, then agree a GPU window')
+        actions = {
+            'dataset_integrity': 'Restore the frozen dataset from the recorded commit before any model run',
+            'configuration': 'Set a positive context and a finite positive timeout in environment',
+            'model_policy': 'Use the shared allowed endpoint policy and a non-cloud model; supply gateway credentials through environment',
+            'model_metadata': 'Configure a running allowed Ollama gateway with the exact model installed, then agree a GPU window',
+        }
+        result.update(blocked_at=stage, error_type=type(error).__name__, next_action=actions[stage])
+        status_code = getattr(getattr(error, 'response', None), 'status_code', None)
+        if type(status_code) is int and 100 <= status_code <= 599:
+            result['http_status'] = status_code
     return result
 
 
