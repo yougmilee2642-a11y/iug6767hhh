@@ -154,3 +154,19 @@ def date_mentioned(due_text: str, text: str) -> bool:
         return True
     digits = re.findall(r'\d+', due_text)
     return bool(digits) and all(d in re.findall(r'\d+', text) for d in digits)
+
+
+# Text a local model writes for the user must be plain Russian/Latin prose. Small models sometimes switch language
+# mid-sentence or leak JSON/markdown into a field; such text is never shown as a result.
+_ALLOWED_TEXT = re.compile(r"[0-9A-Za-zА-Яа-яЁё\s.,:;!?()\[\]«»\"'„“”‘’\-–—%№/+×*=<>&#@$€₽°…]*")
+_MARKUP = re.compile(r'```|^\s*[{\[]|[{}]|\n|</?\w+>')
+
+
+def clean_model_text(text) -> str | None:
+    """Return the stripped text if it is plain prose, else None (foreign script, control chars, markup)."""
+    value = ' '.join(str(text or '').split())
+    if not value or not _ALLOWED_TEXT.fullmatch(value) or _MARKUP.search(value):
+        return None
+    if len(re.findall(r'[A-Za-zА-Яа-яЁё]', value)) < 2:
+        return None
+    return value

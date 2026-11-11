@@ -21,6 +21,8 @@ PROTOCOL_SYSTEM = (
     'расшифровке как исполнитель, иначе пустая строка. due_text — срок дословно из расшифровки, иначе пустая '
     'строка. Не придумывай исполнителей и сроки.\n'
     '- open_question: вопрос, который остался без ответа или требует решения позже.\n'
+    '- risk: риск, который участники прямо назвали (угроза срокам, деньгам, качеству: «есть риск…», «может '
+    'сорвать…», «если не успеем — потеряем…»). Не придумывай рисков, которых нет в расшифровке.\n'
     'Для каждого пункта укажи utterance_ids (идентификаторы реплик вида U12, на которые опираешься) и quote — '
     'точный фрагмент текста этой реплики, скопированный дословно. Пиши text кратко, на русском.\n'
     'Порядок работы: пройди по КАЖДОЙ реплике. Каждое «предлагаю…», «давайте…», «может, стоит…» — отдельный пункт '
@@ -30,21 +32,26 @@ PROTOCOL_SYSTEM = (
     'Пример. Реплики: «U3 | Олег: Предлагаю сменить подрядчика.» «U4 | Мария: Нет, оставляем текущего. Олег, '
     'пришли смету до 5 марта.» «U5 | Олег: Ещё надо обновить договор.» Ответ: proposal «Сменить подрядчика» '
     'outcome=rejected (U3); decision «Оставить текущего подрядчика» (U4); task «Прислать смету» assignee=Олег '
-    'due_text=«до 5 марта» (U4); task «Обновить договор» assignee="" due_text="" (U5).')
+    'due_text=«до 5 марта» (U4); task «Обновить договор» assignee="" due_text="" (U5).\n'
+    'Пример риска. Реплика: «U7 | Мария: Если смета задержится, сорвём выставку.» Ответ: risk «Задержка сметы '
+    'может сорвать выставку» (U7), quote «Если смета задержится, сорвём выставку».')
 
 PROTOCOL_SCHEMA = {
     'type': 'object', 'required': ['items'],
     'properties': {'items': {'type': 'array', 'items': {
         'type': 'object', 'required': ['kind', 'text', 'outcome', 'assignee', 'due_text', 'utterance_ids', 'quote'],
         'properties': {
-            'kind': {'type': 'string', 'enum': ['decision', 'proposal', 'task', 'open_question']},
+            'kind': {'type': 'string', 'enum': ['decision', 'proposal', 'task', 'open_question', 'risk']},
             'text': {'type': 'string'},
             'outcome': {'type': 'string', 'enum': ['accepted', 'rejected', 'discussed', 'none']},
             'assignee': {'type': 'string'}, 'due_text': {'type': 'string'},
             'utterance_ids': {'type': 'array', 'items': {'type': 'string'}},
             'quote': {'type': 'string'}}}}}}
 
-KIND_RU = {'decision': 'Решение', 'proposal': 'Предложение', 'task': 'Поручение', 'open_question': 'Открытый вопрос'}
+KIND_RU = {'decision': 'Решение', 'proposal': 'Предложение', 'task': 'Поручение', 'open_question': 'Открытый вопрос',
+           'risk': 'Риск'}
+OUTCOME_RU = {'accepted': 'принято', 'rejected': 'отклонено', 'discussed': 'обсуждалось'}
+NEEDS_CLARIFICATION = 'требует уточнения'
 
 
 def chunk(items: list, size_of, max_chars: int, overlap: int = 0) -> list[list]:
@@ -90,17 +97,20 @@ def draft_protocol(llm, utterances: list[dict], participants: list[str], meeting
     return _merge(raw_items, order), _unique(warnings)
 
 
-CUE = re.compile(r'\b(предлага\w*|давайте|может,? стоит|стоит ли|надо|нужно|необходимо|следует|сделай\w*|подготов\w*)\b', re.I)
+RISK_CUE = re.compile(r'\b(риск\w*|сорв\w*|срыв\w*|потер\w*|отста\w*|задерж\w*|угроз\w*)\b', re.I)
+CUE = re.compile(r'\b(предлага\w*|давайте|может,? стоит|стоит ли|надо|нужно|необходимо|следует|сделай\w*|подготов\w*'
+                 r'|риск\w*|сорв\w*|срыв\w*|потер\w*|отста\w*|задерж\w*|угроз\w*)\b', re.I)
 
 CANDIDATE_SYSTEM = (
     'Ты секретарь совещания. Тебе дана одна реплика-кандидат и следующие за ней реплики. ' + DATA_RULES + '\n'
-    'Определи, что содержит реплика-кандидат: proposal (кто-то что-то предлагает), task (что-то нужно сделать) '
+    'Определи, что содержит реплика-кандидат: proposal (кто-то что-то предлагает), task (что-то нужно сделать), '
+    'risk (прямо названная угроза срокам, деньгам или качеству: отставание, задержка, «сорвёт», «потеряем») '
     'или none. Для proposal определи outcome по следующим репликам: rejected — отклонили, accepted — явно '
     'согласились, discussed — вывода нет. Для task: assignee — только имя, явно названное как исполнитель, иначе '
     'пустая строка; due_text — срок дословно, иначе пустая строка. text — суть пункта в 3–8 словах.')
 
 CANDIDATE_SCHEMA = {'type': 'object', 'required': ['kind', 'text', 'outcome', 'assignee', 'due_text'], 'properties': {
-    'kind': {'type': 'string', 'enum': ['proposal', 'task', 'none']}, 'text': {'type': 'string'},
+    'kind': {'type': 'string', 'enum': ['proposal', 'task', 'risk', 'none']}, 'text': {'type': 'string'},
     'outcome': {'type': 'string', 'enum': ['accepted', 'rejected', 'discussed', 'none']},
     'assignee': {'type': 'string'}, 'due_text': {'type': 'string'}}}
 
@@ -109,15 +119,22 @@ def _second_pass(llm, utterances, items, by_id, order, participants, meeting_dat
     """Small local models skip rejected proposals and unassigned tasks in long prompts. Re-check every cue line
     that no extracted item cites, one short call each (bounded)."""
     cited = {q['utterance_id'] for i in items for q in i['quotes']}
-    candidates = [u for u in utterances if u['id'] not in cited and CUE.search(u['text'])][:limit]
+    risk_cited = {q['utterance_id'] for i in items if i['kind'] == 'risk' for q in i['quotes']}
+    candidates = []
+    for u in utterances:
+        if u['id'] not in cited and CUE.search(u['text']):
+            candidates.append((u, ('proposal', 'task', 'risk')))
+        elif u['id'] in cited and u['id'] not in risk_cited and RISK_CUE.search(u['text']):
+            # a line already used for a proposal/task may also name a risk; only a risk may be added from it
+            candidates.append((u, ('risk',)))
     found = []
-    for candidate in candidates:
+    for candidate, kinds in candidates[:limit]:
         position = order[candidate['id']]
         following = utterances[position + 1:position + 5]
         prompt = ('Реплика-кандидат (данные):\n<<<\n' + _utt_line(candidate) + '\n>>>\nСледующие реплики (данные):\n<<<\n'
                   + '\n'.join(_utt_line(u) for u in following) + '\n>>>')
         result = llm.json(CANDIDATE_SYSTEM, prompt, CANDIDATE_SCHEMA, predict=300)
-        if result.get('kind') not in ('proposal', 'task'):
+        if result.get('kind') not in kinds:
             continue
         summary = str(result.get('text') or '')
         # The item must be about THIS line: its words and every number must come from the candidate itself.
@@ -133,7 +150,10 @@ def _second_pass(llm, utterances, items, by_id, order, participants, meeting_dat
 
 def _verify_item(raw, part, allowed, by_id, order, utterances, participants, meeting_date, warnings):
     kind = raw.get('kind') if raw.get('kind') in KIND_RU else None
-    text = str(raw.get('text') or '').strip()[:500]
+    raw_text = str(raw.get('text') or '').strip()
+    text = (tu.clean_model_text(raw_text) or '')[:500]
+    if kind and raw_text and not text:
+        warnings.append(f'{KIND_RU[kind]} не включено: модель вернула повреждённый текст (другой язык или разметка).')
     if not kind or not text:
         return None
     quote = str(raw.get('quote') or '')
@@ -158,7 +178,7 @@ def _verify_item(raw, part, allowed, by_id, order, utterances, participants, mee
                 quotes.append({'utterance_id': uid, 'speaker': by_id[uid]['speaker'],
                                'text': by_id[uid]['text'].strip(), 'verified': True})
                 break
-    if quotes and kind in ('decision', 'task'):
+    if quotes and kind in ('decision', 'task', 'risk'):
         support = ' '.join(by_id[q['utterance_id']]['text'] for q in quotes)
         if tu.overlap(text, support) < 0.34:
             warnings.append(f'{KIND_RU[kind]} «{text}» не включено: цитата не подтверждает формулировку.')
@@ -268,6 +288,96 @@ def _unique(values):
     return result
 
 
+# ---------------- summary (§7.2.3) ----------------
+
+SUMMARY_SYSTEM = (
+    'Ты секретарь совещания. По проверенным пунктам протокола напиши краткое резюме встречи: 2–5 утверждений. '
+    'Каждое утверждение опирается на номера пунктов в item_ids. Не добавляй сведений, которых нет в пунктах. '
+    'Отклонённое или только обсуждавшееся предложение никогда не называй решением. ' + DATA_RULES)
+
+SUMMARY_SCHEMA = {'type': 'object', 'required': ['claims'], 'properties': {'claims': {'type': 'array', 'items': {
+    'type': 'object', 'required': ['text', 'item_ids'], 'properties': {
+        'text': {'type': 'string'}, 'item_ids': {'type': 'array', 'items': {'type': 'integer'}}}}}}}
+
+_DECIDED = re.compile(r'(реши\w*|решени\w*|договорил\w*|утверд\w*|принял\w*|принят\w*|согласова\w*)', re.I)
+
+
+def _item_line(number, item):
+    label = KIND_RU.get(item['kind'], item['kind'])
+    if item['kind'] == 'proposal':
+        label += f" ({OUTCOME_RU.get(item.get('outcome') or 'discussed')})"
+    extra = ''
+    if item['kind'] == 'task':
+        extra = f"; ответственный: {item.get('assignee') or 'не назван'}; срок: {item.get('due') or item.get('due_text') or 'не назван'}"
+    return f'{number}. {label}: {item["text"]}{extra}'
+
+
+def _claim_quotes(selected):
+    quotes = []
+    for item in selected:
+        for quote in item.get('quotes') or []:
+            if quote.get('verified') and all(q['utterance_id'] != quote['utterance_id'] for q in quotes):
+                quotes.append({'utterance_id': quote['utterance_id'], 'speaker': quote.get('speaker'),
+                               'text': quote['text'], 'verified': True})
+    return quotes
+
+
+def _fallback_summary(items, limit):
+    claims = []
+    for item in items:
+        if item['kind'] in ('decision', 'risk') or (item['kind'] == 'proposal' and item.get('outcome') in ('accepted', 'rejected')):
+            text = f"{KIND_RU[item['kind']]}: {item['text']}"
+            if item['kind'] == 'proposal':
+                text += f" — {OUTCOME_RU[item['outcome']]}"
+            quotes = _claim_quotes([item])
+            claims.append({'text': text, 'status': 'verified' if quotes else 'needs_clarification', 'quotes': quotes,
+                           'note': None if quotes else NEEDS_CLARIFICATION, 'source': 'items'})
+    return claims[:limit]
+
+
+def summarize(llm, items: list[dict], warnings: list[str], limit: int = 5) -> list[dict]:
+    """Summary claims built ONLY from verified protocol items; each claim inherits the quotes of the items it
+    cites. A claim without valid item references, not supported by their wording, or calling a rejected/discussed
+    proposal a decision is kept but marked «требует уточнения» — it is never shown as a verified fact."""
+    from providers.local_settings import LocalAIError
+    if not items:
+        return []
+    numbered = '\n'.join(_item_line(n, item) for n, item in enumerate(items, 1))
+    try:
+        result = llm.json(SUMMARY_SYSTEM, f'Пункты протокола (данные):\n<<<\n{numbered}\n>>>', SUMMARY_SCHEMA, predict=700)
+    except LocalAIError:
+        warnings.append('Резюме собрано без модели (модель не ответила): показаны ключевые пункты протокола.')
+        return _fallback_summary(items, limit)
+    claims = []
+    for raw in result.get('claims') if isinstance(result.get('claims'), list) else []:
+        if not isinstance(raw, dict):
+            continue
+        text = (tu.clean_model_text(raw.get('text')) or '')[:400]
+        if not text:
+            if str(raw.get('text') or '').strip():
+                warnings.append('Утверждение резюме не показано: модель вернула повреждённый текст.')
+            continue
+        numbers = [n for n in dict.fromkeys(raw.get('item_ids') or []) if isinstance(n, int) and 1 <= n <= len(items)]
+        selected = [items[n - 1] for n in numbers]
+        quotes = _claim_quotes(selected)
+        support = ' '.join([i['text'] for i in selected] + [q['text'] for q in quotes])
+        reasons = []
+        if not quotes:
+            reasons.append('нет проверенной цитаты')
+        elif tu.overlap(text, support) < 0.34:
+            reasons.append('формулировка не подтверждается пунктами')
+        if selected and _DECIDED.search(text) and all(
+                i['kind'] == 'proposal' and i.get('outcome') != 'accepted' for i in selected):
+            reasons.append('предложение не было принято')
+        claims.append({'text': text, 'status': 'needs_clarification' if reasons else 'verified', 'quotes': quotes,
+                       'note': f"{NEEDS_CLARIFICATION}: {', '.join(reasons)}" if reasons else None, 'source': 'model'})
+        if len(claims) >= limit:
+            break
+    if not claims:
+        return _fallback_summary(items, limit)
+    return claims
+
+
 # ---------------- preparation ----------------
 
 PREP_FACTS_SYSTEM = (
@@ -309,7 +419,11 @@ def prepare(llm, meeting: dict, fragments: list[dict], max_chars: int = 4500) ->
         for raw in result.get('facts', []) if isinstance(result.get('facts'), list) else []:
             if not isinstance(raw, dict):
                 continue
-            text, quote = str(raw.get('text') or '').strip()[:400], str(raw.get('quote') or '')
+            raw_text, quote = str(raw.get('text') or '').strip(), str(raw.get('quote') or '')
+            text = (tu.clean_model_text(raw_text) or '')[:400]
+            if raw_text and not text:
+                dropped += 1  # garbled model output is never shown
+                continue
             fid = str(raw.get('fragment_id') or '').strip().upper()
             candidates = [fid] if fid in allowed else []
             candidates += [f['id'] for f in part if f['id'] != fid]
@@ -341,15 +455,16 @@ def prepare(llm, meeting: dict, fragments: list[dict], max_chars: int = 4500) ->
     def claims(values):
         output = []
         for raw in values if isinstance(values, list) else []:
-            if not isinstance(raw, dict) or not str(raw.get('text') or '').strip():
+            text = tu.clean_model_text(raw.get('text')) if isinstance(raw, dict) else None
+            if not text:
                 continue
             citations = []
             for number in raw.get('fact_ids') or []:
                 if isinstance(number, int) and 1 <= number <= len(facts):
                     citations += [c for c in facts[number - 1]['citations'] if c not in citations]
-            output.append({'text': str(raw['text']).strip()[:400], 'citations': citations})
+            output.append({'text': text[:400], 'citations': citations})
         return output
 
-    gaps += [str(g).strip()[:300] for g in plan.get('gaps') or [] if str(g).strip()]
+    gaps += [g[:300] for g in (tu.clean_model_text(v) for v in plan.get('gaps') or [] if isinstance(v, str)) if g]
     return {**base, 'status': 'ok', 'brief': facts, 'agenda': claims(plan.get('agenda')),
             'questions': claims(plan.get('questions')), 'gaps': gaps}
