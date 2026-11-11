@@ -105,8 +105,12 @@ def install(app):
     from meetings.feedback import router as feedback_router
     app.include_router(calendar_router())
     app.include_router(feedback_router())
-    for extra in _optional_routers():
+    extras = _optional_routers()
+    for extra in extras:
         app.include_router(extra)
+    if len(extras) == len(OPTIONAL_ROUTERS):  # the voice assistant only reads through knowledge + overview
+        from meetings.voice import router as voice_router
+        app.include_router(voice_router())
 
 
 # ---------- payloads ----------

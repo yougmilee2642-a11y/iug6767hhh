@@ -433,3 +433,31 @@ body.meetings-page {
 
 .meetings-page .protocol-body { border: 0; padding: 0; margin: 0; min-width: 0; }
 .meetings-page .protocol-body:disabled { opacity: .7; }
+
+/* «Фокус» voice assistant, on brand tokens */
+.voice-talk-button { min-height: 40px; padding: 8px 16px; border: 1px solid var(--f-line-strong); border-radius: 999px; background: var(--f-paper); color: var(--f-ink); font-weight: 600; }
+.voice-talk-button:hover { border-color: var(--f-ink); }
+.voice-talk-button::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 8px; border-radius: 50%; background: var(--f-mint-ink); vertical-align: 1px; }
+.voice-talk-button.recording { border-color: var(--f-action); background: var(--f-action-tint); color: var(--f-action-hover); }
+.voice-talk-button.recording::before { background: var(--f-action); animation: voice-pulse 1s ease-in-out infinite; }
+.voice-talk-button.listening::before { background: var(--f-sky-ink); box-shadow: 0 0 0 3px var(--f-sky); }
+@keyframes voice-pulse { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .voice-talk-button.recording::before { animation: none; } }
+.voice-panel { position: fixed; right: 20px; bottom: 20px; z-index: 30; width: min(420px, calc(100vw - 32px)); max-height: min(70vh, 640px); overflow: auto; padding: 18px 20px; border: 1px solid var(--f-line); border-radius: var(--f-radius); background: var(--f-paper); color: var(--f-ink); box-shadow: 0 18px 50px #364c4929; font-family: var(--f-font); }
+.voice-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.voice-panel-head h2 { margin: 0; font-size: 18px; font-weight: 600; }
+.voice-status { margin: 8px 0 4px; color: var(--f-muted); font-size: 13px; }
+.voice-heard { margin: 0 0 8px; font-weight: 600; }
+.voice-phrase { margin: 0 0 10px; padding: 10px 12px; border-radius: var(--f-radius-sm); background: var(--f-mint); color: var(--f-ink-strong); }
+.voice-phrase-silent { background: var(--f-sunk); border: 1px dashed var(--f-line-strong); color: var(--f-ink); }
+.voice-claim { margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--f-line); border-radius: var(--f-radius-sm); }
+.voice-claim p { margin: 0 0 6px; }
+.voice-metrics { margin: 0 0 10px; padding-left: 18px; }
+.voice-warning { color: var(--f-sand-ink); font-size: 13px; }
+.voice-loud { display: flex; gap: 8px; align-items: flex-start; margin: 12px 0 8px; color: var(--f-muted); font-size: 12px; }
+.voice-loud input { margin-top: 2px; accent-color: var(--f-action); }
+.voice-form { display: flex; gap: 8px; }
+.voice-form input { flex: 1; min-width: 0; min-height: 40px; padding: 8px 14px; border: 1px solid var(--f-line-strong); border-radius: 999px; background: var(--f-paper); color: var(--f-ink); }
+.voice-form input:focus { outline: 2px solid var(--f-ink); outline-offset: 1px; }
+.voice-wake { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--f-line); }
+@media (max-width: 640px) { .voice-panel { right: 16px; left: 16px; bottom: 16px; width: auto; } .voice-talk-button { padding: 8px 12px; } }
