@@ -1,0 +1,12 @@
+{
+  "raw_sha256": "3cc78c855e40a9d1c466d8a371dea243897434ba3fd47fbc41c34cc1cf5a800e",
+  "raw_archive": "scorer3-joint-python.raw.log.gz",
+  "readable_log": "scorer3-joint-python.log",
+  "transformation": "readable trailing whitespace only",
+  "commit": "a2f1ab07652367d5a823332288aae816d3451536",
+  "scorer_version": 3,
+  "passed": 256,
+  "failed": 3,
+  "skipped": 15,
+  "seconds": 29.42
+}

@@ -165,3 +165,11 @@ Preflight v3: NOT RUN на gpu_window, 0 LLM calls; отчёт сохранён 
 CI порядок уточнён: CPU/Python/JS/HTTP/syntax выполняются до установки Chromium,
 чтобы загрузка браузера не задерживала продуктовую диагностику. У browser install
 есть отдельный timeout 5 минут; его отказ не скрывается зелёным статусом.
+
+
+Полный повтор после scorer v3: **256 passed / 15 skipped / 3 failed**, 29.42 s.
+Исходный байтовый лог и hash — reports/scorer3-joint-python.raw.log.gz и
+reports/scorer3-joint-checks.json; readable — scorer3-joint-python.log.
+Это те же три owner-разногласия, новых failures от scorer v3 нет.
+CI запускается по PR или вручную, без дублирующего push; superseded PR run
+может отменяться новым run и не засчитывается ни passed, ни product failure.
