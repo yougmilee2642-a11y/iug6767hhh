@@ -1,189 +1,111 @@
-# Track 3 release status — 11.11.2026
+# Track 3 — состояние выпуска, 11.11.2026
 
-**НЕ ГОТОВ К ВЫПУСКУ.** Обе ветки опубликованы; открыт [draft PR #4](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/4). Codex 3 main не менял; обновление main сопровождающим учтено обычным merge.
-Точные commit в machine reports относятся к проверенному коду, не к последующим
-документационным checkpoint. Итоговый integration SHA выводится в handoff/сообщении.
+**Выпуск заблокирован.** [Draft PR #4](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/4)
+содержит актуальный integration SHA и Checks. Ветки release/integration опубликованы.
+Codex 3 main не менял; обновление main сопровождающим включено обычным merge.
 
-## Поставки и происхождение
+## Состав и владение
 
-| Пакет | Проверенная ветка / SHA | PR |
-|---|---|---|
-| Core, roles, migrations v8, calendar | claude/track3-core-calendar / cd06b4d696147805ed0f2a4dfa62e485a1b6d865 | #2 (draft у автора) |
-| Knowledge, overview | codex/track3-knowledge-overview / e03536b027fe20364d4233d4ffe35077340a5e2a | #1 |
-| UI | codex/track3-ui / d95b252e237e02141028359efa9023f50bf4497f | #3 |
-| Assignment / frozen gold | release: 9a51a28 / 9d1c2dc | Опубликовано; mapping SHA в reports/publication-map.json |
-| Integration | codex/track3-integration, merge в отдельной clone/worktree | Опубликовано; mapping SHA в reports/publication-map.json |
+База задания: `cb2614b86f3b83636e670c83a0afb8f4c9d6c3c3`.
 
-Пути каждого PR сверены через GitHub changed filenames и локальный diff от базы.
-Пакеты не меняют app.py/providers/ASR/старые requirements/start-gateway.ps1. Новые
-backend textutil helper и tests/test_meetings.py входят только в авторский core PR.
-Codex 3 меняет лишь свою release-зону; verify_ownership.py проверяет её автоматически.
+| Поставка | Включённый авторский SHA / PR |
+|---|---|
+| Core, migration v8, роли, календарь | `cd06b4d` / #2; затем main сопровождающего `35ba34c` / #5 |
+| Knowledge, overview, KPI | `9eecb94` / #7, поверх исходного #1 |
+| Отмена поручений, разные задачи с общим сроком, legacy QA | Claude `58ec401` / #8 |
+| UI | `d95b252` / #3 |
+| Release | `codex/track3-release`; scorer 3, schema 2 |
+| Интеграция | `codex/track3-integration`; обычные merge без rebase авторов |
 
-## Проверки: passed
+Собственный release diff проверяет `scripts/track3/verify_ownership.py`: запрещённых
+путей нет. app.py/providers/ASR/старые requirements/frontend/start-gateway.ps1
+Codex 3 не редактировал. Интеграционные замечания чужой логики возвращены владельцам.
 
-- 203 passed, 10 skipped по общей целевой команде, 23.00 s на срезе 2d3eb95;
-  10 skips — явные opt-in real Ollama/real-model HTTP tests. Полный лог reports/python.log.
-  После safe-reset/test-isolation изменения на f2bf0c2 дополнительно прошли 13 release-тестов и два CLI reset.
-  Неудачный промежуточный запуск из смешанных checkout исправлен выбором ROOT в check.py; итоговый лог не смешивает процессы.
-- 46/46 Node regressions и syntax трёх модулей, повтор после финального UI merge на 419e41a; reports/javascript.log. Речевые алгоритмы не менялись;
-  Python базовые meetings/voice-routing/gateway включены в целевой набор.
-- Настоящий HTTP существующего app.py, **без двойника LLM**: 30 запросов (точный список
-  в reports/http.json), две роли/404/403/аудит, ручной протокол→confirm без дублей,
-  task cancel/confirm, calendar cancel/confirm/local_outbox, QA-отказ по 2030,
-  KPI 90/2/75 и 2 open/1 overdue, cookies/состояние после перезапуска.
-  2.98 s на f2bf0c2; torch отсутствует, речевые веса не нужны. Grounded QA/генерацию он не доказывает.
-- Новый seed повторяется без новых строк, совместим с отдельной «Орбитой».
-- Повтор установки в чистый venv: 22.11 s, в том числе pip 19.83 s, **тёплый кэш**,
-  тот же участник. Скачивания модели/первый cold start исключены; reports/install.json.
-- pip check: зависимости согласованы. Изолированные test DB; data/ не очищалась.
+## Passed
 
-## Failed / not run
+| Проверка | Наблюдение и предел применимости |
+|---|---|
+| Release/gateway/scorer v3 | 73 passed локально, 2.01 s; [Windows CI](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43041468303/job/130596033605): 73 passed, 7.34 s, PYTHONUTF8=0 |
+| Общий Python: прошедшая часть | 256 passed; весь набор **не прошёл**, см. failed ниже. reports/scorer3-joint-* |
+| JavaScript | 46 passed; syntax трёх UI-модулей. reports/joint-javascript.log |
+| Настоящий app HTTP/restart | Без LLM double: две роли, ACL/аудит отказа, ручной protocol→confirm без дублей, task/calendar cancel-confirm, KPI 90/2/75, cookies/state после restart. 3.84 s; reports/joint-http.json |
+| Browser fixtures | 35 passed, 39.744 s на `0844d0e` / merge `79862bb`; [CI job](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43041468303/job/130596032970) |
+| Browser → настоящий HTTP | 44 ответа, 360/768/1440, 0 browser errors, настоящий calendar conflict409, сохранён unknown due; 5.66 s. **Явный LLM double**, качество модели не измерялось |
+| Изоляция | Временные БД, torch отсутствует, voice weights не нужны; data/ не очищалась |
+| Данные | 24 synthetic TXT деловых типов, 3 transcript; отдельный идемпотентный seed, совместим с «Орбитой»; gold 18 tasks/16 QA frozen до оценки |
+| Установка этим участником | Чистый venv 22.11 s, pip 19.83 s, **тёплый кэш**; без модели/cold downloads, reports/install.json |
+| Зависимости/целостность | pip check, ownership, compile и финальный diff check passed локально; frozen inputs byte-for-byte сохранены, в том числе Windows autocrlf |
 
-| Статус | Проверка | Причина / следующий шаг |
-|---|---|---|
-| PASSED в GitHub CI | Chromium UI suite | 35/35 сценариев, 41.260 s. Первоначальный локальный setup оставлен в reports/browser-blocked.log; это ограничение локальной среды, закрыто внешним CI-прогоном |
-| NOT RUN | 3 расшифровки и 16 вопросов на настоящей модели | Loopback Ollama metadata preflight: ConnectError. reports/live-not-run.json. Нужны разрешённый gateway/установленная модель и одно согласованное GPU-окно |
-| NOT RUN | Новый recall ≥80%, precision/false tasks/latency | Модель не отвечала; значений нет. Эталон и оценщик готовы, прежняя «Орбита 3 из 3» не засчитывается |
-| NOT RUN | Независимая установка другим участником | Сценарий и точные зависимости готовы, но другой участник здесь не выполнял установку |
-| PASSED | GitHub CI | [run 43030022726](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43030022726): 203 Python passed/10 skipped; 46 JS; 35 browser; HTTP/restart; install/pip check/syntax/diff. reports/github-ci.json; актуальный head — Checks PR #4 |
-| RESOLVED | Публикация | Выбран подключённый yougmilee2642-a11y с push=true; обе ветки опубликованы через GitHub API, PR #4 draft. Отдельный release → integration PR не нужен: release уже включён в integration. Первоначальная блокировка Primary Listopad33 оставлена в истории |
-| PENDING | Согласование общего CONTRACT | Файлов не было на remote; восстановлен проект контракта, согласование не выдумывается |
-| PENDING | Лицензирование поставки | PyMuPDF dual AGPL/commercial и неподтверждённые условия конкретных voice-assets; LICENSES.md |
+Пройденные проверки отдельных компонентов не означают passed всего выпуска.
+Даты/commit в первичных отчётах относятся к моменту наблюдения. Позднейшая правка
+документации не является новым прогоном. Первоначальные local/API SHA сопоставлены
+в reports/publication-map.json; дальнейшие коммиты имеют Source-Local-Commit trailer.
+Git tree каждого опубликованного коммита сверялся с исходным локальным.
 
-Полный проектный pytest всех треков не запускался в новом минимальном окружении:
-выполнены целевые и релевантные общие проверки; голосовые веса/GPU не установлены.
-Физический микрофон и реальная почта не проверялись. Реальной почты в test calendar нет.
+## Failed
 
-## Соответствие ТЗ
+Общий повтор scorer v3: **256 passed / 15 skipped / 3 failed**, 29.42 s.
+Начальный checkout и hash исходного лога — reports/scorer3-joint-checks.json.
+Raw bytes сохранены в scorer3-joint-python.raw.log.gz; readable .log убирает только
+trailing whitespace. Предыдущий совместный прогон 251/15/3 сохранён отдельно.
 
-| Пункт | Поставка | Состояние |
-|---|---|---|
-| 1 Инструкции/база/ветки | Первый release commit 9a51a28; docs/track3-team | Опубликовано; согласование CONTRACT pending |
-| 2 Защищённый MeetingLLM | Общий endpoint(), Bearer, no redirects/proxy/cloud; unit checks | Passed |
-| 3 Фотопринт | 24 деловых документа, 3 transcript, ACL/status/calendar/KPI; idempotent seed | Passed в интеграции |
-| 4 Gold/QA | 18 задач, 16 вопросов, frozen SHA до оценки | Готово |
-| 5 Реальная оценка | evaluate.py + независимый review, сохранение raw evidence | Реальная модель NOT RUN |
-| 6 Текстовый запуск | Existing app.py без torch/голосовых весов; RUNBOOK | HTTP passed; независимый повтор pending |
-| 7 Очистка/хранение | Marker, absolute path, dry-run, explicit confirm; RETENTION | Passed unit/integration, политика ручная |
-| 8 Лицензии | Lock, metadata inventory, отдельные code/weights | Текстовый inventory готов; указанные license gates pending |
-| 9 CI/документы/демо | Workflow, API, architecture, 5–7 мин, 10 слайдов | Документы готовы; UI и CPU CI passed на GitHub runner |
+Чистый CI на `0844d0e` подтвердил те же **256/15/3**, 42.94 s; Windows 73,
+JS 46, UI 35, оба HTTP, browser setup, pip/syntax/diff прошли. Overall workflow
+**FAILED** из-за Python. reports/scorer3-ci-observations.json.
 
-## Риски и передачи
+Все три failed находятся в knowledge после совместного #7/#8:
 
-1. Релиз не прошёл quality gate модели; frozen набор небольшой и синтетический.
-2. Лексический QA может пропускать синонимы; точная цитата сама по себе не доказывает
-   правильность выводов. Спорные task matches требуют независимого человека.
-3. Public product deployment, SSO, encrypted-at-rest storage, настоящая доставка
-   календарных приглашений и автоматическая диаризация не входят в этот выпуск.
-4. Remote host получает данные; Cloudflare — внешний посредник, не «полностью локально».
-5. Демо-даты зафиксированы; календарь текущего HTTP-smoke выбирает будущие слоты
-   динамически. Исторический as_of не является восстановлением статусов задач.
-6. Ни один обязательный NOT RUN не закрывается успешными двойниками/старыми отчётами.
+1. `test_claim_text_may_copy_document_heading_around_the_quote`: ответ включает
+   заголовок/дату вместо ожидаемой одной цитаты факта.
+2. Два `test_excerpt_boundaries_cannot_drop_currency_or_newline_condition`: тест #7
+   требует отказ, а #8 безопасно расширяет частичную цитату до полного исходного
+   предложения. Прямая проверка подтвердила сохранение валюты и предоплаты;
+   фактическая потеря условия **не подтверждена**. Нужна согласованная политика
+   владельца с проверкой точного output, не снятие assertions.
 
-Финальный UI owner update d95b252 добавлен обычным merge: зоны времени и retry.
-Python-продуктовые файлы он не менял. Локально повторены JS/syntax/diff, браузерные
-35 сценариев прошли на GitHub runner; исходное локальное ограничение Chromium сохранено как историческое наблюдение.
+Воспроизведение направлено владельцам в #7/#8. Codex 3 их логику/тесты не правил.
 
-При публикации собственные commit SHA изменились из-за авторских метаданных API,
-**git tree каждого из 31 коммитов совпал с исходным локальным**. История коллег
-не переписывалась. Первоначальный gold commit 9d1c2dc опубликован как ca06d6eba2fe697073609181d40f1dfe24e3f459.
-Старые machine reports сохраняют первоначальные commit ID; соответствие — publication-map.json.
+Исторический Linux CI на 3046943 завершился FAILED: DNS azure.archive.ubuntu.com
+при `playwright install --with-deps` и whitespace в readable raw pytest log.
+Несмотря на это, JS/UI/оба HTTP шага прошли; Python suite тогда был skipped.
+Причины зафиксированы в reports/joint-ci-observations.json. Сейчас CPU диагностика
+выполняется первой; apt --with-deps убран, установка Chromium выполняется явно при отсутствии исполняемого файла и
+ограничена 5 минутами. Наличие файла не считается passed: UI suites обязаны
+успешно запустить его, как в точной команде владельца. Whitespace устранён отдельной readable копией при сохранении
+байтового raw gzip. Это не превращает старый workflow в зелёный.
 
-Внешний чистый CPU runner подтвердил установку lock и полный pipeline. Это
-самостоятельный прогон CI, но не обещанный независимый повтор другим участником
-и не проверка модели: эти два gate остаются открытыми.
+## Not run / открытые критерии
 
+| Критерий | Что требуется |
+|---|---|
+| Recall≥80% для каждой из 3 расшифровок и в целом, precision/ошибки/latency | Реальная модель, разрешённый gateway и согласованное отдельное GPU-окно. Preflight v3: NOT RUN на gpu_window, 0 LLM calls; reports/evaluation-preflight-v3.json. Loopback doctor: ConnectError, env URL/key/model отсутствуют |
+| Независимая проверка модельных чисел коллеги | В #8 запрошены исходные JSON. Повествовательная таблица Qwen2.5:7b не засчитана независимым scorer-v3 результатом; gold не подгонялся |
+| Независимая установка другим участником / gold review | Пройти RUNBOOK, измерить время/кэш/модель, проверить обе роли/restart и спорные matches. Тестовый сценарий human-authored не заменяет человеческого участника |
+| Общий CONTRACT | Восстановленный проект требует согласования команды |
+| Лицензии поставки | Решение владельца по PyMuPDF AGPL/commercial, Silero NonCommercial/base-CIS exception; точная идентификация неподтверждённых voice assets. LICENSES.md, без догадок по лицензии кода |
+| Финальный CI на последнем head | Checks PR #4. Старые зелёные run и отдельные прошедшие jobs не сертифицируют новый head |
 
-## Аудит после первой публикации
+15 skips общего набора — opt-in сценарии настоящей модели и другие явно пропущенные
+проверки; они не засчитаны как passed. Полный pytest остальных треков, физический
+микрофон и доставка настоящей почты не проверялись. Календарь — local outbox/mock.
 
-Реальные дефекты оценщика воспроизведены отдельно от модели: отрицание давало
-recall=1; три delay давали passed; QA с неподтверждённым claim проходила при наличии
-настоящей цитаты. Это были дефекты **проверок выпуска**, не новые результаты Qwen.
-Они закрыты scorer v2 с регрессиями; frozen dataset/gold не менялись.
+## Соответствие заданию и пределы
 
-Дополнительно закрыты перезапись первичных отчётов и потеря маркера очистки при
-частичном filesystem failure. Checkpoints и interrupted сохраняются, review не
-вызывает модель. Doctor с read-only metadata проверкой остаётся not_ready:
-URL/ключ/model env отсутствуют, loopback даёт ConnectError. Исходный отчёт —
-reports/doctor-audit.json. Новый CI включает реальный браузерный HTTP-сценарий;
-его результат оценивается по актуальным Checks PR #4, отдельно от старого pipeline.
+Пакет заданий был первым собственным коммитом; frozen gold — отдельным до оценки.
+Защищённый MeetingLLM, seed, безопасная очистка, оценщик, lock, CI, API, архитектура,
+retention, сценарий 5–7 минут и структура≤10 слайдов поставлены в разрешённых путях.
+Формат seed проверен на миграциях авторов; dependent imports добавлял Claude.
 
+Scorer v2 устранил substring/отрицание, дублирование контроля и claim без опоры.
+Scorer v3 дополнительно закрыл обрезание цитат после «тыс.»/инициалов/переноса строки
+независимой проверкой. Это исправления проверок, **не результаты модели**. Старые
+отчёты сохраняют свою версию; expected/frozen gold не менялись.
 
-Проверки аудита: **228 passed, 10 opt-in skipped, 26.35 s**; полный исходный лог
-reports/audit-python.log. Frozen dataset и gold byte-for-byte совпадают с первой
-публикацией. GitHub CI текущего аудита проверяет также новый UI → HTTP harness;
-актуальный результат и опубликованный head находятся в PR #4. Никакое из этих
-чисел не является recall/precision настоящей модели.
+Remote gateway обрабатывает данные на машине хоста; Cloudflare добавляет внешнего
+посредника. Такой режим не полностью локален на машине пользователя. UI-владельцу
+в #3 передана просьба уточнить текст empty state «локальная модель».
 
-
-## Совместная проверка новых поставок PR #7 / #8
-
-11.11.2026 main сопровождающего `35ba34c`, knowledge `9eecb94` и eval fixes
-`58ec401` включены обычными merge, без переписывания истории и ручной правки
-чужой логики. На локальном интеграционном срезе `380b2a9`: **251 passed,
-15 skipped, 3 failed**, 44.25 s. Исходный лог: reports/joint-python.log.
-Это актуальная регрессия интеграции; предыдущие успешные CI относятся к прежним SHA.
-
-Три failed относятся к knowledge: отображение заголовка вместо одной цитаты,
-два расхождения политики отказа/расширения legacy-цитаты. Дополнительная проверка
-подтвердила, что валюта и условие предоплаты сохраняются в полном исходном тексте;
-их фактическая потеря не подтверждена.
-Владельцам отправлены воспроизведения в PR #7/#8; их тесты не ослаблены.
-До авторского исправления эти проверки блокируют выпуск.
-
-Исправления UTF-8 из PR #6 адаптированы к scorer v2 в разрешённых release-путях.
-LF задаётся вложенными .gitattributes внутри demo/track3 и evaluation/track3,
-корневой .gitattributes не изменялся. Windows CI проверяет без PYTHONUTF8 mode.
-Linux CI запускает независимые JS/UI/HTTP/syntax шаги и при падении Python suite,
-чтобы получить полный отчёт, сохраняя failed итог workflow.
-
-В PR #8 автор сообщил новые числа Qwen2.5:7b. Пока доступна только повествовательная
-таблица; исходные JSON запрошены. Они не засчитываются независимым результатом
-scorer v2. Настроенный model endpoint/GPU здесь по-прежнему отсутствует.
-
-
-При сверке границ найден отдельный дефект собственного QA-оценщика: перенос строки
-или точка в «тыс.» могли считаться допустимой границей обрезанной цитаты. Scorer v3
-устраняет этот обход независимо от product helper, с отрицаниями/инициалами/валютой
-в регрессиях. Schema остаётся 2; старые отчёты сохраняют scorer_version=2 и не
-переименовываются. Gold/expected не меняются.
-
-
-Windows clean CI на опубликованном `3046943` прошёл: **68 passed, 7.91 s**,
-PYTHONUTF8=0, [job 130585515388](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43039018306/job/130585515388).
-Scorer v3 после этого локально: **73 passed, 2.01 s**, reports/scorer3-python.log.
-Новый общий прогон всё ещё блокируют три упомянутых owner-разногласия; старые зелёные
-прогоны их не закрывают. 46 JS passed; новый HTTP/restart без LLM double прошёл
-за 3.84 s, reports/joint-http.json.
-
-Первичный joint Python log сохранён побайтно в reports/joint-python.raw.log.gz;
-SHA256 в reports/joint-checks.json. Читаемая .log-копия удаляет только trailing
-whitespace, чтобы syntax/diff gate не ломался на pytest presentation.
-Preflight v3: NOT RUN на gpu_window, 0 LLM calls; отчёт сохранён отдельно от v2.
-
-
-CI порядок уточнён: CPU/Python/JS/HTTP/syntax выполняются до установки Chromium,
-чтобы загрузка браузера не задерживала продуктовую диагностику. У browser install
-есть отдельный timeout 5 минут; его отказ не скрывается зелёным статусом.
-
-
-Полный повтор после scorer v3: **256 passed / 15 skipped / 3 failed**, 29.42 s.
-Исходный байтовый лог и hash — reports/scorer3-joint-python.raw.log.gz и
-reports/scorer3-joint-checks.json; readable — scorer3-joint-python.log.
-Это те же три owner-разногласия, новых failures от scorer v3 нет.
-CI запускается по PR или вручную, без дублирующего push; superseded PR run
-может отменяться новым run и не засчитывается ни passed, ни product failure.
-
-
-Завершён Linux CI на `3046943` (merge `1ad3d2a`): overall FAILED. Причина установки
-— DNS azure.archive.ubuntu.com при --with-deps, а не недоступный Chromium. Фактически
-**35 UI passed (42.398 s)**; браузер → реальный HTTP **passed**, 44 ответа,
-360/768/1440, 0 browser errors, настоящий calendar conflict 409, явный LLM double.
-Product HTTP без LLM double тоже passed (3.53 s). Python suite тогда skipped после
-install failure; diff failure из trailing whitespace уже закрыт отдельно.
-Машинная выжимка: reports/joint-ci-observations.json; весь workflow не назван зелёным.
-
-В текущем workflow browser install больше не вызывает apt --with-deps: на проверенном
-ubuntu-24.04 runner необходимые библиотеки и рабочий Chromium уже есть. Явная
-установка Playwright Chromium сохранена; реальный launch/UI suite проверяют пригодность
-браузера. Если системных библиотек на другом runner нет, сценарий упадёт явно.
+Синтетический набор не доказывает качество на реальных встречах. SSO, публичный
+production deployment, encrypted-at-rest, настоящая почта и автоматическая
+диаризация не входят в выпуск. Обязательный NOT RUN или неразрешённый failed
+блокирует готовность по docs/track3-team/README.md.
