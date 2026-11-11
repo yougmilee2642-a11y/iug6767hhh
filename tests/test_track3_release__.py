@@ -158,3 +158,30 @@ def test_scorer_rejects_fake_citation_and_routes_semantics_for_review():
     assert score_tasks(gold,p,u,review)['recall']==1
     p[0]['quotes'][0]['text']='forged'
     with pytest.raises(ValueError): score_tasks(gold,p,u,review)
+
+
+def test_cleanup_tracks_start_files_but_rejects_tampered_marker(env,monkeypatch):
+    from scripts.track3.start import configure
+    configure(env['path'])
+    cabinet=env['path'].with_name(env['path'].stem+'.cabinet.db')
+    cabinet.touch()
+    unrelated=env['path'].parent/'not-owned.txt';unrelated.write_text('keep')
+    marker=Path(str(env['path'])+'.track3.json')
+    declared=json.loads(marker.read_text())
+    assert str(cabinet) in declared['start_files']
+    declared['start_files'].append(str(unrelated));marker.write_text(json.dumps(declared))
+    with pytest.raises(ValueError): cleanup(str(env['path']),True)
+    assert unrelated.exists() and cabinet.exists()
+    declared['start_files'].remove(str(unrelated));marker.write_text(json.dumps(declared))
+    cleanup(str(env['path']),True)
+    assert not cabinet.exists() and unrelated.exists()
+
+
+def test_summary_failed_transcript_stays_in_denominator():
+    from scripts.track3.evaluate import summarize
+    gold,u,p=scoring_fixture()
+    score=score_tasks(gold,p,u)
+    report={'transcripts':[{'scores':score},{'http_status':503},{'http_status':503}],'questions':[]}
+    summarize(report)
+    assert report['overall']['gold_tasks']==18 and report['overall']['recall']==6/18
+    assert report['status']=='failed'

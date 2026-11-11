@@ -1,14 +1,19 @@
 # CallWise Meetings — MVP
 
 A secure local assistant for meetings: **documents → preparation → transcript → verifiable protocol → confirmed
-assignments → follow-up control**. It runs entirely on this computer: SQLite (`data/meetings.db`), local Ollama
-(`qwen2.5:7b`), local ASR (T-one + GigaAM). There is no cloud fallback.
+assignments → follow-up control**. The default inference endpoint is loopback Ollama (`qwen2.5:7b`). Track 3 also supports the
+authenticated gateway: inference then runs on its host, and a Cloudflare tunnel adds an external
+intermediary. This is not fully local to the user’s computer. There is no cloud-model fallback.
+
+**Track 3:** use [the isolated text runbook](docs/track3-release/RUNBOOK.md),
+[release status](docs/track3-release/STATUS.md) and [evaluation protocol](docs/track3-release/EVALUATION.md).
+The legacy Orbita example below is retained separately. Text mode needs no voice weights.
 
 ## Launch
 
 ```powershell
 ollama pull qwen2.5:7b                                   # once
-.venv\Scripts\python scripts\seed_meetings_demo.py --reset   # demo: users, 3 documents, 2 meetings
+.venv\Scripts\python scripts\seed_meetings_demo.py   # demo: users, 3 documents, 2 meetings
 .\start.ps1                                              # or: .venv\Scripts\python -m uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
@@ -52,7 +57,7 @@ prompt injection), `budget.txt`, `brand_guide.txt` and `transcript.txt` (the mee
 
 ## How the protections are checked
 
-- **Locality:** `meetings/llm.py` reaches Ollama only through a loopback address, refuses `:cloud` models, and never falls back to anything.
+- **Locality:** `meetings/llm.py` delegates to `providers.ollama.endpoint()`: loopback by default or an authenticated allowed gateway; cloud models, redirects and env proxy are disabled. No fallback.
   ASR runs through local models (`speaker_mode=all` for meetings).
 - **Access:** `meetings/store.py` + `meetings/api.py`. Every read, search, download, quote opening,
   task change and **model context assembly** goes through `can_read_meeting` / `can_read_document`. A document attached
@@ -87,9 +92,10 @@ prompt injection), `budget.txt`, `brand_guide.txt` and `transcript.txt` (the mee
 model context), the full path, hallucinated quotes, names and dates, model errors (503 `model_*`, data preserved),
 garbage model replies, duplicates, editing, persistence after a "restart", DOCX/PDF/TXT upload, and date parsing.
 
-Tested in this run: the full pytest suite (all existing tests plus the new ones), the JS tests, a live run on qwen2.5:7b (3 out of 3
-runs produced an identical, correct protocol for the demo), the browser path through the UI, a server restart, and voice
-(`/api/transcribe` with `speaker_mode=all` on TTS-synthesised speech: recognised in ~1 s on GPU, 403 without consent, 404 for Petr).
+**Historical note:** the original MVP document reported full tests, a browser path and three
+Orbita model runs. Those observations predate this Track 3 release and are not new measurements.
+Current passed/failed/not-run evidence is in [release status](docs/track3-release/STATUS.md).
+No Photoprint recall result has been measured on the real model in this environment.
 
 ## Known limitations (honest list)
 
