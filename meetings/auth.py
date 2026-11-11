@@ -7,6 +7,9 @@ import time
 from pathlib import Path
 
 from fastapi import Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 
 from meetings import store
 
@@ -18,6 +21,25 @@ class MeetError(Exception):
     def __init__(self, status: int, code: str, detail: str, audit: dict | None = None):
         super().__init__(detail)
         self.status, self.code, self.detail, self.audit = status, code, detail, audit
+
+
+class MeetRoute(APIRoute):
+    """Route class for /api/meet routers: request validation errors keep the contract shape
+    `{code: "invalid_input", detail, fields}` (the app-wide handler returns only `detail`).
+    Use as `APIRouter(route_class=MeetRoute)`."""
+
+    def get_route_handler(self):
+        handler = super().get_route_handler()
+
+        async def guarded(request):
+            try:
+                return await handler(request)
+            except RequestValidationError as error:
+                fields = list(dict.fromkeys(str(item['loc'][-1]) for item in error.errors() if item.get('loc')))
+                return JSONResponse(status_code=422, content={
+                    'code': 'invalid_input', 'fields': fields,
+                    'detail': f"Проверьте значения полей: {', '.join(fields) or 'запрос'}. Формат или длина не подходят."})
+        return guarded
 
 
 # ---------- roles and capabilities (ОТ-02) ----------

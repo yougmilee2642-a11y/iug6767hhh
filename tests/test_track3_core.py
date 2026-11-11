@@ -478,3 +478,130 @@ def test_confirmation_expiry(env, monkeypatch):
     expired = irina.post(f"/api/meet/tasks/{task['id']}/confirm",
                          json={'confirmation_id': preview['confirmation_id'], 'idempotency_key': 'k-expired'})
     assert expired.status_code == 409 and expired.json()['code'] == 'confirmation_expired'
+
+
+# ---------- hardening found by the live run and self-review ----------
+
+def test_validation_errors_keep_code_detail_shape(env):
+    irina = login(env['app'], 'irina')
+    bad = irina.post('/api/meet/meetings', json={'title': ''})
+    assert bad.status_code == 422 and bad.json()['code'] == 'invalid_input' and 'title' in bad.json()['fields']
+    slots = irina.post('/api/meet/calendar/slots', json={'participant_ids': ['x'], 'duration_minutes': 5})
+    assert slots.status_code == 422 and slots.json()['code'] == 'invalid_input'
+    feedback = irina.post('/api/meet/feedback', json={'target_type': 'task', 'target_id': 1, 'rating': 'meh'})
+    assert feedback.json()['code'] == 'invalid_input' and feedback.json()['fields'] == ['rating']
+
+
+def test_reader_briefing_is_personal_and_never_overwrites_the_shared_one(env):
+    irina, petr = login(env['app'], 'irina'), login(env['app'], 'petr')
+    design = env['design_meeting']
+    assert irina.post(f'/api/meet/meetings/{design}/prepare').json()['prep']['saved'] is True
+    personal = petr.post(f'/api/meet/meetings/{design}/prepare').json()['prep']
+    assert personal['saved'] is False and personal['generated_for'] == 'Пётр Смирнов'
+    assert petr.get(f'/api/meet/meetings/{design}').json()['prep']['generated_for'] == 'Ирина Власова'
+
+
+def test_access_revoked_during_generation_is_rechecked(env):
+    design = env['design_meeting']
+
+    class Revoking(FakeLLM):
+        def json(self, system, user, schema, predict=1500):
+            with store.db() as connection:  # e.g. an administrator removes Irina while the model works
+                connection.execute('DELETE FROM meeting_access WHERE meeting_id=? AND user_id=1', (design,))
+            return super().json(system, user, schema, predict)
+    irina = login(env['app'], 'irina')
+    llm.set_llm(Revoking())
+    response = irina.post(f'/api/meet/meetings/{design}/prepare')
+    assert response.status_code == 404
+    with store.db() as connection:
+        assert connection.execute('SELECT COUNT(*) FROM preps WHERE meeting_id=?', (design,)).fetchone()[0] == 0
+
+
+def test_transcript_edited_during_draft_is_not_overwritten(env):
+    irina = login(env['app'], 'irina')
+    launch = env['launch_meeting']
+    utterances = irina.put(f'/api/meet/meetings/{launch}/transcript',
+                           json={'text': (DEMO / 'transcript.txt').read_text(encoding='utf-8')}).json()['utterances']
+    target = int(utterances[0]['id'][1:])
+
+    class EditingMeanwhile(FakeLLM):
+        def json(self, system, user, schema, predict=1500):
+            if system == extract.PROTOCOL_SYSTEM:
+                with store.db() as connection:
+                    connection.execute("UPDATE utterances SET text='Исправленный текст', edited=1 WHERE id=?", (target,))
+            return super().json(system, user, schema, predict)
+    llm.set_llm(EditingMeanwhile())
+    response = irina.post(f'/api/meet/meetings/{launch}/protocol/draft')
+    assert response.status_code == 409 and response.json()['code'] == 'stale_transcript'
+    meeting = irina.get(f'/api/meet/meetings/{launch}').json()
+    assert meeting['utterances'][0]['text'] == 'Исправленный текст' and meeting['protocol'] is None
+
+
+def test_summary_is_downgraded_when_its_items_are_edited_away(env):
+    irina = login(env['app'], 'irina')
+    launch = env['launch_meeting']
+    protocol, _item = protocol_with_task(irina, launch)
+    assert {c['text']: c['status'] for c in protocol['summary']}['Запуск остаётся 1 декабря'] == 'verified'
+    kept = [{'id': i['id'], 'kind': i['kind'], 'text': i['text'], 'outcome': i['outcome']}
+            for i in protocol['items'] if i['kind'] != 'decision']
+    saved = irina.put(f'/api/meet/meetings/{launch}/protocol', json={'items': kept}).json()['protocol']
+    claim = next(c for c in saved['summary'] if c['text'] == 'Запуск остаётся 1 декабря')
+    assert claim['status'] == 'needs_clarification' and 'изменены' in claim['note']
+
+
+def test_manager_sees_denied_attempts_on_own_objects(env):
+    irina, petr = login(env['app'], 'irina'), login(env['app'], 'petr')
+    launch = env['launch_meeting']
+    petr.get(f'/api/meet/meetings/{launch}')
+    petr.get('/api/meet/documents/1/download')
+    irina.get('/api/meet/fragments/F999999')  # Irina's own miss is not an attempt on her objects
+    events = irina.get('/api/meet/audit', params={'scope': 'my_objects'}).json()['events']
+    assert [(e['user_id'], e['object_type'], e['object_id']) for e in events] == [
+        (2, 'document', '1'), (2, 'meeting', str(launch))]
+    assert 'Орбит' not in json.dumps(events, ensure_ascii=False)
+    assert irina.get('/api/meet/audit', params={'scope': 'all'}).status_code == 422
+
+
+class _Garbled:
+    model = 'garbled'
+
+    def json(self, system, user, schema, predict=1500):
+        return {'claims': [{'text': 'Решение尚未翻译成中文。``````json{', 'item_ids': [1]},
+                           {'text': 'Запуск остаётся 1 декабря', 'item_ids': [1]}]}
+
+
+def test_garbled_model_text_is_never_shown():
+    from meetings import textutil as tu
+    assert tu.clean_model_text('  Запуск остаётся 1 декабря (решение). ') == 'Запуск остаётся 1 декабря (решение).'
+    for bad in ('решение尚未翻译成中文', '```json {"a": 1}', '{"text": "x"}', '<b>жирный</b>', '...', ''):
+        assert tu.clean_model_text(bad) is None, bad
+    items = [{'kind': 'decision', 'text': 'Запуск остаётся 1 декабря', 'outcome': None,
+              'quotes': [{'utterance_id': 'U6', 'speaker': 'И', 'text': 'запуск остаётся 1 декабря', 'verified': True}]}]
+    warnings = []
+    claims = extract.summarize(_Garbled(), items, warnings)
+    assert [c['text'] for c in claims] == ['Запуск остаётся 1 декабря'] and warnings
+    dropped = []
+    raw = {'kind': 'task', 'text': 'Сделать 报告', 'utterance_ids': ['U1'], 'quote': 'сделать отчёт'}
+    utterance = {'id': 'U1', 'speaker': 'Анна', 'text': 'Нужно сделать отчёт'}
+    assert extract._verify_item(raw, [utterance], {'U1'}, {'U1': utterance}, {'U1': 0}, [utterance], [],
+                                datetime(2026, 11, 1).date(), dropped) is None
+    assert 'повреждённый текст' in dropped[0]
+
+
+class _RiskCandidate(FakeLLM):
+    def json(self, system, user, schema, predict=1500):
+        if system == extract.CANDIDATE_SYSTEM:
+            line = re.search(r'^U\d+ \| [^:]+: (.+)$', user, re.M)[1]
+            if 'отстаёт' in line:  # U2 is already the proposal's quote; only a risk may be added from it
+                return {'kind': 'risk', 'text': 'Интеграция с платёжным шлюзом отстаёт', 'outcome': 'none',
+                        'assignee': '', 'due_text': ''}
+        return super().json(system, user, schema, predict)
+
+
+def test_second_pass_adds_risk_from_a_line_already_used_for_a_proposal(env):
+    llm.set_llm(_RiskCandidate())
+    protocol, _ = protocol_with_task(login(env['app'], 'irina'), env['launch_meeting'])
+    risks = [i for i in protocol['items'] if i['kind'] == 'risk']
+    proposals = [i for i in protocol['items'] if i['kind'] == 'proposal']
+    assert [r['text'] for r in risks] == ['Интеграция с платёжным шлюзом отстаёт'] and len(proposals) == 1
+    assert risks[0]['quotes'][0]['utterance_id'] == proposals[0]['quotes'][0]['utterance_id']

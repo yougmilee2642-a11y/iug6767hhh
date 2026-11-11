@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from meetings import store
 from meetings.api import _sid, denied
-from meetings.auth import MeetError, current_user, require
+from meetings.auth import MeetError, MeetRoute, current_user, require
 
 TARGETS = ('meeting', 'prep', 'protocol_summary', 'protocol_item', 'task', 'qa_answer', 'utterance')
 
@@ -87,7 +87,7 @@ def resolve(connection, user, target_type: str, target_id) -> tuple[str, int | N
 
 
 def router():
-    api = APIRouter()
+    api = APIRouter(route_class=MeetRoute)
 
     @api.post('/api/meet/feedback')
     def create(payload: FeedbackIn, request: Request):

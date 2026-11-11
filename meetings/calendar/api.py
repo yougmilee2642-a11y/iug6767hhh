@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from meetings import confirmations, store
 from meetings.api import ConfirmTokenIn, _meeting, time_error
-from meetings.auth import MeetError, current_user, require
+from meetings.auth import MeetError, MeetRoute, current_user, require
 from meetings.calendar import service
 
 ACTION = 'calendar.schedule'
@@ -61,7 +61,7 @@ def _zone_name(name: str) -> str:
 
 
 def router():
-    api = APIRouter()
+    api = APIRouter(route_class=MeetRoute)
 
     @api.get('/api/meet/calendar/participants')
     def directory(request: Request):

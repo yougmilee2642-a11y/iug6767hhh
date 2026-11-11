@@ -13,6 +13,7 @@ from pathlib import Path
 from urllib.parse import quote as urlquote
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -20,7 +21,8 @@ from meetings import confirmations
 from meetings import documents as docs
 from meetings import extract, store
 from meetings.auth import (COOKIE, ROLE_LABELS, TTL, MeetError, capabilities, check_password, current_user,
-                           ensure_demo_users, make_cookie, require)
+                           MeetRoute, ensure_demo_users, make_cookie, require)
+from meetings.auth import has_capability as auth_has
 from meetings.llm import get_llm
 from providers.local_settings import LocalAIError
 
@@ -62,6 +64,14 @@ def _optional_routers():
     return found
 
 
+def _write_denial(details: dict, request_id: str | None):
+    token = store.request_id_var.set(request_id)
+    try:
+        store.audit_independent(details.pop('user_id', None), details.pop('action', 'access_denied'), **details)
+    finally:
+        store.request_id_var.reset(token)
+
+
 def install(app):
     if os.getenv('MEETINGS_DEMO_USERS', 'true').lower() == 'true':
         ensure_demo_users()
@@ -70,8 +80,8 @@ def install(app):
     async def _handle(_request, error: MeetError):
         if error.audit:
             details = dict(error.audit)
-            try:  # own transaction: the request's transaction has already been rolled back
-                store.audit_independent(details.pop('user_id', None), details.pop('action', 'access_denied'), **details)
+            try:  # own transaction (the request's one is rolled back), off the event loop
+                await run_in_threadpool(_write_denial, details, store.request_id_var.get())
             except Exception:  # noqa: BLE001 - never turn a clean 403/404 into a 500
                 pass
         return JSONResponse({'detail': error.detail, 'code': error.code}, status_code=error.status)
@@ -300,6 +310,31 @@ def _visible_prep(connection, user, prep):
     return result
 
 
+def _owned_object(connection, user_id, object_type, object_id) -> bool:
+    """Is the audited object (or its parent meeting/document) owned by user_id? Unknown → False."""
+    raw = str(object_id or '')
+    try:
+        if object_type == 'meeting':
+            row = connection.execute('SELECT owner_id FROM meetings WHERE id=?', (int(raw),)).fetchone()
+        elif object_type == 'document':
+            row = connection.execute('SELECT owner_id FROM documents WHERE id=?', (int(raw),)).fetchone()
+        elif object_type == 'fragment':
+            row = connection.execute('SELECT d.owner_id FROM fragments f JOIN documents d ON d.id=f.document_id '
+                                     'WHERE f.id=?', (_sid(raw, 'F'),)).fetchone()
+        elif object_type == 'utterance':
+            row = connection.execute('SELECT m.owner_id FROM utterances u JOIN meetings m ON m.id=u.meeting_id '
+                                     'WHERE u.id=?', (_sid(raw, 'U'),)).fetchone()
+        elif object_type in ('task', 'protocol_item'):
+            table = 'tasks' if object_type == 'task' else 'protocol_items'
+            row = connection.execute(f'SELECT m.owner_id FROM {table} t JOIN meetings m ON m.id=t.meeting_id '
+                                     'WHERE t.id=?', (int(raw),)).fetchone()
+        else:
+            return False
+    except (ValueError, MeetError):
+        return False
+    return row is not None and row[0] == user_id
+
+
 def _user_out(user: dict) -> dict:
     access_role = user.get('access_role') or 'reader'
     return {'id': user['id'], 'login': user['login'], 'name': user['name'], 'role': user['role'],
@@ -367,7 +402,7 @@ def parse_transcript(text: str) -> list[dict]:
 
 
 def router():
-    api = APIRouter()
+    api = APIRouter(route_class=MeetRoute)
 
     @api.get('/meetings', include_in_schema=False)
     def page():
@@ -409,14 +444,27 @@ def router():
                 'SELECT id,login,name,role,access_role FROM users ORDER BY id')]}
 
     @api.get('/api/meet/audit')
-    def audit_log(request: Request, limit: int = 50):
-        """Own audit trail (manager role). Ids and codes only — no foreign titles or content."""
+    def audit_log(request: Request, limit: int = 50, scope: str = 'mine'):
+        """Audit for the manager role. scope=mine — own actions; scope=my_objects — denied attempts of other
+        users on meetings/documents (and their fragments, utterances, tasks) that this user OWNS.
+        Ids and codes only — no titles or content."""
         user = current_user(request)
         require(user, 'audit.read', action='audit.read')
+        if scope not in ('mine', 'my_objects'):
+            raise MeetError(422, 'invalid_scope', 'scope: mine или my_objects.')
+        limit = max(1, min(limit, 200))
         with store.db() as connection:
-            rows = connection.execute('SELECT * FROM audit WHERE user_id=? ORDER BY id DESC LIMIT ?',
-                                      (user['id'], max(1, min(limit, 200))))
-            return {'events': [store.audit_out(r) for r in rows]}
+            if scope == 'mine':
+                rows = connection.execute('SELECT * FROM audit WHERE user_id=? ORDER BY id DESC LIMIT ?', (user['id'], limit))
+                return {'events': [store.audit_out(r) for r in rows], 'scope': scope}
+            events = []
+            for row in connection.execute("SELECT * FROM audit WHERE action='access_denied' AND result='denied' "
+                                          "AND (user_id IS NULL OR user_id!=?) ORDER BY id DESC LIMIT 2000", (user['id'],)):
+                if _owned_object(connection, user['id'], row['object_type'], row['object_id']):
+                    events.append(store.audit_out(row))
+                    if len(events) >= limit:
+                        break
+            return {'events': events, 'scope': scope}
 
     # ----- documents -----
     @api.post('/api/meet/documents')
@@ -630,13 +678,21 @@ def router():
         cited = sorted({c['fragment_id'] for key in ('brief', 'agenda', 'questions')
                         for claim in result.get(key) or [] for c in claim.get('citations') or []})
         with store.db() as connection:
-            connection.execute('INSERT OR REPLACE INTO preps VALUES (?,?,?,?)',
-                               (meeting_id, json.dumps(result, ensure_ascii=False), user['id'], store.now()))
+            # Generation takes minutes: access may have been revoked meanwhile. Re-check the meeting, and show
+            # only claims whose documents are still readable.
+            row = _meeting(connection, user, meeting_id, 'prep.generate', 'meeting.prepare')
+            visible = _visible_prep(connection, user, {**result, 'meeting_id': meeting_id})
+            # The saved briefing is shared by everyone with access: only an editing role may replace it.
+            # A reader gets a personal, unsaved briefing and never overwrites the manager's one.
+            saved = auth_has(user, 'meetings.edit')
+            if saved:
+                connection.execute('INSERT OR REPLACE INTO preps VALUES (?,?,?,?)',
+                                   (meeting_id, json.dumps(result, ensure_ascii=False), user['id'], store.now()))
             store.audit(connection, user['id'], 'ai_prepare', object_type='meeting', object_id=meeting_id,
                         result=result.get('status', 'ok'), source_ids=context_ids, model=result.get('model'),
-                        stage='result', cited_ids=cited, fragments=len(fragments))
-            row = connection.execute('SELECT * FROM meetings WHERE id=?', (meeting_id,)).fetchone()
-            return {'prep': {**result, **_open_task_block(connection, user, row)}}
+                        stage='result', cited_ids=cited, fragments=len(fragments), saved=saved)
+            visible.pop('meeting_id', None)
+            return {'prep': {**visible, **_open_task_block(connection, user, row), 'saved': saved}}
 
     # ----- transcript -----
     @api.put('/api/meet/meetings/{meeting_id}/transcript')
@@ -747,7 +803,14 @@ def router():
                                          {q['utterance_id'] for q in c['quotes']} & {q['utterance_id'] for q in i['quotes']})
             for c in confirmed)]
         summary = extract.summarize(llm, confirmed + fresh, warnings)
-        with store.db() as connection:
+        with store.write_tx() as connection:
+            # Generation takes minutes: re-check rights, and refuse to store quotes of a transcript that was
+            # edited meanwhile (the user's edit wins; nothing is lost, the draft can be requested again).
+            _meeting(connection, user, meeting_id, 'protocol.edit', 'protocol.draft')
+            current = [(u['id'], u['text'], u['speaker']) for u in store.utterances(connection, meeting_id)]
+            if current != [(u['id'], u['text'], u['speaker']) for u in utterances]:
+                raise MeetError(409, 'stale_transcript', 'Расшифровку изменили, пока готовился черновик. '
+                                                        'Правки сохранены — сформируйте черновик ещё раз.')
             connection.execute('DELETE FROM protocol_items WHERE meeting_id=? AND confirmed_at IS NULL', (meeting_id,))
             connection.execute('INSERT OR REPLACE INTO protocols(meeting_id,warnings,generated_at,model,summary) '
                                'VALUES (?,?,?,?,?)',
@@ -794,6 +857,7 @@ def router():
             for item_id, row in existing.items():
                 if item_id not in keep and row['confirmed_at'] is None:
                     connection.execute('DELETE FROM protocol_items WHERE id=?', (item_id,))
+            _recheck_summary(connection, meeting_id)
             store.audit(connection, user['id'], 'protocol_save', object_type='meeting', object_id=meeting_id,
                         items=len(payload.items))
             return {'protocol': store.protocol(connection, meeting_id)}
@@ -962,6 +1026,33 @@ def router():
             return result
 
     return api
+
+
+def _recheck_summary(connection, meeting_id):
+    """After manual protocol edits a summary claim stays «verified» only while every quote it relies on is still
+    a quote of some remaining item and those items still support its wording; otherwise it is downgraded to
+    «требует уточнения» (it is never silently kept as a verified fact)."""
+    head = connection.execute('SELECT summary FROM protocols WHERE meeting_id=?', (meeting_id,)).fetchone()
+    claims = json.loads(head['summary'] or '[]') if head else []
+    if not claims:
+        return
+    items = [store.item_out(connection, r) for r in connection.execute(
+        'SELECT * FROM protocol_items WHERE meeting_id=?', (meeting_id,))]
+    by_quote = {}
+    for item in items:
+        for quote in item['quotes']:
+            by_quote.setdefault(quote['utterance_id'], []).append(item)
+    for claim in claims:
+        if claim.get('status') != 'verified':
+            continue
+        supporting = [i for q in claim.get('quotes') or [] for i in by_quote.get(q['utterance_id'], [])]
+        missing = [q for q in claim.get('quotes') or [] if q['utterance_id'] not in by_quote]
+        support = ' '.join([i['text'] for i in supporting] + [q['text'] for q in claim.get('quotes') or []])
+        if missing or not supporting or extract.tu.overlap(claim['text'], ' '.join(i['text'] for i in supporting)) < 0.2 \
+                or extract.tu.overlap(claim['text'], support) < 0.34:
+            claim['status'] = 'needs_clarification'
+            claim['note'] = f'{extract.NEEDS_CLARIFICATION}: пункты протокола изменены после формирования резюме'
+    connection.execute('UPDATE protocols SET summary=? WHERE meeting_id=?', (json.dumps(claims, ensure_ascii=False), meeting_id))
 
 
 def _normalized_task_changes(patch: TaskPatch) -> dict:
