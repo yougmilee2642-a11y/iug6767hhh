@@ -30,3 +30,12 @@ Dry-run по умолчанию показывает **только файлы**
 синхронизации или host-логов. Для real данных использовать утверждённую процедуру
 владельца устройства/backup. Остановка remote gateway или туннеля сама по себе
 не удаляет внешние журналы. Логи терминала и history с токенами не коммитить.
+
+
+Авторский voice MVP (#9) добавляет WAV request buffers в handlers transcribe/wake:
+их release-маршруты не сохраняют в meetings DB, ответ помечен no-store. Wake не пишет
+raw речь в audit; voice.ask хранит metadata, а вызванный им QA — обычный hash/result
+по таблице выше. Поведение decoder/temp и вручную сохранённых аудио-файлов нужно
+проверять отдельно в конкретном speech runtime: голосовые веса здесь не установлены.
+Внешние Google Fonts request metadata контролируются провайдером ассетов, а не
+cleanup тестовой БД; font-requests отчёт содержит только synthetic CI network URLs.

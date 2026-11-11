@@ -38,6 +38,7 @@ jobs:
           node --check static/meetings.js
           node --check static/meetings/track3.js
           node --check static/meetings/protocol.js
+          node --check static/meetings/voice.js
           node --test tests/*.cjs
       - name: Product HTTP, persistence and two roles (no model quality claim)
         if: always() && steps.dependencies.outcome == 'success'
