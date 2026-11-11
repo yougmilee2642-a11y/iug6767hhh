@@ -103,3 +103,25 @@ def test_whitespace_matching_cannot_drop_negation_or_insert_sentences(env):
     env['model'].reply = {'claims': [{'text': invented, 'quote': invented, 'fragment_id': fid}]}
     result = env['irina'].post('/api/meet/qa', json={'question': 'Когда запуск проекта?'}).json()
     assert result['status'] == 'insufficient_data'
+
+
+@pytest.mark.parametrize('other_project', ['Орбита', 'Вега Плюс'])
+def test_named_project_in_question_cannot_be_answered_from_another_project(env, other_project):
+    document(env['irina'], f'Бюджет проекта «{other_project}» составляет 4,2 млн рублей.', title='Бюджет')
+    response = env['irina'].post('/api/meet/qa', json={'question': 'Какой бюджет проекта «Вега»?'})
+    assert response.status_code == 200
+    assert response.json()['status'] == 'insufficient_data'
+    assert env['model'].calls == []
+
+
+def test_excerpt_cannot_switch_to_other_project_mentioned_in_same_document(env):
+    document(env['irina'], 'Бюджет проекта «Орбита» составляет 4,2 млн рублей.', title='Бюджет проекта «Вега»')
+    result = env['irina'].post('/api/meet/qa', json={'question': 'Какой бюджет проекта «Вега»?'}).json()
+    assert result['status'] == 'insufficient_data'
+
+
+def test_named_project_can_be_grounded_by_document_title(env):
+    fact = 'Бюджет проекта составляет 4,2 млн рублей.'
+    document(env['irina'], fact, title='Бюджет проекта «Вега»')
+    result = env['irina'].post('/api/meet/qa', json={'question': 'Какой бюджет проекта «Вега»?'}).json()
+    assert result['status'] == 'grounded' and result['answer'] == fact

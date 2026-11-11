@@ -34,7 +34,8 @@ def real(env, monkeypatch):
     ('Когда запуск проекта?', 'Запуск проекта назначен на 1 декабря 2026 года.', '1 декабря 2026 года'),
     ('Какой размер предоплаты?', 'Перенос даты запуска позже 1 декабря приведёт к потере предоплаты за медиаразмещение в размере 1,3 млн рублей без возможности возврата.', '1,3 млн рублей'),
     ('Какие риски платёжного шлюза?', 'Риск интеграции платёжного шлюза: поставщик задерживает передачу тестовых ключей.', 'задерживает передачу тестовых ключей'),
-], ids=['launch', 'prepayment', 'risks'])
+    ('Какой бюджет проекта «Вега»?', 'Бюджет проекта «Вега» составляет 4,2 млн рублей.', '4,2 млн рублей'),
+], ids=['launch', 'prepayment', 'risks', 'named-project'])
 def test_real_model_returns_grounded_answer(real, question, text, expected):
     document(real['irina'], text)
     response = real['irina'].post('/api/meet/qa', json={'question': question})
@@ -62,7 +63,8 @@ def test_real_model_does_not_execute_document_instructions(real):
 
 def test_acl_and_unknown_year_do_not_call_real_model(real):
     document(real['irina'], 'Бюджет проекта на 2026 год составляет 4,2 млн рублей.')
-    for who, question in [('irina', 'Какой бюджет проекта на 2030 год?'), ('petr', 'Какой бюджет проекта?')]:
+    for who, question in [('irina', 'Какой бюджет проекта на 2030 год?'), ('petr', 'Какой бюджет проекта?'),
+                          ('irina', 'Какой бюджет проекта «Вега»?')]:
         response = real[who].post('/api/meet/qa', json={'question': question})
         assert response.status_code == 200 and response.json()['status'] == 'insufficient_data'
     assert real['provider'].calls == 0
