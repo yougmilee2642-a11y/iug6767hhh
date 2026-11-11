@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Фокус">
+  <circle cx="16" cy="16" r="13.5" fill="#F6EFE6"/>
+  <circle cx="16" cy="16" r="12" fill="none" stroke="#364C49" stroke-width="2.4"/>
+  <path d="M16 10.8L27.13 17.23M20.5 13.4V26.25M20.5 18.6L9.37 25.03M16 21.2L4.87 14.77M11.5 18.6V5.75M11.5 13.4L22.63 6.97" fill="none" stroke="#364C49" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M16 10.8L20.5 13.4V18.6L16 21.2L11.5 18.6V13.4Z" fill="#DD5757"/>
+</svg>
