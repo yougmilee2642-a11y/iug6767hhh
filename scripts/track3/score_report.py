@@ -1,33 +1,48 @@
-"""Apply independent human review to an existing observed report, never rerun the model."""
+"""Review existing observations without inference or overwriting any evidence file."""
 import argparse
-import hashlib
 import json
 from pathlib import Path
 import sys
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
-from scripts.track3.evaluate import GOLD, frozen_check, score_tasks, summarize
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.track3.evaluate import GOLD, SCORER_VERSION, frozen_check, predictions_digest, score_tasks, summarize
+from scripts.track3.reporting import ReportFile
 
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--report',required=True);p.add_argument('--review',required=True);p.add_argument('--output',required=True)
-    a=p.parse_args()
-    if Path(a.output).resolve()==Path(a.report).resolve(): p.error('Preserve original report; choose a new output')
-    report=json.loads(Path(a.report).read_text());review=json.loads(Path(a.review).read_text())
-    if report['status']=='not_run': p.error('Cannot score a run that never happened')
-    if report['dataset_sha256']!=frozen_check(): p.error('Dataset differs from evaluated version')
-    raw=[{k:v for k,v in item.items() if k!='scores'} for item in report['transcripts']]
-    digest=hashlib.sha256(json.dumps(raw,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
-    if digest!=report['predictions_sha256'] or review['predictions_sha256']!=digest: p.error('Predictions hash mismatch')
-    gold={t['key']:t['tasks'] for t in json.loads(GOLD.read_text())['transcripts']}
-    for t in report['transcripts']:
-        if t['http_status']==200:
-            t['scores']=score_tasks(gold[t['key']],t['predictions'],t['utterances'],review.get('transcripts',{}).get(t['key'],[]))
-    report['independent_review']=review
-    summarize(report)
-    Path(a.output).write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
-    return 0 if report['status']=='passed' else 1
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--report', required=True)
+    parser.add_argument('--review', required=True)
+    parser.add_argument('--output', required=True)
+    args = parser.parse_args()
+    try:
+        output = ReportFile(args.output)
+        report = json.loads(Path(args.report).read_text())
+        review = json.loads(Path(args.review).read_text())
+        if report['status'] not in ('passed', 'failed'):
+            raise ValueError('Cannot score a missing, running or interrupted evaluation')
+        if report.get('schema_version') != 2 or report.get('scorer_version') != SCORER_VERSION:
+            raise ValueError('Report belongs to a different schema/scorer; preserve its original evaluation')
+        if report['dataset_sha256'] != frozen_check():
+            raise ValueError('Dataset differs from evaluated version')
+        digest = predictions_digest(report)
+        if digest != report.get('predictions_sha256') or review.get('predictions_sha256') != digest:
+            raise ValueError('Predictions hash mismatch')
+        controls = {control['key']: control['tasks'] for control in json.loads(GOLD.read_text())['transcripts']}
+        if set(review.get('transcripts', {})) - set(controls):
+            raise ValueError('Review contains an unknown transcript key')
+        for transcript in report['transcripts']:
+            if transcript['http_status'] == 200:
+                transcript['scores'] = score_tasks(controls[transcript['key']], transcript['predictions'],
+                                                   transcript['utterances'], review.get('transcripts', {}).get(transcript['key'], []))
+        report.update(independent_review=review, scorer_version=SCORER_VERSION)
+        summarize(report)
+    except (ValueError, KeyError, TypeError) as error:
+        parser.error(str(error))
+    with output:
+        output.write(report)
+    return 0 if report['status'] == 'passed' else 1
 
 
-if __name__=='__main__': raise SystemExit(main())
+if __name__ == '__main__':
+    raise SystemExit(main())

@@ -33,7 +33,10 @@ def cleanup(db, confirm=False, artifacts=()):
         targets.append(artifact)
     if any(t.is_symlink() or t.is_dir() for t in targets):
         raise ValueError('Symlinks and directories cannot be deleted')
-    existing = list(dict.fromkeys(t for t in targets if t.exists()))
+    existing = list(dict.fromkeys(t for t in targets if t.exists() and t != marker))
+    # Keep the ownership proof until every other deletion succeeds, so a partial
+    # filesystem failure can be safely retried with the same explicit command.
+    existing.append(marker)
     result = {'dry_run':not confirm,'paths':[str(t) for t in existing]}
     if confirm:
         for t in existing:
