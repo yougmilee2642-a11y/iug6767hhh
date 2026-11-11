@@ -420,8 +420,8 @@ function renderGlobalSearch() {
 function renderLogin(app) {
   const shell = node('section', 'login-card panel');
   shell.append(node('p', 'eyebrow', 'РАБОЧЕЕ ПРОСТРАНСТВО'));
-  shell.append(node('h1', '', 'Встречи и решения'));
-  shell.append(node('p', 'login-copy', 'Войдите в демо-профиль, чтобы открыть свои встречи и материалы.'));
+  shell.append(node('h1', '', 'Фокус'));
+  shell.append(node('p', 'login-copy', 'Встречи, документы и решения в одном месте. Войдите в демо-профиль, чтобы открыть свои материалы.'));
   const form = node('form', 'login-form');
   const login = makeInput({ label: 'Логин', required: true, name: 'login', placeholder: 'irina или petr' });
   const password = makeInput({ label: 'Пароль', type: 'password', required: true, name: 'password', placeholder: 'Пароль демо-профиля' });

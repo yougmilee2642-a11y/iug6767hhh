@@ -62,14 +62,16 @@ def metric_rows(connection, actor, cutoff, warnings):
         except (ValueError, TypeError, OverflowError):
             warnings.append('Некорректный доступный снимок витрины исключён из расчёта.')
             continue
-        previous = latest.get(row['scope'])
+        group = (row['scope'], start, end)
+        previous = latest.get(group)
         if previous is None or (stamp, row['source_id']) > (aware(previous['as_of']), previous['source_id']):
-            latest[row['scope']] = row
+            latest[group] = row
     if not latest:
         warnings.append('Нет доступных производственных данных на выбранную дату.')
         return []
-    # Snapshot values are cumulative, so never sum two snapshots of the same scope
-    # or mix unlike reporting periods. ACL filtering precedes even period selection.
+    # Keep latest snapshots per (scope, period), then select the common period.
+    # A late correction to October must not hide an existing November snapshot.
+    # ACL filtering precedes even period selection.
     period = max((aware(row['period_start']), aware(row['period_end'])) for row in latest.values())
     selected = [row for row in latest.values() if (aware(row['period_start']), aware(row['period_end'])) == period]
     if len(selected) != len(latest):
