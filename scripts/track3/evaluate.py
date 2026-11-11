@@ -157,6 +157,7 @@ def main():
                 commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
                 dirty=bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip()),
                 dataset_sha256=frozen_check(),dataset='photoprint-v1',judge='frozen deterministic rules + independent human review',
+                configured_model=os.getenv('MEETINGS_MODEL','qwen2.5:7b'), model_metadata_status='not_run',
                 parameters=dict(context=int(os.getenv('MEETINGS_CONTEXT','8192')),timeout=float(os.getenv('MEETINGS_TIMEOUT','300')),
                                 temperature=0.1,think=False,stream=False,num_predict_protocol=1800),transcripts=[],questions=[])
     try:
@@ -164,10 +165,13 @@ def main():
         provider=llm.MeetingLLM()
         # Validate cloud refusal before any network request.
         provider._base()
+        report['stage']='model_metadata'
         report['model']=model_info(provider.model)
+        report['model_metadata_status']='observed'
         if not a.exclusive_gpu_window:
             raise ValueError('An agreed exclusive GPU window is required; no extraction was run')
         report['exclusive_gpu_window_confirmed']=True
+        report['stage']='extraction_and_qa'
         gold=json.loads(GOLD.read_text())
         with tempfile.TemporaryDirectory(prefix='track3-live-') as temp:
             os.environ['MEETINGS_SECRET']='synthetic-live-evaluation-secret'
