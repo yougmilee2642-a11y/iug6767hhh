@@ -29,6 +29,13 @@ class FakeLLM:
             return {'items': self._protocol(user)}
         if system == extract.CANDIDATE_SYSTEM:
             return {'kind': 'none', 'text': '', 'outcome': 'none', 'assignee': '', 'due_text': ''}
+        if system == extract.SUMMARY_SYSTEM:
+            lines = dict(re.findall(r'^(\d+)\. ([^\n]+)$', user, re.M))
+            number = lambda fragment: next((int(n) for n, text in lines.items() if fragment in text), 99)
+            return {'claims': [
+                {'text': 'Запуск остаётся 1 декабря', 'item_ids': [number('Запуск остаётся')]},
+                {'text': 'Решили перенести запуск на 15 декабря', 'item_ids': [number('Перенести запуск')]},
+                {'text': 'Бюджет утверждён', 'item_ids': [99]}]}
         if system == extract.PREP_FACTS_SYSTEM:
             ids = {text: fid for fid, text in re.findall(r'^(F\d+) \| .+?\): (.+)$', user, re.M)}
             facts = []
@@ -178,8 +185,19 @@ def test_full_path_transcript_protocol_confirmed_tasks(env):
     assert login(env['app'], 'petr').get('/api/meet/tasks').json()['tasks'] == []
     assert login(env['app'], 'petr').patch(f"/api/meet/tasks/{task['id']}", json={'status': 'done'}).status_code == 404
 
-    moved = client.patch(f"/api/meet/tasks/{task['id']}", json={'status': 'in_progress'}).json()['task']
+    # AI-03: direct PATCH is closed; the change goes through preview → confirm.
+    blocked = client.patch(f"/api/meet/tasks/{task['id']}", json={'status': 'in_progress'})
+    assert blocked.status_code == 409 and blocked.json()['code'] == 'confirmation_required'
+    preview = client.post(f"/api/meet/tasks/{task['id']}/preview", json={'changes': {'status': 'in_progress'}}).json()
+    moved = client.post(f"/api/meet/tasks/{task['id']}/confirm",
+                        json={'confirmation_id': preview['confirmation_id'], 'idempotency_key': 'move-0001'}).json()['task']
     assert moved['status'] == 'in_progress'
+    # Summary: verified claims carry stored quotes; a rejected proposal called a decision needs clarification.
+    summary = {c['text']: c for c in redraft['summary']}
+    kept = summary['Запуск остаётся 1 декабря']
+    assert kept['status'] == 'verified' and kept['quotes'][0]['text'] in by_id[kept['quotes'][0]['utterance_id']]['text']
+    assert summary['Решили перенести запуск на 15 декабря']['status'] == 'needs_clarification'
+    assert summary['Бюджет утверждён']['status'] == 'needs_clarification' and not summary['Бюджет утверждён']['quotes']
     agenda = client.post(f'/api/meet/meetings/{launch}/next-agenda', json={'create_meeting': True}).json()
     assert agenda['agenda'][0]['task_id'] == task['id'] and agenda['meeting']['followup_of'] == launch
     follow = client.get(f"/api/meet/meetings/{agenda['meeting']['id']}").json()
