@@ -56,6 +56,19 @@ JS 46, UI 35, оба HTTP, pip/syntax/diff. reports/focus-ci.json и focus-ci-*-
 Добавлены45 CPU unit checks voice, реальный микрофон/ASR/TTS не измерены. Точный
 новый кандидат проходит обычные Checks PR #4; старый зелёный run не подменяет его.
 
+## Текущий failed нового voice UI
+
+На candidate `646bb037` clean CI43046459529: Python304 passed/15 skipped, Windows,
+JS46, UI-fixtures35, product HTTP/restart, syntax/diff прошли. Но **настоящий
+browser→HTTP сценарий FAILED**: `http_browser_smoke.py:105`, root scrollWidth
+превышает viewport при первом разрешении360px. До voice merge этот сценарий
+проходил. Raw trace — reports/voice-ci-browser-failure.log, metadata — voice-ci-failure.json.
+Воспроизведение передано автору #9; foreign CSS/JS и assertion не изменялись.
+
+Release harness дополнен только диагностикой после неудачи: screenshot и DOM geometry
+на360/768/1440 в synthetic temp server. Диагностика не меняет failed verdict, не
+вызывает модель и не правит product UI. Это новый блокер выпуска до авторского fix.
+
 ## Закрытые сбои и история проверок
 
 Текущий общий Python не имеет failed. Три расхождения #7/#8 закрыты **авторским**

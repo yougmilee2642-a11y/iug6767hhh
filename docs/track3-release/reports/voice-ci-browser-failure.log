@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/home/runner/work/iug6767hhh/iug6767hhh/tests/ui_track3/http_browser_smoke.py", line 105, in <module>
+    assert page.evaluate('document.documentElement.scrollWidth')<=width
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
