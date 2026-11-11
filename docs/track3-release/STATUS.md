@@ -10,7 +10,7 @@
 |---|---|---|
 | Core, roles, migrations v8, calendar | claude/track3-core-calendar / cd06b4d696147805ed0f2a4dfa62e485a1b6d865 | #2 (draft у автора) |
 | Knowledge, overview | codex/track3-knowledge-overview / e03536b027fe20364d4233d4ffe35077340a5e2a | #1 |
-| UI | codex/track3-ui / 3dc09e711f84e3f54761d0e04c9266cc0e44664e | #3 |
+| UI | codex/track3-ui / d95b252e237e02141028359efa9023f50bf4497f | #3 |
 | Assignment / frozen gold | release: 9a51a28 / 9d1c2dc | Не опубликовано |
 | Integration | codex/track3-integration, merge в отдельной clone/worktree | Не опубликовано |
 
@@ -25,7 +25,7 @@ Codex 3 меняет лишь свою release-зону; verify_ownership.py п�
   10 skips — явные opt-in real Ollama/real-model HTTP tests. Полный лог reports/python.log.
   После safe-reset/test-isolation изменения на f2bf0c2 дополнительно прошли 13 release-тестов и два CLI reset.
   Неудачный промежуточный запуск из смешанных checkout исправлен выбором ROOT в check.py; итоговый лог не смешивает процессы.
-- 46/46 Node regressions и syntax трёх модулей. Речевые алгоритмы не менялись;
+- 46/46 Node regressions и syntax трёх модулей, повтор после финального UI merge на 419e41a; reports/javascript.log. Речевые алгоритмы не менялись;
   Python базовые meetings/voice-routing/gateway включены в целевой набор.
 - Настоящий HTTP существующего app.py, **без двойника LLM**: 30 запросов (точный список
   в reports/http.json), две роли/404/403/аудит, ручной протокол→confirm без дублей,
@@ -79,3 +79,7 @@ Codex 3 меняет лишь свою release-зону; verify_ownership.py п�
 5. Демо-даты зафиксированы; календарь текущего HTTP-smoke выбирает будущие слоты
    динамически. Исторический as_of не является восстановлением статусов задач.
 6. Ни один обязательный NOT RUN не закрывается успешными двойниками/старыми отчётами.
+
+Финальный UI owner update d95b252 добавлен обычным merge: зоны времени и retry.
+Python-продуктовые файлы он не менял. Локально повторены JS/syntax/diff, браузерные
+35 сценариев остаются NOT RUN из-за описанного ограничения Chromium.

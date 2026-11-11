@@ -89,7 +89,7 @@ with `speaker_label="Говорящий ?"` and the user maps speakers manually.
 
 # Track 3 current API extensions
 
-Source of truth: integrated core cd06b4d, knowledge e03536b, UI 3dc09e7 and their handoffs.
+Source of truth: integrated core cd06b4d, knowledge e03536b, UI d95b252 and their handoffs.
 All dates for new meetings/calendar have an offset or an explicit timezone; Europe/Minsk
 is the business date zone. Errors are `{code, detail}` and may include fields; every
 route carries X-Request-ID. Hidden objects → 404, available object with insufficient

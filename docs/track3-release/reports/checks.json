@@ -20,13 +20,15 @@
   "javascript": {
     "passed": 46,
     "failed": 0,
-    "syntax_modules": 3
+    "syntax_modules": 3,
+    "log": "javascript.log"
   },
   "http": "passed",
   "browser": {
     "status": "not_run",
     "setup": "failed",
-    "reason": "Chromium socket() Operation not permitted"
+    "reason": "Chromium socket() Operation not permitted",
+    "intended_scenarios": 35
   },
   "live_model": {
     "status": "not_run",
@@ -44,5 +46,7 @@
   "source_ownership": "passed; Codex 3 paths only",
   "main_unchanged": true,
   "license_review": "pending; see LICENSES.md",
-  "contract_agreement": "pending"
+  "contract_agreement": "pending",
+  "final_ui_source_sha": "d95b252e237e02141028359efa9023f50bf4497f",
+  "final_ui_integration_check_sha": "419e41a6c3a9df0cd9cf3e8bfc6448f0483fe4a5"
 }
