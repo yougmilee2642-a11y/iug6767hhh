@@ -1,11 +1,12 @@
 name: Track 3 CPU acceptance
 on:
   pull_request:
-  push:
-    branches: [codex/track3-integration]
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: track3-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 jobs:
   text-and-browser:
     runs-on: ubuntu-24.04
