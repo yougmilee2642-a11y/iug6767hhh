@@ -1,0 +1,6 @@
+[submodule "tools/GigaAM"]
+	path = tools/GigaAM
+	url = https://github.com/salute-developers/GigaAM.git
+[submodule "tools/T-one"]
+	path = tools/T-one
+	url = https://github.com/voicekit-team/T-one.git
