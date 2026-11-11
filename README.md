@@ -585,3 +585,14 @@ JS: node --check static/app.js; node --check static/builder.js; node --check sta
 аккаунты бизнеса и реальный smoke-test обязательны. Локальный демо-календарь сохранён.
 [Local tool calling](https://console.groq.com/docs/tool-use/local-tool-calling),
 [Speech to text](https://console.groq.com/docs/speech-to-text).
+
+
+## Track 3 — meetings release
+
+[Text-only setup, isolated Photoprint seed and shutdown](docs/track3-release/RUNBOOK.md)
+uses the existing application without speech weights. [Status and acceptance evidence](docs/track3-release/STATUS.md),
+[frozen model evaluation](docs/track3-release/EVALUATION.md), [architecture](docs/track3-release/ARCHITECTURE.md),
+[API](docs/MEETINGS_API.md), [data removal](docs/track3-release/RETENTION.md),
+[licenses](docs/track3-release/LICENSES.md), and [5–7 minute demo](docs/track3-release/DEMO.md).
+Release readiness is blocked until the outstanding live-model, browser, independent reproduction
+and publication gates pass; historical MVP model results are not current release evidence.

@@ -2,7 +2,7 @@ name: Track 3 CPU acceptance
 on:
   pull_request:
   push:
-    branches: [codex/track3-release, codex/track3-integration]
+    branches: [codex/track3-integration]
   workflow_dispatch:
 permissions:
   contents: read
@@ -45,9 +45,10 @@ jobs:
       - name: Python syntax and whitespace
         run: |
           python -m compileall -q meetings scripts/track3
-          git diff --check ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD' }} HEAD
+          git diff --check cb2614b86f3b83636e670c83a0afb8f4c9d6c3c3 HEAD
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: track3-cpu-observations
           path: /tmp/track3-http.json
+          retention-days: 7
