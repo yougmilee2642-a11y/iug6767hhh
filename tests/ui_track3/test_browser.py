@@ -273,6 +273,7 @@ class BrowserTests(unittest.TestCase):
     def test_preview_conflict_refresh_without_losing_input(self):
         self.api.errors['/calendar/preview']=409
         self.meetings()
+        self.page.get_by_role('button',name='Загрузить участников').click()
         self.page.get_by_label('Начало поиска').fill('2026-11-18T09:00')
         self.page.get_by_label('Конец поиска').fill('2026-11-19T18:00')
         self.page.get_by_role('button',name='Найти свободное время').click()
@@ -313,6 +314,7 @@ class BrowserTests(unittest.TestCase):
         self.meetings(); self.page.get_by_role('button',name='3 · Протокол').click()
         self.page.get_by_role('button',name='Обновить черновик',exact=True).click()
         expect(self.page.get_by_role('button',name='Выполняется…',exact=True)).to_be_disabled()
+        expect(self.page.locator('[data-item-id="10"]').get_by_label('Формулировка')).to_be_disabled()
         self.page.get_by_role('button',name='Встречи',exact=True).click()
         self.page.get_by_role('button',name='Открыть встречу',exact=True).click()
         self.page.get_by_role('button',name='3 · Протокол').click()
@@ -321,4 +323,203 @@ class BrowserTests(unittest.TestCase):
         protocol={'items':self.api.items,'summary':[],'warnings':['Генерация завершена']}
         pending[0].fulfill(status=200,json={'protocol':protocol})
         expect(self.page.get_by_role('button',name='Обновить черновик',exact=True)).to_be_enabled()
+        expect(self.page.locator('[data-item-id="10"]').get_by_label('Формулировка')).to_be_enabled()
         expect(self.page.get_by_text('Генерация завершена',exact=True)).to_be_visible()
+
+    def test_status_only_change_preserves_due_in_words(self):
+        self.api.task.update(due=None,due_text='после согласования',due_status='stated')
+        self.page.get_by_role('button',name='Задачи',exact=True).click()
+        self.page.get_by_role('button',name='Изменить задачу').click()
+        self.page.get_by_label('Статус задачи').select_option('done')
+        self.page.get_by_role('button',name='Предпросмотр',exact=True).click()
+        expect(self.page.get_by_role('dialog')).to_contain_text('после согласования')
+        self.page.get_by_role('button',name='Подтвердить',exact=True).click()
+        expect(self.page.get_by_role('dialog')).to_have_count(0)
+        body=next(b for _,path,b in self.api.calls if path=='/tasks/1/preview')
+        self.assertEqual(body['changes'],{'status':'done'})
+        self.assertEqual(self.api.task['due_text'],'после согласования')
+
+    def test_save_meeting_preserves_edits_typed_during_request(self):
+        pending=[]
+        def hold(route):
+            if route.request.method=='PATCH': pending.append(route)
+            else: self.api.handle(route)
+        self.page.route('**/api/meet/meetings/1',hold)
+        self.meetings()
+        topic=self.page.get_by_label('Тема и цель встречи')
+        topic.fill('Отправленная версия')
+        self.page.get_by_role('button',name='Сохранить тему и участников').click()
+        expect(self.page.get_by_role('button',name='Выполняется…',exact=True)).to_be_visible()
+        topic.fill('Новый несохранённый ввод')
+        self.assertEqual(len(pending),1)
+        body=pending[0].request.post_data_json
+        status,result=self.api.respond('PATCH','/meetings/1',body)
+        pending[0].fulfill(status=status,json=result)
+        expect(self.page.get_by_role('button',name='Сохранить тему и участников')).to_be_visible()
+        expect(self.page.get_by_label('Тема и цель встречи')).to_have_value('Новый несохранённый ввод')
+        self.page.get_by_role('button',name='3 · Протокол').click()
+        self.page.get_by_role('button',name='1 · Подготовка').click()
+        expect(self.page.get_by_label('Тема и цель встречи')).to_have_value('Новый несохранённый ввод')
+
+    def test_calendar_stale_slots_and_participant_selection(self):
+        self.slots(); self.page.keyboard.press('Escape')
+        self.page.get_by_label('Пётр',exact=True).check()
+        expect(self.page.locator('.meet-slots button')).to_have_count(0)
+        self.page.get_by_role('button',name='Найти свободное время').click()
+        expect(self.page.locator('.meet-slots button')).to_have_count(1)
+        self.page.get_by_label('Продолжительность, минут').fill('90')
+        expect(self.page.locator('.meet-slots button')).to_have_count(0)
+        self.page.get_by_role('button',name='3 · Протокол').click()
+        self.page.get_by_role('button',name='1 · Подготовка').click()
+        expect(self.page.get_by_label('Пётр',exact=True)).to_be_checked()
+        self.page.get_by_role('button',name='Найти свободное время').click()
+        expect(self.page.locator('.meet-slots button')).to_have_count(1)
+        body=[b for _,path,b in self.api.calls if path=='/calendar/slots'][-1]
+        self.assertIn(2,body['participant_ids'])
+        self.assertEqual(body['duration_minutes'],90)
+
+    def test_delayed_calendar_slots_do_not_reintroduce_stale_choices(self):
+        pending=[]
+        self.page.route('**/api/meet/calendar/slots',lambda route:pending.append(route))
+        self.meetings()
+        self.page.get_by_role('button',name='Загрузить участников').click()
+        self.page.get_by_label('Начало поиска').fill('2026-11-18T09:00')
+        self.page.get_by_label('Конец поиска').fill('2026-11-19T18:00')
+        self.page.get_by_role('button',name='Найти свободное время').click()
+        expect(self.page.get_by_role('button',name='Выполняется…',exact=True)).to_be_visible()
+        self.page.get_by_label('Продолжительность, минут').fill('90')
+        status,result=self.api.respond('POST','/calendar/slots',pending[0].request.post_data_json)
+        pending[0].fulfill(status=status,json=result)
+        expect(self.page.get_by_role('button',name='Найти свободное время')).to_be_enabled()
+        expect(self.page.locator('.meet-slots button')).to_have_count(0)
+
+    def test_logout_waits_before_allowing_new_login(self):
+        pending=[]
+        self.page.route('**/api/meet/logout',lambda route:pending.append(route))
+        self.page.get_by_role('button',name='Выйти',exact=True).click()
+        expect(self.page.get_by_role('button',name='Войти',exact=True)).to_be_disabled()
+        self.assertEqual(len(pending),1)
+        self.assertEqual(self.api.count('/login'),0)
+        self.api.user=None
+        pending[0].fulfill(status=200,json={})
+        expect(self.page.get_by_role('button',name='Войти',exact=True)).to_be_enabled()
+
+    def test_calendar_confirm_success_is_not_retried_when_refresh_fails(self):
+        self.slots()
+        self.api.errors['/meetings/1']=503
+        self.page.get_by_role('button',name='Подтвердить',exact=True).click()
+        expect(self.page.get_by_role('dialog')).to_have_count(0)
+        expect(self.page.locator('#notice')).to_contain_text('Встреча назначена')
+        del self.api.errors['/meetings/1']
+        self.page.get_by_role('button',name='Повторить',exact=True).click()
+        expect(self.page.locator('#notice')).to_be_hidden()
+        self.assertEqual(self.api.count('/calendar/confirm'),1)
+
+    def test_search_only_latest_query_can_update_results(self):
+        pending=[]
+        self.page.route('**/api/meet/search?**',lambda route:pending.append(route))
+        search=self.page.get_by_role('searchbox',name='Поиск по документам')
+        search.fill('первый'); self.page.get_by_role('button',name='Найти',exact=True).click()
+        search.fill('второй'); self.page.get_by_role('button',name='Найти',exact=True).click()
+        self.assertEqual(len(pending),2)
+        pending[1].fulfill(status=200,json={'results':[{'id':'F2','document_title':'Второй источник','text':'Второй ответ'}]})
+        expect(self.page.get_by_role('heading',name='Второй источник',exact=True)).to_be_visible()
+        pending[0].fulfill(status=200,json={'results':[{'id':'F1','document_title':'Первый источник','text':'Первый ответ'}]})
+        # A task on the page yields to the fetch continuation before checking the settled DOM.
+        self.page.get_by_role('button',name='Встречи',exact=True).focus()
+        expect(self.page.get_by_role('heading',name='Второй источник',exact=True)).to_be_visible()
+        expect(self.page.get_by_role('heading',name='Первый источник',exact=True)).to_have_count(0)
+
+    def test_source_title_is_removed_on_logout(self):
+        self.ask()
+        expect(self.page.get_by_role('heading',name='Ответ с источниками')).to_be_visible()
+        self.page.locator('.claim-item .citation-chip').click()
+        expect(self.page.locator('#source-title')).to_have_text('План запуска')
+        self.page.keyboard.press('Escape')
+        self.page.get_by_role('button',name='Выйти',exact=True).click()
+        expect(self.page.get_by_role('button',name='Войти',exact=True)).to_be_enabled()
+        expect(self.page.locator('#source-title')).to_have_text('Цитата')
+
+    def test_protocol_live_warnings_selection_and_exact_preview(self):
+        self.api.items[0].update(due_text='до согласования',due_status='stated')
+        self.meetings(); self.page.get_by_role('button',name='3 · Протокол').click()
+        first=self.page.locator('[data-item-id="10"]')
+        first.get_by_label('Ответственный',exact=True).fill('Анна')
+        expect(first.locator('.warning-badge.red')).to_have_count(0)
+        first.get_by_label('Срок',exact=True).fill('2026-11-25')
+        expect(first.get_by_label('Срок словами')).to_have_value('')
+        expect(first.get_by_text('Срок: до согласования',exact=False)).to_be_hidden()
+        first.get_by_label('Выбрать').check()
+        self.page.get_by_role('button',name='2 · Материалы').click()
+        self.page.get_by_role('button',name='3 · Протокол').click()
+        expect(self.page.locator('[data-item-id="10"]').get_by_label('Выбрать')).to_be_checked()
+        self.page.get_by_role('button',name='Подтвердить выбранные',exact=True).click()
+        expect(self.page.get_by_role('dialog')).to_contain_text('Анна')
+        expect(self.page.get_by_role('dialog')).not_to_contain_text('до согласования')
+        self.page.get_by_role('button',name='Подтвердить',exact=True).click()
+        expect(self.page.get_by_role('dialog')).to_have_count(0)
+        body=next(b for m,p,b in self.api.calls if m=='PUT' and p=='/meetings/1/protocol')
+        sent=next(item for item in body['items'] if item['id']==10)
+        self.assertEqual(sent['due'],'2026-11-25')
+        self.assertIsNone(sent['due_text'])
+
+    def test_empty_protocol_item_does_not_open_confirmation_or_write(self):
+        self.meetings(); self.page.get_by_role('button',name='3 · Протокол').click()
+        first=self.page.locator('[data-item-id="10"]')
+        first.get_by_label('Формулировка').fill('   ')
+        first.get_by_label('Выбрать').check()
+        self.page.get_by_role('button',name='Подтвердить выбранные',exact=True).click()
+        expect(self.page.get_by_role('dialog')).to_have_count(0)
+        expect(self.page.locator('#notice')).to_contain_text('Заполните формулировку')
+        self.assertEqual(self.api.count('/meetings/1/protocol'),0)
+        expect(first.get_by_label('Формулировка')).to_be_focused()
+
+    def test_proposal_outcome_badge_tracks_edit_immediately(self):
+        self.api.items[0].update(kind='proposal',outcome='rejected')
+        self.meetings(); self.page.get_by_role('button',name='3 · Протокол').click()
+        first=self.page.locator('[data-item-id="10"]')
+        expect(first.locator('.outcome-badge')).to_have_text('Отклонено')
+        first.get_by_label('Исход предложения').select_option('accepted')
+        expect(first.locator('.outcome-badge')).to_have_text('Принято')
+        first.get_by_label('Исход предложения').select_option('')
+        expect(first.locator('.outcome-badge')).to_have_text('Исход не указан')
+
+    def test_custom_speaker_name_draft_survives_tab_change(self):
+        self.meetings(); self.page.get_by_role('button',name='2 · Материалы').click()
+        self.page.get_by_label('Имя для Говорящий 1',exact=True).select_option('__custom__')
+        self.page.get_by_label('Другое имя для Говорящий 1',exact=True).fill('Новый участник')
+        self.page.get_by_role('button',name='3 · Протокол').click()
+        self.page.get_by_role('button',name='2 · Материалы').click()
+        expect(self.page.get_by_label('Имя для Говорящий 1',exact=True)).to_have_value('__custom__')
+        expect(self.page.get_by_label('Другое имя для Говорящий 1',exact=True)).to_be_visible()
+        expect(self.page.get_by_label('Другое имя для Говорящий 1',exact=True)).to_have_value('Новый участник')
+
+    def test_calendar_preview_cannot_open_after_leaving_meeting(self):
+        pending=[]
+        self.page.route('**/api/meet/calendar/preview',lambda route:pending.append(route))
+        self.meetings()
+        self.page.get_by_role('button',name='Загрузить участников').click()
+        self.page.get_by_label('Начало поиска').fill('2026-11-18T09:00')
+        self.page.get_by_label('Конец поиска').fill('2026-11-19T18:00')
+        self.page.get_by_role('button',name='Найти свободное время').click()
+        self.page.locator('.meet-slots button').first.click()
+        self.page.get_by_role('button',name='Задачи',exact=True).click()
+        expect(self.page.get_by_role('button',name='Изменить задачу')).to_be_visible()
+        status,result=self.api.respond('POST','/calendar/preview',pending[0].request.post_data_json)
+        with self.page.expect_response(lambda r:r.url.endswith('/confirmations/cf_calendar/cancel')):
+            pending[0].fulfill(status=status,json=result)
+        expect(self.page.get_by_role('dialog')).to_have_count(0)
+        self.assertEqual(self.api.count('/calendar/confirm'),0)
+
+    def test_delayed_meeting_does_not_override_task_navigation(self):
+        pending=[]
+        self.page.route('**/api/meet/meetings/1',lambda route:pending.append(route))
+        self.page.get_by_role('button',name='Встречи',exact=True).click()
+        self.page.get_by_role('button',name='Открыть встречу',exact=True).click()
+        self.page.get_by_role('button',name='Задачи',exact=True).click()
+        expect(self.page.get_by_role('button',name='Изменить задачу')).to_be_visible()
+        status,result=self.api.respond('GET','/meetings/1',None)
+        pending[0].fulfill(status=status,json=result)
+        self.page.get_by_role('button',name='Встречи',exact=True).focus()
+        expect(self.page.get_by_role('button',name='Изменить задачу')).to_be_visible()
+        expect(self.page.get_by_role('heading',name='Параметры и свободное время')).to_have_count(0)

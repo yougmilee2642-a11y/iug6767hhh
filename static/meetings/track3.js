@@ -44,6 +44,7 @@ export function track3UI(h) {
     qaBusy = false;
     if (!keepDrafts) { calendarDrafts = new Map(); taskDrafts = new Map(); }
     activeDialog?.close();
+    activeDialog?.remove();
     activeDialog = null;
   }
 
@@ -57,6 +58,7 @@ export function track3UI(h) {
   function dialog(title, content, confirmAction, cancelAction, confirmLabel = 'Подтвердить', returnFocus = document.activeElement) {
     if (activeDialog?.open) return;
     const origin = returnFocus;
+    const openedGeneration = generation;
     const modal = node('dialog', 'meet-preview');
     const id = `preview-${key()}`;
     modal.setAttribute('aria-labelledby', id);
@@ -67,27 +69,33 @@ export function track3UI(h) {
     let committed = false;
     const cancel = button('Отмена', () => modal.close());
     const confirm = button(confirmLabel, async () => {
-      if (busy) return;
+      if (busy || generation !== openedGeneration) return;
       busy = true; cancel.disabled = confirm.disabled = true;
       error.textContent = '';
+      const controls = [...content.querySelectorAll('input, textarea, select')].map((control) => [control, control.disabled]);
+      controls.forEach(([control]) => { control.disabled = true; });
       try {
         await confirmAction(); committed = true; modal.close();
       } catch (e) {
         if (e.code !== 'stale_session') error.textContent = e.message;
       } finally {
         busy = false; cancel.disabled = confirm.disabled = false;
+        controls.forEach(([control, disabled]) => { control.disabled = disabled; });
       }
     }, 'primary-button');
     actions.append(cancel, confirm);
     modal.append(label, content, error, actions);
     modal.addEventListener('cancel', (event) => { if (busy) event.preventDefault(); });
     modal.addEventListener('close', () => {
-      if (!committed && cancelAction) void cancelAction().catch((e) => {
-        if (state.user) showNotice(`Предпросмотр закрыт. ${e.message}`);
+      if (generation === openedGeneration && !committed && cancelAction) void cancelAction().catch((e) => {
+        if (state.user && generation === openedGeneration) showNotice(`Предпросмотр закрыт. ${e.message}`);
       });
-      h.markSaved(modal);
+      if (generation === openedGeneration) h.markSaved(modal);
       modal.remove(); if (activeDialog === modal) activeDialog = null;
-      if (origin?.isConnected) origin.focus();
+      if (generation === openedGeneration) {
+        const target = origin?.isConnected ? origin : document.querySelector('#app h1');
+        if (target) { if (target.tagName === 'H1') target.tabIndex = -1; target.focus(); }
+      }
     }, { once: true });
     document.body.append(modal); activeDialog = modal; modal.showModal(); cancel.focus();
     return modal;
@@ -261,12 +269,17 @@ export function track3UI(h) {
     edit.addEventListener('submit', async (event) => {
       event.preventDefault();
       await run(save, async () => {
+        const acknowledge = h.draftCheckpoint(edit);
+        const sent = { topic: topic.input.value, people: people.input.value };
         const result = await request(`/meetings/${meetingId}`, { method: 'PATCH', body: {
-          topic: topic.input.value.trim(), participants: people.input.value.split(/[\n,;]+/).map((v) => v.trim()).filter(Boolean),
+          topic: sent.topic.trim(), participants: sent.people.split(/[\n,;]+/).map((v) => v.trim()).filter(Boolean),
         } });
         if (state.meetingData?.meeting?.id === meetingId) state.meetingData.meeting = result.meeting;
-        h.markSaved(edit);
-        const draft = calendarDrafts.get(calendarKey) || {}; delete draft.topic; delete draft.people; calendarDrafts.set(calendarKey, draft);
+        state.meetings = state.meetings.map((item) => String(item.id) === String(meetingId) ? result.meeting : item);
+        acknowledge();
+        const draft = calendarDrafts.get(calendarKey) || {};
+        for (const field of ['topic', 'people']) if (draft[field] === sent[field]) delete draft[field];
+        calendarDrafts.set(calendarKey, draft);
         if (state.page === 'meeting' && state.meetingData?.meeting?.id === meetingId) render();
         toast('Параметры сохранены');
       });
@@ -278,28 +291,49 @@ export function track3UI(h) {
     const end = input({ label: 'Конец поиска (дата и время в зоне)', type: 'datetime-local', value: saved.end || '', required: true });
     const duration = input({ label: 'Продолжительность, минут', type: 'number', value: saved.duration || 60, required: true });
     duration.input.min = 15; duration.input.max = 540; duration.input.step = 15;
+    let revision = 0;
+    const viewGeneration = generation;
     const participants = node('fieldset', 'access-users'); participants.append(node('legend', '', 'Календарные участники из тестового справочника'));
     const load = button('Загрузить участников', async () => {
       await run(load, async () => {
         const result = await request('/calendar/participants');
-        participants.replaceChildren(node('legend', '', 'Календарные участники'));
-        for (const person of result.participants || []) {
-          const label = node('label', 'check-label'); const box = node('input'); box.type = 'checkbox'; box.value = person.id;
-          box.checked = saved.participantIds?.includes(String(person.id)) || person.id === state.user.id;
-          label.append(box, node('span', '', person.name)); participants.append(label);
-        }
+        if (viewGeneration !== generation) return;
+        calendarDrafts.set(calendarKey, { ...calendarDrafts.get(calendarKey), directory: result.participants || [] });
+        renderParticipants(result.participants || []);
       });
     });
     participants.append(load);
-    const search = button('Найти свободное время', null, 'secondary-button', 'submit'); search.disabled = !can('calendar.view');
+    const search = button('Найти свободное время', null, 'secondary-button', 'submit');
+    search.disabled = !can('calendar.view') || !saved.directory;
     form.append(zone.wrap, start.wrap, end.wrap, duration.wrap, participants, search);
     const slots = node('div', 'meet-slots'); slots.setAttribute('aria-live', 'polite');
     const rememberRange = () => calendarDrafts.set(calendarKey, { ...calendarDrafts.get(calendarKey), zone: zone.input.value,
       start: start.input.value, end: end.input.value, duration: duration.input.value,
       participantIds: [...participants.querySelectorAll('input:checked')].map((box) => box.value) });
-    form.addEventListener('input', rememberRange);
+    function renderParticipants(directory) {
+      const selected = calendarDrafts.get(calendarKey)?.participantIds;
+      participants.replaceChildren(node('legend', '', 'Календарные участники'));
+      participants.append(node('p', 'task-meta', 'Организатор включён в приглашение автоматически.'));
+      for (const person of directory) {
+        const label = node('label', 'check-label'); const box = node('input'); box.type = 'checkbox'; box.value = person.id;
+        const organizer = String(person.id) === String(state.user?.id);
+        box.checked = organizer || Boolean(selected?.includes(String(person.id)));
+        box.disabled = organizer;
+        label.append(box, node('span', '', person.name)); participants.append(label);
+      }
+      search.disabled = !can('calendar.view');
+      rememberRange();
+    }
+    if (saved.directory) renderParticipants(saved.directory);
+    form.addEventListener('input', () => {
+      rememberRange(); revision++;
+      slots.replaceChildren(node('p', 'muted-copy', 'Параметры изменились. Подберите свободное время заново.'));
+    });
     form.addEventListener('submit', async (event) => {
-      event.preventDefault(); rememberRange();
+      event.preventDefault();
+      if (search.disabled) return;
+      rememberRange();
+      const searchedRevision = revision;
       await run(search, async () => {
         const body = {
           timezone: zone.input.value.trim(), range_start: zonedISO(start.input.value, zone.input.value.trim()),
@@ -310,10 +344,12 @@ export function track3UI(h) {
         let result;
         try { result = await request('/calendar/slots', { method: 'POST', body }); }
         catch (e) { slots.replaceChildren(node('p', 'inline-error', 'Не удалось подобрать время. Измените параметры или повторите поиск.')); throw e; }
+        if (!form.isConnected || searchedRevision !== revision || viewGeneration !== generation) return;
         slots.replaceChildren(node('p', 'muted-copy', `Тестовый календарь · зона ${result.timezone} · ${(result.participants || []).map((p) => p.name).join(', ')}`));
         if (!result.slots?.length) slots.append(node('p', '', 'Свободных слотов нет. Измените диапазон или состав участников.'));
         for (const slot of result.slots || []) {
           const choose = button(`${formatTime(slot.start_at, result.timezone)} — ${formatTime(slot.end_at, result.timezone)}`, async () => {
+            if (searchedRevision !== revision) return;
             await run(choose, async () => {
               let preview;
               try { preview = await request('/calendar/preview', { method: 'POST', body: {
@@ -323,13 +359,21 @@ export function track3UI(h) {
                 if (e.status === 409) slots.replaceChildren(node('p', 'gap-state', `${e.message} Введённые параметры сохранены.`), button('Обновить слоты', () => form.requestSubmit()));
                 throw e;
               }
+              if (!form.isConnected || searchedRevision !== revision || viewGeneration !== generation) {
+                if (viewGeneration === generation) await cancelConfirmation(preview.confirmation_id);
+                return;
+              }
               const content = calendarPreview(preview);
               const idempotencyKey = key();
               dialog('Проверить встречу и приглашения', content, async () => {
                 try {
                   await request('/calendar/confirm', { method: 'POST', body: { confirmation_id: preview.confirmation_id, idempotency_key: idempotencyKey } });
                   toast('Встреча назначена. Тестовые приглашения сохранены в локальной очереди.');
-                  h.markSaved(form); await h.refreshMeeting();
+                  h.markSaved(form);
+                  try { await h.refreshMeeting(meetingId); }
+                  catch (e) {
+                    if (viewGeneration === generation && state.user) showNotice('Встреча назначена. Не удалось обновить данные; повторите загрузку.', () => run(null, () => h.refreshMeeting(meetingId)));
+                  }
                 } catch (e) {
                   if (e.status === 409) {
                     content.append(button('Обновить слоты', () => { activeDialog?.close(); form.requestSubmit(); }));
@@ -365,6 +409,7 @@ export function track3UI(h) {
 
   function editTask(task, collection, meetingOnly) {
     const origin = document.activeElement;
+    const viewGeneration = generation;
     const draftKey = `${state.user.id}/${task.id}`;
     const draft = taskDrafts.get(draftKey) || task;
     const form = node('form', 'meet-form-grid');
@@ -373,18 +418,22 @@ export function track3UI(h) {
     const assignee = input({ label: 'Ответственный', value: draft.assignee || '' });
     const due = input({ label: 'Срок', type: 'date', value: draft.due || '' });
     form.append(node('p', '', task.text), field('Статус задачи', status), assignee.wrap, due.wrap);
+    if (!task.due && task.due_text) form.append(node('p', 'task-meta', `Срок словами: ${task.due_text}. Он сохраняется, если не назначать новую дату.`));
     form.addEventListener('input', () => taskDrafts.set(draftKey, {status: status.value, assignee: assignee.input.value, due: due.input.value}));
     const editor = dialog('Изменить подтверждённую задачу', form, async () => {
-      const result = await request(`/tasks/${task.id}/preview`, { method: 'POST', body: { changes: {
-        status: status.value, assignee: assignee.input.value.trim() || null, due: due.input.value || null,
-      } } });
+      const values = { status: status.value, assignee: assignee.input.value.trim() || null, due: due.input.value || null };
+      const changes = Object.fromEntries(Object.entries(values).filter(([field, value]) => value !== (task[field] || null)));
+      if (!Object.keys(changes).length) throw new Error('Изменений нет. Измените статус, исполнителя или срок перед предпросмотром.');
+      const result = await request(`/tasks/${task.id}/preview`, { method: 'POST', body: { changes } });
       editor.close();
       // Wait for the editor close event before opening the next modal.
       editor.addEventListener('close', () => {
+        if (generation !== viewGeneration || !state.user) return;
         const content = node('div'); content.append(node('p', '', result.preview.text));
         const names = { status: 'Статус', assignee: 'Ответственный', due: 'Срок' };
         const statuses = { open: 'Открыта', in_progress: 'В работе', done: 'Готова' };
         for (const [name, label] of Object.entries(names)) content.append(node('p', '', `${label}: ${statuses[result.preview.before[name]] || result.preview.before[name] || 'Не указан'} → ${statuses[result.preview.after[name]] || result.preview.after[name] || 'Не указан'}`));
+        if (!Object.hasOwn(changes, 'due') && task.due_text) content.append(node('p', 'task-meta', `Срок словами сохраняется: ${task.due_text}`));
         const idempotencyKey = key();
         const previewDialog = dialog('Подтвердить изменение задачи', content, async () => {
           const changed = await request(`/tasks/${task.id}/confirm`, { method: 'POST', body: { confirmation_id: result.confirmation_id, idempotency_key: idempotencyKey } });

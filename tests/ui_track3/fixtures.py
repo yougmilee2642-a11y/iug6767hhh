@@ -14,6 +14,7 @@ TASK = dict(id=1, text='Подготовить план', assignee=None, assigne
 class FixtureAPI:
     def __init__(self):
         self.user = 'irina'
+        self.meeting = deepcopy(MEETING)
         self.calls = []
         self.errors = {}
         self.task = deepcopy(TASK)
@@ -45,17 +46,20 @@ class FixtureAPI:
         if path == '/me': return 200, self.me()
         if path == '/users': return 200, {'users': [{'id':1,'name':'Ирина'}, {'id':2,'name':'Пётр'}]}
         if path == '/documents': return 200, {'documents': [dict(id=1, title='План запуска', created_at=NOW, filename='plan.txt')]}
-        if path == '/meetings' and method == 'GET': return 200, {'meetings': [dict(MEETING, title=MEETING['title'] if self.user == 'irina' else 'Синк Петра')]}
-        if path == '/meetings' and method == 'POST': return 200, {'meeting': dict(MEETING, **body)}
-        if path == '/meetings/1' and method == 'PATCH': MEETING.update(body); return 200, {'meeting': MEETING}
-        if path == '/meetings/1': return 200, dict(meeting=MEETING, documents=[], utterances=[dict(id='U1',idx=1,speaker='Ирина',text=QUOTE['text'],meeting_id=1)], tasks=[self.task] if self.confirmed else [], prep=dict(status='ok',brief=[],agenda=[],questions=[],open_tasks=[self.task],task_questions=[]), protocol=dict(items=self.items, summary=[dict(text='Подготовка плана', status='verified', quotes=[QUOTE])],warnings=[]))
+        if path == '/meetings' and method == 'GET': return 200, {'meetings': [dict(self.meeting, title=self.meeting['title'] if self.user == 'irina' else 'Синк Петра')]}
+        if path == '/meetings' and method == 'POST': return 200, {'meeting': dict(self.meeting, **body)}
+        if path == '/meetings/1' and method == 'PATCH': self.meeting.update(body); return 200, {'meeting': self.meeting}
+        if path == '/meetings/1': return 200, dict(meeting=self.meeting, documents=[], utterances=[dict(id='U1',idx=1,speaker='Ирина',speaker_label='Говорящий 1',text=QUOTE['text'],meeting_id=1)], tasks=[self.task] if self.confirmed else [], prep=dict(status='ok',brief=[],agenda=[],questions=[],open_tasks=[self.task],task_questions=[]), protocol=dict(items=self.items, summary=[dict(text='Подготовка плана', status='verified', quotes=[QUOTE])],warnings=[]))
         if path == '/tasks': return 200, {'tasks': [self.task]}
         if path == '/tasks/1/preview':
             changes = body['changes']
             self.due_changed = changes
             before = {k:self.task.get(k) for k in ['status','assignee','due']}
             return 200, dict(confirmation_id='cf_task', preview=dict(text=self.task['text'], before=before, after={**before, **changes},changes={}))
-        if path == '/tasks/1/confirm': self.task.update(self.due_changed); return 200, {'task':self.task}
+        if path == '/tasks/1/confirm':
+            self.task.update(self.due_changed)
+            if 'due' in self.due_changed: self.task['due_text'] = None
+            return 200, {'task':self.task}
         if path.startswith('/confirmations/'): return 200, {}
         if path == '/meetings/1/protocol' and method == 'PUT':
             self.items = [{**old, **next(i for i in body['items'] if i['id']==old['id'])} for old in self.items]
@@ -71,10 +75,10 @@ class FixtureAPI:
             return 200, dict(answer_id=1,status='insufficient_data' if self.qa_empty else 'grounded',claims=[] if self.qa_empty else [dict(text=claim,sources=[SOURCE])],sources=[] if self.qa_empty else [SOURCE],answer='UNVERIFIED ANSWER MUST NOT APPEAR',generated_at=NOW)
         if path == '/feedback': return 200, {'feedback_id': 1}
         if path == '/fragments/F1': return 200, {'fragment': dict(id='F1',text=SOURCE['quote'],document_title=SOURCE['title'],document_id=1,location='Абзац 1')}
-        if path == '/utterances/U1': return 200, dict(utterance=dict(id='U1',idx=1,speaker='Ирина',text=QUOTE['text'],meeting_id=1),meeting_title=MEETING['title'])
+        if path == '/utterances/U1': return 200, dict(utterance=dict(id='U1',idx=1,speaker='Ирина',speaker_label='Говорящий 1',text=QUOTE['text'],meeting_id=1),meeting_title=self.meeting['title'])
         if path == '/calendar/participants': return 200, dict(participants=[dict(id=1,name='Ирина'),dict(id=2,name='Пётр')])
         if path == '/calendar/slots': return 200, dict(slots=[dict(start_at='2026-11-18T06:00:00+00:00',end_at='2026-11-18T07:00:00+00:00')],timezone=body['timezone'],participants=[dict(id=1,name='Ирина')],provider='mock')
-        if path == '/calendar/preview': return 200, dict(confirmation_id='cf_calendar',expires_at=NOW,preview=dict(title=MEETING['title'],start_at='2026-11-18T06:00:00+00:00',end_at='2026-11-18T07:00:00+00:00',timezone='Europe/Minsk',participants=[dict(id=1,name='Ирина')],invitations=[dict(recipient_name='Ирина',subject='Тестовое приглашение',body='Локальная очередь')],warnings=[],provider='mock'))
+        if path == '/calendar/preview': return 200, dict(confirmation_id='cf_calendar',expires_at=NOW,preview=dict(title=self.meeting['title'],start_at='2026-11-18T06:00:00+00:00',end_at='2026-11-18T07:00:00+00:00',timezone='Europe/Minsk',participants=[dict(id=1,name='Ирина')],invitations=[dict(recipient_name='Ирина',subject='Тестовое приглашение',body='Локальная очередь')],warnings=[],provider='mock'))
         if path == '/calendar/confirm':
             if self.conflict: return 409, dict(code='slot_taken',detail='Слот уже занят')
             return 200, {}
