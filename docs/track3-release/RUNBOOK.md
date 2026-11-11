@@ -99,6 +99,18 @@ check.py защищает также import-time БД кабинета стар�
 модели — только следующий отдельный шаг. CI браузера требует доступных системных
 сокетов Chromium; в текущей среде он заблокирован до выполнения сценариев.
 
+## Проверка готовности модели без инференса
+
+```bash
+.venv-track3/bin/python scripts/track3/doctor.py --output /tmp/track3-doctor-new.json
+```
+
+Выходной .json должен быть новым. doctor читает .env этой копии (явные env имеют
+приоритет), проверяет frozen-набор, endpoint policy и только /api/version + /api/tags.
+Не создаёт БД, не скачивает модели и не вызывает /api/chat. В отчёте — наличие
+настроек, safe error type/HTTP status и этап отказа; токены и raw HTTP exceptions
+не сохраняются. metadata_ready не означает согласованное окно GPU.
+
 ## Настоящая оценка (отдельное окно)
 
 Сначала согласовать с владельцем GPU окно без других тяжёлых запросов. Флаг ниже
@@ -109,11 +121,29 @@ check.py защищает также import-time БД кабинета стар�
 .venv-track3/bin/python scripts/live_meetings_check.py --track3 --exclusive-gpu-window --output /tmp/track3-live.json
 ```
 
+Перед live-прогоном рабочее дерево должно быть чистым; отчёты хранить вне checkout
+либо использовать уже согласованный каталог артефактов. Выходной .json не должен
+существовать: каждый прогон сохраняет новое первичное наблюдение.
+
 Gold зафиксирован коммитом `9d1c2dc` до любых вызовов модели. Frozen SHA проверяются
 перед оценкой. Не перестраивать gold по выходу модели. Отчёт содержит commit,
 модель/Ollama version/digest, параметры, время, corpus SHA, исходные predictions,
 цитаты, task recall/precision, ошибки и latency. Exit 0=passed, 1=failed/review,
-2=not run. Отсутствие сервера — **не проверено**, а не успешный тест.
+2=not run, 130=interrupted. Checkpoints сохраняются после каждого контроля и вопроса. Отсутствие сервера — **не проверено**, а не успешный тест.
+
+## Браузер через настоящий HTTP
+
+```bash
+.venv-track3/bin/python scripts/track3/ui_http_check.py --output /tmp/track3-ui-new.json --artifacts /tmp/track3-ui-new
+```
+
+Оба пути новые. Обёртка запускает фактический http_smoke_server.py Codex 1 и его
+http_browser_smoke.py без перехвата browser routes. Временная БД изолирована;
+сервер завершается в finally. Проверяется UI/API, включая настоящий calendar 409,
+две роли, due_text и 360/768/1440 px. **Модель здесь — явно названный двойник**, что
+не является результатом Ollama. Логи, HTTP responses и screenshots сохраняются в
+artifacts; CI загружает их с семидневным сроком. Локальное ограничение Chromium
+не обходится — полный браузерный прогон выполняет разрешённый GitHub runner.
 
 ## Остановка и удаление
 
