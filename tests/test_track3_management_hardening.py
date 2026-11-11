@@ -81,3 +81,20 @@ def test_opened_sources_never_invent_or_return_invalid_source_dates(env, kind):
             connection.execute("UPDATE production_metrics SET as_of='unknown' WHERE source_id=?", (source_id,))
     response = env['irina'].get(f'/api/meet/sources/{kind}/{source_id}')
     assert response.status_code == 409 and response.json()['code'] == 'invalid_source_date'
+
+
+def test_late_correction_of_closed_period_does_not_hide_current_period(env):
+    snapshot('november-print', scope='print', values=(9, 10, 0, 10, 1, 2))
+    snapshot('november-pack', scope='pack', values=(1, 10, 0, 10, 1, 2))
+    before = env['irina'].get('/api/meet/overview', params={'as_of': '2026-11-12T10:00:00Z'}).json()
+    original_source = next(m['source']['id'] for m in before['metrics'] if m['key'] == 'on_time_orders')
+    snapshot('late-october-correction', scope='print', at='2026-11-12T09:00:00Z',
+             start='2026-10-01T00:00:00Z', end='2026-11-01T00:00:00Z', values=(99, 100, 0, 10, 1, 2))
+    response = env['irina'].get('/api/meet/overview', params={'as_of': '2026-11-12T10:00:00Z'})
+    assert response.status_code == 200, response.text
+    metric = next(m for m in response.json()['metrics'] if m['key'] == 'on_time_orders')
+    assert metric['value'] == 50
+    opened = env['irina'].get('/api/meet/sources/metric/' + metric['source']['id'])
+    assert opened.status_code == 200
+    assert {row['source_id'] for row in opened.json()['data']['snapshots']} == {'november-print', 'november-pack'}
+    assert env['irina'].get('/api/meet/sources/metric/' + original_source).status_code == 200
