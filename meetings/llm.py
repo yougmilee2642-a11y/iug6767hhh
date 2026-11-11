@@ -1,11 +1,14 @@
-"""Loopback-only local LLM client for meetings. No cloud fallback, ever."""
+"""Meetings LLM: loopback by default, or the shared authenticated gateway policy.
+
+Remote inference runs on the gateway host, not on the browser user's computer.
+"""
 import json
 import os
-from urllib.parse import urlsplit
 
 import httpx
 
 from providers.local_settings import LocalAIError
+from providers import ollama
 
 
 class MeetingLLM:
@@ -13,18 +16,23 @@ class MeetingLLM:
         self.transport = transport
         self.model = model or os.getenv('MEETINGS_MODEL') or 'qwen2.5:7b'
 
-    def _base(self):
-        base = os.getenv('OLLAMA_BASE_URL', 'http://127.0.0.1:11434').rstrip('/')
-        parsed = urlsplit(base)
-        if (parsed.scheme != 'http' or parsed.hostname not in {'127.0.0.1', 'localhost', '::1'}
-                or parsed.username or parsed.password or parsed.path):
-            raise LocalAIError('unavailable')
-        if self.model.endswith(':cloud') or '-cloud' in self.model:
+    def _target(self):
+        if ':cloud' in self.model.casefold() or '-cloud' in self.model.casefold():
             raise LocalAIError('cloud_disabled')
-        return base
+        try:
+            target = ollama.endpoint()
+        except ValueError:
+            target = None
+        if not target:
+            raise LocalAIError('unavailable')
+        return target
+
+    def _base(self):
+        # Keep the previous helper compatible; validation has one shared owner.
+        return self._target()[0]
 
     def json(self, system: str, user: str, schema: dict, predict: int = 1500) -> dict:
-        base = self._base()
+        base, headers = self._target()
         payload = {'model': self.model, 'stream': False, 'think': False, 'keep_alive': '30m', 'format': schema,
                    'messages': [{'role': 'system', 'content': system}, {'role': 'user', 'content': user}],
                    'options': {'num_ctx': int(os.getenv('MEETINGS_CONTEXT', '8192')), 'num_predict': predict,
@@ -32,10 +40,10 @@ class MeetingLLM:
         try:
             with httpx.Client(timeout=float(os.getenv('MEETINGS_TIMEOUT', '300')), transport=self.transport,
                               trust_env=False, follow_redirects=False) as client:
-                response = client.post(base + '/api/chat', json=payload)
+                response = client.post(base + '/api/chat', json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()
-            if data.get('done_reason') == 'length':
+            if not isinstance(data, dict) or data.get('done') is not True or data.get('done_reason') == 'length':
                 raise LocalAIError('invalid_reply')
             result = json.loads(data['message']['content'])
             if not isinstance(result, dict):
