@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import shutil
 import subprocess
 import sys
 import time
@@ -16,6 +17,51 @@ import time
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from scripts.track3.reporting import ReportFile
+
+
+def capture_layout_diagnostics(base, artifacts):
+    """Capture synthetic UI evidence after failure; never change its verdict or CSS."""
+    observed = {'status': 'incomplete', 'viewports': [], 'model_quality': 'not_run'}
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(
+                executable_path=shutil.which('chromium') or playwright.chromium.executable_path,
+                headless=True, args=['--no-sandbox'])
+            try:
+                context = browser.new_context(viewport={'width': 1440, 'height': 1000})
+                page = context.new_page()
+                page.set_default_timeout(10000)
+                page.set_default_navigation_timeout(15000)
+                page.goto(base + '/meetings')
+                page.get_by_label('Логин', exact=True).fill('irina')
+                page.get_by_label('Пароль', exact=True).fill('irina-demo')
+                page.get_by_role('button', name='Войти', exact=True).click()
+                page.get_by_role('heading', name='Обзор', exact=True).wait_for()
+                page.get_by_role('button', name='Встречи', exact=True).click()
+                page.get_by_role('button', name='Открыть встречу', exact=True).first.click()
+                page.get_by_role('button', name='3 · Протокол').wait_for()
+                for width in (360, 768, 1440):
+                    page.set_viewport_size({'width': width, 'height': 1000})
+                    geometry = page.evaluate("""() => ({
+                      viewport: window.innerWidth,
+                      document_width: document.documentElement.scrollWidth,
+                      overflowing: [...document.querySelectorAll('body *')].map(el => {
+                        const r = el.getBoundingClientRect();
+                        return {tag: el.tagName, class: String(el.className),
+                          left: r.left, right: r.right, width: r.width,
+                          text: (el.textContent || '').trim().slice(0, 100)};
+                      }).filter(r => r.width > 0 && (r.left < -1 || r.right > window.innerWidth + 1)).slice(0, 40)
+                    })""")
+                    observed['viewports'].append(geometry)
+                    page.screenshot(path=str(artifacts / f'failure-layout-{width}.png'), full_page=True)
+                observed['status'] = 'captured'
+            finally:
+                browser.close()
+    except Exception as error:
+        observed.update(status='diagnostic_failed', error_type=type(error).__name__)
+    (artifacts / 'layout-diagnostics.json').write_text(
+        json.dumps(observed, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
 
 def run(artifacts):
@@ -48,6 +94,7 @@ def run(artifacts):
                                     cwd=ROOT, env=env, capture_output=True, text=True, encoding='utf-8', timeout=180)
             (artifacts / 'browser.log').write_text(result.stdout + result.stderr, encoding='utf-8')
             if result.returncode:
+                capture_layout_diagnostics(env['TRACK3_SMOKE_URL'], artifacts)
                 raise RuntimeError('browser_acceptance_failed_see_artifacts')
             summary = json.loads(result.stdout.strip().splitlines()[-1])
             if summary.get('result') != 'passed' or summary.get('browser_errors'):

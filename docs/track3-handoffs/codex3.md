@@ -66,3 +66,9 @@ JS46, browser35, real HTTP49 responses/3 widths. Модельная оценка
 без torch/voice weights. reports/voice-integration-*. Новые voice-тесты работают
 на doubles, а реальный микрофон/ASR/TTS здесь NOT RUN. Последующие main-изменения
 рассматриваются отдельной поставкой.
+
+Текущий blocker voice UI: clean CI43046459529 на646bb037 подтвердил304 Python passed,
+Windows/JS/UI-fixtures/product HTTP passed, но реальный browser→HTTP упал на
+root horizontal overflow360px (http_browser_smoke.py:105). Автору #9 отправлены
+точный SHA/команда/trace. Assertions и foreign CSS/JS не ослаблялись. Harness теперь
+сохраняет screenshot/DOM geometry после failed, не превращая его в passed.
