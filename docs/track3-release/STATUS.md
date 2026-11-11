@@ -124,3 +124,12 @@ Remote gateway обрабатывает данные на машине хост�
 production deployment, encrypted-at-rest, настоящая почта и автоматическая
 диаризация не входят в выпуск. Обязательный NOT RUN или неразрешённый failed
 блокирует готовность по docs/track3-team/README.md.
+
+
+На проверенном коде `be1fd6b` диагностический прогон43048167863 подтвердил:
+**360px viewport →371px document**. Account row right370.765625px, logout-button
+right370.765625px. При768/1440 root width совпадает с viewport.
+reports/voice-layout-diagnostics.json содержит геометрию и SHA артефакта со
+скриншотами; диагностика успешно выполнилась, итог UI acceptance остаётся FAILED.
+Владельцу #9 переданы конкретные элементы/размеры. Последний отчётный commit меняет
+только документацию; product/scorer/harness/workflow идентичны проверенному be1fd6b.
