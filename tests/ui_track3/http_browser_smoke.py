@@ -47,6 +47,7 @@ with sync_playwright() as p:
     page.get_by_role('button',name='Встречи',exact=True).click();page.get_by_role('button',name='Открыть встречу',exact=True).click()
     page.get_by_role('button',name='3 · Протокол').click()
     page.locator('.protocol-item').get_by_label('Ответственный',exact=True).fill('Анна')
+    page.locator('.protocol-item').get_by_label('Срок словами',exact=True).fill('после согласования')
     page.locator('.protocol-item-select').check()
     page.get_by_role('button',name='Подтвердить выбранные',exact=True).click()
     expect(page.get_by_role('dialog')).to_contain_text('Анна')
@@ -61,6 +62,9 @@ with sync_playwright() as p:
     page.get_by_role('button',name='Подтвердить',exact=True).click()
     expect(page.get_by_role('dialog')).to_have_count(0)
     expect(page.locator('.task-in_progress .task-card')).to_have_count(1)
+    expect(page.locator('.task-in_progress .task-card')).to_contain_text('после согласования')
+    stored=context.request.get(base+'/api/meet/tasks').json()['tasks'][0]
+    assert stored['due_text']=='после согласования',stored
     page.get_by_role('button',name='1 · Подготовка').click()
     page.get_by_label('Начало поиска').fill(f'{slot_day}T09:00')
     page.get_by_label('Конец поиска').fill(f'{slot_day + timedelta(days=1)}T18:00')
@@ -71,9 +75,31 @@ with sync_playwright() as p:
     expect(page.get_by_role('dialog')).to_contain_text('Europe/Minsk')
     page.keyboard.press('Escape')
     assert not any(path=='/api/meet/calendar/confirm' for _,path,_ in responses)
+    with page.expect_response(lambda r:r.url.endswith('/api/meet/calendar/preview')) as pending_preview:
+        page.locator('.meet-slots button').first.click()
+    preview=pending_preview.value.json()['preview']
+    # Another confirmation takes the slot after this browser has reviewed it.
+    rival=context.request.post(base+'/api/meet/calendar/preview',data={
+        'meeting_id':1,'participant_ids':[person['id'] for person in preview['participants']],
+        'start_at':preview['start_at'],'duration_minutes':preview['duration_minutes'],'timezone':preview['timezone']})
+    assert rival.status==200,rival.text()
+    token=rival.json()['confirmation_id']
+    rival_confirm=context.request.post(base+'/api/meet/calendar/confirm',data={
+        'confirmation_id':token,'idempotency_key':'http-smoke-rival-confirmation'})
+    assert rival_confirm.status==200,rival_confirm.text()
+    with page.expect_response(lambda r:r.url.endswith('/api/meet/calendar/confirm')) as conflict:
+        page.get_by_role('button',name='Подтвердить',exact=True).click()
+    assert conflict.value.status==409
+    expect(page.get_by_role('dialog')).to_contain_text('Обновите слоты')
+    page.get_by_role('button',name='Обновить слоты').click()
+    expect(page.get_by_label('Начало поиска')).to_have_value(f'{slot_day}T09:00')
     page.locator('.meet-slots button').first.click()
-    page.get_by_role('button',name='Подтвердить',exact=True).click()
+    with page.expect_response(lambda r:r.url.endswith('/api/meet/calendar/confirm')) as accepted:
+        page.get_by_role('button',name='Подтвердить',exact=True).click()
+    assert accepted.value.status==200,accepted.value.text()
+    event=accepted.value.json()['event']
     expect(page.get_by_role('dialog')).to_have_count(0)
+    expect(page.locator('.meeting-detail-copy > .eyebrow')).to_contain_text(event['start_local'][11:16])
     for width in [360,768,1440]:
         page.set_viewport_size({'width':width,'height':1000})
         assert page.evaluate('document.documentElement.scrollWidth')<=width
@@ -94,5 +120,5 @@ with sync_playwright() as p:
     assert forbidden.status==403,forbidden.text()
     assert not errors,errors
     (artifacts/'http-responses.json').write_text(json.dumps(responses,ensure_ascii=False,indent=2))
-    print(json.dumps({'result':'passed','browser_errors':errors,'HTTP_responses':len(responses),'sizes':[360,768,1440],'model':'explicit test double; no Ollama quality claim'},ensure_ascii=False))
+    print(json.dumps({'result':'passed','browser_errors':errors,'HTTP_responses':len(responses),'sizes':[360,768,1440],'model':'explicit test double; no Ollama quality claim','real_calendar_conflict':409,'due_words_preserved':True},ensure_ascii=False))
     context.close();browser.close()

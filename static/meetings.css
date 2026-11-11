@@ -324,3 +324,6 @@ body.meetings-page {
 
 .meetings-page .meet-feedback-disclosure { margin-top: 14px; color: var(--meet-muted); font-size: 13px; }
 .meetings-page .meet-feedback-disclosure summary { cursor: pointer; }
+
+.meetings-page .protocol-body { border: 0; padding: 0; margin: 0; min-width: 0; }
+.meetings-page .protocol-body:disabled { opacity: .75; }

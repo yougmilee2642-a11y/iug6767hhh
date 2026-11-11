@@ -1,4 +1,5 @@
 import { track3UI } from './meetings/track3.js';
+import { protocolPayload } from './meetings/protocol.js';
 
 const API = '/api/meet';
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -9,6 +10,7 @@ const state = {
   capabilities: [],
   timezone: 'Europe/Minsk',
   epoch: 0,
+  authTransition: null,
   users: [],
   meetings: [],
   documents: [],
@@ -21,8 +23,11 @@ const state = {
   showCreateMeeting: false,
   searchQuery: '',
   searchResults: [],
+  searchStatus: 'idle',
+  searchError: '',
   transcriptDrafts: Object.create(null),
   protocolDrafts: Object.create(null),
+  protocolSelection: new Set(),
   voiceDrafts: Object.create(null),
   voiceCapture: null,
   nextAgenda: null,
@@ -33,8 +38,9 @@ const busyButtons = new WeakSet();
 const pendingOperations = new Set();
 let sourceSequence = 0;
 let meetingSequence = 0;
+let searchSequence = 0;
 const ui = track3UI({ node, makeButton, makeInput, makeTextarea, makeSelect, request, runAction, state,
-  dateLabel, render, openMeeting, openSource, showNotice, toast, refreshMeeting, markSaved,
+  dateLabel, render, openMeeting, openSource, showNotice, toast, refreshMeeting, markSaved, draftCheckpoint,
   navigate: setPage });
 
 function operation(button, key) {
@@ -56,10 +62,10 @@ function permit(control, capability) {
 function draftKey(control) {
   if (control.dataset.draftKey) return control.dataset.draftKey;
   if (!state.user || control.type === 'password' || control.type === 'file' || control.type === 'checkbox') return null;
-  const label = control.closest('label')?.querySelector('.field-label, .speaker-label')?.textContent;
+  const label = control.closest('label, .speaker-map-row')?.querySelector('.field-label, .speaker-label')?.textContent;
   if (!label) return null;
   const itemId = control.closest('[data-item-id]')?.dataset.itemId || control.closest('[data-utterance-id]')?.dataset.utteranceId || '';
-  const key = [state.user.id, state.page, state.meetingData?.meeting?.id || '', state.tab, itemId, label].join('|');
+  const key = [state.user.id, state.page, state.meetingData?.meeting?.id || '', state.tab, itemId, label, control.tagName].join('|');
   control.dataset.draftKey = key;
   return key;
 }
@@ -69,9 +75,17 @@ function restoreDrafts(root = document) {
     const key = draftKey(control);
     if (key && dirtyFields.has(key)) {
       control.value = dirtyFields.get(key);
-      if (control.closest('.protocol-item')) control.dispatchEvent(new Event(control.tagName === 'SELECT' ? 'change' : 'input'));
+      if (control.closest('.protocol-item') || (control.closest('.speaker-map-row') && control.tagName === 'SELECT')) control.dispatchEvent(new Event(control.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
     }
   }
+}
+
+// A response may acknowledge an older value while the user is already typing a new one.
+function draftCheckpoint(root) {
+  const sent = new Map($$('input, textarea, select', root).map((control) => [draftKey(control), control.value]));
+  return () => {
+    for (const [key, value] of sent) if (key && dirtyFields.get(key) === value) dirtyFields.delete(key);
+  };
 }
 
 function markSaved(root) {
@@ -87,10 +101,12 @@ function closeSource() {
   if (panel.open) panel.close();
   panel.hidden = true;
   $('#source-content').replaceChildren();
+  $('#source-title').textContent = 'Цитата';
 }
 
 function clearIdentity({ keepDrafts = false } = {}) {
   state.epoch++;
+  meetingSequence++; searchSequence++;
   if (state.voiceCapture) {
     state.voiceCapture.cancelled = true;
     state.voiceCapture.stream.getTracks().forEach((track) => track.stop());
@@ -103,8 +119,9 @@ function clearIdentity({ keepDrafts = false } = {}) {
   state.tasksStatus = 'idle'; state.tasksError = '';
   state.transcriptDrafts = Object.create(null);
   state.protocolDrafts = Object.create(null);
+  state.protocolSelection = new Set();
   state.voiceDrafts = Object.create(null);
-  state.searchQuery = '';
+  state.searchQuery = ''; state.searchStatus = 'idle'; state.searchError = '';
   state.showCreateMeeting = false;
   state.page = 'meetings';
   closeSource(); ui.reset({ keepDrafts });
@@ -259,7 +276,10 @@ function isModelError(error) {
 async function runAction(button, task, { model = false, label = 'Выполняется…' } = {}) {
   const operationKey = button?.dataset.operation;
   if ((button && busyButtons.has(button)) || (operationKey && pendingOperations.has(operationKey))) return false;
-  if (operationKey) pendingOperations.add(operationKey);
+  if (operationKey) {
+    pendingOperations.add(operationKey);
+    for (const group of $$('[data-operation-group]')) if (group.dataset.operationGroup === operationKey) group.disabled = true;
+  }
   if (button) busyButtons.add(button);
   const epoch = state.epoch;
   const oldLabel = button?.textContent;
@@ -285,6 +305,7 @@ async function runAction(button, task, { model = false, label = 'Выполня�
   } finally {
     if (operationKey) {
       pendingOperations.delete(operationKey);
+      for (const group of $$('[data-operation-group]')) if (group.dataset.operationGroup === operationKey) group.disabled = false;
       for (const current of $$('[data-operation]')) if (current.dataset.operation === operationKey) {
         current.disabled = false; current.textContent = current.dataset.idleLabel; current.removeAttribute('aria-busy');
       }
@@ -327,7 +348,8 @@ function updateAccount() {
 }
 
 function setPage(page) {
-  meetingSequence++;
+  if (!state.user) { render(); return; }
+  meetingSequence++; searchSequence++;
   if (state.voiceCapture?.recording) void stopVoiceCapture();
   state.page = page;
   render();
@@ -337,6 +359,7 @@ function setPage(page) {
 
 function updateNavigation() {
   for (const button of $$('.meetings-nav [data-action]')) {
+    button.disabled = !state.user;
     const page = button.dataset.action.replace('show-', '');
     const active = page === state.page || (page === 'meetings' && state.page === 'meeting');
     button.classList.toggle('nav-current', active);
@@ -382,9 +405,6 @@ function renderGlobalSearch() {
       event.preventDefault();
       const query = new FormData(form).get('q').toString().trim();
       if (!query) return;
-      if (state.voiceCapture?.recording) void stopVoiceCapture();
-      state.searchQuery = query;
-      state.page = 'search';
       void loadSearch(query);
     });
   }
@@ -401,9 +421,12 @@ function renderLogin(app) {
   const login = makeInput({ label: 'Логин', required: true, name: 'login', placeholder: 'irina или petr' });
   const password = makeInput({ label: 'Пароль', type: 'password', required: true, name: 'password', placeholder: 'Пароль демо-профиля' });
   const submit = makeButton('Войти', null, 'primary-button', 'submit');
+  submit.disabled = login.input.disabled = password.input.disabled = Boolean(state.authTransition);
+  if (state.authTransition) shell.append(node('p', 'muted-copy', 'Завершаю выход из аккаунта…'));
   form.append(login.wrap, password.wrap, submit);
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (state.authTransition) return;
     const payload = { login: login.input.value.trim(), password: password.input.value };
     await runAction(submit, async () => {
       await request('/login', { method: 'POST', body: payload });
@@ -422,6 +445,7 @@ function renderLogin(app) {
   const petr = makeButton('Пётр · petr / petr-demo', () => {
     login.input.value = 'petr'; password.input.value = 'petr-demo'; login.input.focus();
   }, 'demo-account-button');
+  irina.disabled = petr.disabled = Boolean(state.authTransition);
   demo.append(irina, petr);
   shell.append(demo);
   app.append(shell);
@@ -439,6 +463,7 @@ async function loadSignedInData() {
 }
 
 async function loginBootstrap() {
+  updateNavigation();
   $('#app').textContent = 'Загружаю рабочее пространство…';
   try { await loadSignedInData(); state.page = 'overview'; render(); }
   catch (error) {
@@ -448,9 +473,12 @@ async function loginBootstrap() {
 }
 
 async function logout() {
+  if (state.authTransition) return;
+  state.authTransition = 'logout';
   clearIdentity(); render();
   try { await request('/logout', { method: 'POST' }); }
   catch (error) { if (error.status !== 401) showNotice('Не удалось завершить сессию на сервере. Повторите выход.', logout); }
+  finally { state.authTransition = null; render(); }
 }
 
 function renderMeetings(app) {
@@ -767,9 +795,10 @@ function renderClaimGroup(parent, title, claims) {
 async function refreshMeeting(id = state.meetingData?.meeting?.id) {
   if (!id) return;
   const data = await request(`/meetings/${encodeURIComponent(id)}`);
+  state.meetings = state.meetings.map((meeting) => String(meeting.id) === String(id) ? data.meeting : meeting);
   if (String(state.meetingData?.meeting?.id) !== String(id)) return;
   state.meetingData = data;
-  renderMeetingContent();
+  if (state.page === 'meeting') render();
 }
 
 function renderMaterials(target) {
@@ -925,7 +954,7 @@ function renderSpeakerMapping() {
   const meeting = state.meetingData.meeting;
   const map = { ...(meeting.speaker_map || {}) };
   labels.forEach((label) => {
-    const row = node('label', 'speaker-map-row');
+    const row = node('div', 'speaker-map-row');
     row.append(node('span', 'speaker-label', label));
     const options = [
       { value: '', label: 'Выберите участника' },
@@ -934,8 +963,10 @@ function renderSpeakerMapping() {
     ];
     const initial = map[label] && !(meeting.participants || []).includes(map[label]) ? '__custom__' : (map[label] || '');
     const select = makeSelect(options, initial);
+    select.setAttribute('aria-label', `Имя для ${label}`);
     const custom = node('input', 'custom-speaker-name');
     custom.placeholder = 'Имя участника';
+    custom.setAttribute('aria-label', `Другое имя для ${label}`);
     custom.value = map[label] && !(meeting.participants || []).includes(map[label]) ? map[label] : '';
     custom.hidden = select.value !== '__custom__';
     select.addEventListener('change', () => { custom.hidden = select.value !== '__custom__'; });
@@ -1302,7 +1333,7 @@ function renderProtocol(target) {
     const result = await request(`/meetings/${encodeURIComponent(data.meeting.id)}/protocol/draft`, { method: 'POST' });
     data.protocol = result.protocol;
     if (String(state.meetingData?.meeting?.id) === String(data.meeting.id)) state.meetingData.protocol = result.protocol;
-    for (const item of [...(protocol?.items || []), ...(result.protocol?.items || [])]) delete state.protocolDrafts[item.id];
+    for (const item of [...(protocol?.items || []), ...(result.protocol?.items || [])]) { delete state.protocolDrafts[item.id]; state.protocolSelection.delete(String(item.id)); }
     renderMeetingContent();
   }, { model: true }));
   heading.append(copy, permit(draft, 'protocol.edit'));
@@ -1312,7 +1343,11 @@ function renderProtocol(target) {
     target.append(section);
     return;
   }
-  if ((protocol.warnings || []).length) renderStringList(section, 'Нужно проверить', protocol.warnings);
+  const body = node('fieldset', 'protocol-body');
+  body.dataset.operationGroup = draft.dataset.operation;
+  body.disabled = pendingOperations.has(draft.dataset.operation);
+  section.append(body);
+  if ((protocol.warnings || []).length) renderStringList(body, 'Нужно проверить', protocol.warnings);
   const summary = node('section', 'protocol-group');
   summary.append(node('h3', '', 'Краткое резюме'));
   if (!(protocol.summary || []).length) summary.append(node('p', 'empty-copy', 'Резюме пока нет.'));
@@ -1322,7 +1357,7 @@ function renderProtocol(target) {
     for (const quote of claim.quotes || []) row.append(citationButton(quote.utterance_id, quote.text, 'utterance'));
     summary.append(row);
   }
-  section.append(summary, ui.feedback('protocol_summary', data.meeting.id, data.meeting.id));
+  body.append(summary, ui.feedback('protocol_summary', data.meeting.id, data.meeting.id));
   const groupOrder = [
     ['decision', 'Решения'], ['proposal', 'Предложения'], ['task', 'Поручения'], ['risk', 'Риски'], ['open_question', 'Открытые вопросы'],
   ];
@@ -1332,7 +1367,7 @@ function renderProtocol(target) {
     group.append(node('h3', '', title));
     if (!items.length) group.append(node('p', 'empty-copy', 'Нет пунктов.'));
     items.forEach((item) => group.append(renderProtocolItem(item)));
-    section.append(group);
+    body.append(group);
   }
   const actions = node('div', 'protocol-actions');
   const save = makeButton('Сохранить правки', async () => {
@@ -1346,23 +1381,25 @@ function renderProtocol(target) {
   const confirm = makeButton('Подтвердить выбранные', () => {
     const selected = [...new Set($$('.protocol-item-select:checked', section).map((checkbox) => checkbox.value))];
     if (!selected.length) { toast('Выберите поручения для подтверждения'); return; }
+    if (!validateProtocolText(protocol.items)) return;
     const preview = node('div');
     preview.append(node('p', '', 'Будут созданы только выбранные поручения:'));
     for (const item of protocol.items.filter((item) => selected.includes(String(item.id)))) {
-      const d = state.protocolDrafts[item.id] || {};
-      preview.append(node('p', '', `${d.text ?? item.text} · Ответственный: ${(d.assignee ?? item.assignee)?.trim() || 'Не назван'} · Срок: ${(d.due ?? item.due) || (d.dueText ?? item.due_text) || 'Не назван'}`));
+      const effective = protocolPayload(item, state.protocolDrafts[item.id]);
+      preview.append(node('p', '', `${effective.text} · Ответственный: ${effective.assignee || 'Не назван'} · Срок: ${effective.due ? dateLabel(effective.due) : effective.due_text || 'Не назван'}`));
     }
     ui.dialog('Подтвердить выбранные поручения', preview, async () => {
       await saveProtocolEdits(data);
       const result = await request(`/meetings/${encodeURIComponent(data.meeting.id)}/protocol/confirm`, { method: 'POST', body: { item_ids: selected.map(Number) } });
       data.protocol = result.protocol;
+      selected.forEach((id) => state.protocolSelection.delete(String(id)));
       data.tasks = [...new Map([...(data.tasks || []), ...(result.created || []), ...(result.already_confirmed || [])].map((task) => [String(task.id), task])).values()];
       renderMeetingContent(); toast('Выбранные поручения подтверждены');
     });
   }, 'primary-button');
   confirm.disabled = !protocol.items?.some((item) => item.kind === 'task' && !item.confirmed);
   actions.append(permit(confirm, 'protocol.confirm'));
-  section.append(actions);
+  body.append(actions);
   target.append(section);
 }
 
@@ -1374,20 +1411,26 @@ function renderProtocolItem(item) {
   const head = node('div', 'protocol-item-head');
   const title = node('span', 'protocol-kind', item.kind === 'decision' ? 'Решение' : item.kind === 'proposal' ? 'Предложение' : item.kind === 'task' ? 'Поручение' : item.kind === 'risk' ? 'Риск' : 'Открытый вопрос');
   head.append(title);
-  const outcomeValue = draft.outcome ?? item.outcome;
-  if (item.kind === 'proposal' && outcomeValue) {
-    const outcome = { rejected: 'Отклонено', accepted: 'Принято', discussed: 'Обсуждалось' }[outcomeValue] || outcomeValue;
-    head.append(node('span', `outcome-badge outcome-${item.outcome}`, outcome));
+  const outcomeValue = protocolPayload(item, draft).outcome;
+  const outcomeBadge = node('span', 'outcome-badge');
+  function updateOutcome() {
+    const value = protocolPayload(item, drafts[item.id]).outcome;
+    outcomeBadge.className = `outcome-badge outcome-${value || 'discussed'}`;
+    outcomeBadge.textContent = { rejected: 'Отклонено', accepted: 'Принято', discussed: 'Обсуждалось' }[value] || 'Исход не указан';
   }
+  if (item.kind === 'proposal') { updateOutcome(); head.append(outcomeBadge); }
   if (item.kind === 'task' && !item.confirmed && ui.can('protocol.confirm')) {
     const selection = node('label', 'protocol-select-label');
     const checkbox = node('input', 'protocol-item-select');
     checkbox.type = 'checkbox'; checkbox.value = item.id;
+    checkbox.checked = state.protocolSelection.has(String(item.id));
+    checkbox.addEventListener('change', () => { if (checkbox.checked) state.protocolSelection.add(String(item.id)); else state.protocolSelection.delete(String(item.id)); });
     selection.append(checkbox, node('span', '', 'Выбрать'));
     head.append(selection);
   }
   card.append(head);
   const text = makeTextarea({ label: 'Формулировка', value: draft.text ?? item.text ?? '', rows: 2 });
+  text.input.required = true; text.input.maxLength = 1000;
   text.input.disabled = Boolean(item.confirmed) || !ui.can('protocol.edit');
   text.input.addEventListener('input', () => { drafts[item.id] = { ...(drafts[item.id] || {}), text: text.input.value }; });
   card.append(text.wrap);
@@ -1399,32 +1442,43 @@ function renderProtocolItem(item) {
       { value: 'rejected', label: 'Отклонено' }, { value: 'discussed', label: 'Обсуждалось' },
     ], outcomeValue || '');
     outcomeSelect.disabled = Boolean(item.confirmed) || !ui.can('protocol.edit');
-    outcomeSelect.addEventListener('change', () => { drafts[item.id] = { ...(drafts[item.id] || {}), outcome: outcomeSelect.value || null }; });
+    outcomeSelect.addEventListener('change', () => { drafts[item.id] = { ...(drafts[item.id] || {}), outcome: outcomeSelect.value || null }; updateOutcome(); });
     outcomeWrap.append(outcomeSelect);
     card.append(outcomeWrap);
   }
   const fields = node('div', 'protocol-edit-fields');
   const assignee = makeInput({ label: 'Ответственный', value: draft.assignee ?? item.assignee ?? '', placeholder: 'Имя участника' });
+  assignee.input.maxLength = 120;
   assignee.input.disabled = Boolean(item.confirmed) || !ui.can('protocol.edit');
   assignee.input.addEventListener('input', () => { drafts[item.id] = { ...(drafts[item.id] || {}), assignee: assignee.input.value }; });
   const due = makeInput({ label: 'Срок', type: 'date', value: draft.due ?? item.due ?? '' });
   due.input.disabled = Boolean(item.confirmed) || !ui.can('protocol.edit');
-  due.input.addEventListener('input', () => { drafts[item.id] = { ...(drafts[item.id] || {}), due: due.input.value }; });
+  due.input.addEventListener('input', () => {
+    const next = { ...(drafts[item.id] || {}), due: due.input.value };
+    if (due.input.value !== (item.due || '') && (!Object.hasOwn(next, 'dueText') || next.dueText === (item.due_text || ''))) {
+      next.dueText = ''; dueText.input.value = '';
+    }
+    drafts[item.id] = next;
+  });
   const dueText = makeInput({ label: 'Срок словами', value: draft.dueText ?? item.due_text ?? '', placeholder: 'Например, в течение недели' });
+  dueText.input.maxLength = 120;
   dueText.input.disabled = Boolean(item.confirmed) || !ui.can('protocol.edit');
   dueText.input.addEventListener('input', () => { drafts[item.id] = { ...(drafts[item.id] || {}), dueText: dueText.input.value }; });
   fields.append(assignee.wrap, due.wrap, dueText.wrap);
   if (item.kind === 'task') card.append(fields);
-  if (item.due_text && !due.input.value) card.append(node('p', 'task-meta', `Срок: ${item.due_text} (дата не распознана)`));
   if (item.kind === 'task') {
     const warning = node('div', 'protocol-warning-badges');
-    const assigneeUnknown = draft.assignee !== undefined ? !draft.assignee.trim() : item.assignee_status === 'unknown';
-    const dueUnknown = draft.due !== undefined
-      ? !draft.due && !(draft.dueText ?? item.due_text ?? '').trim()
-      : item.due_status === 'unknown' && !item.due_text;
-    if (assigneeUnknown) warning.append(node('span', 'warning-badge red', 'Ответственный не назван'));
-    if (dueUnknown) warning.append(node('span', 'warning-badge amber', 'Срок не назван'));
-    if (warning.childNodes.length) card.append(warning);
+    const deadline = node('p', 'task-meta');
+    function updateWarnings() {
+      const effective = protocolPayload(item, drafts[item.id]);
+      warning.replaceChildren();
+      if (!effective.assignee) warning.append(node('span', 'warning-badge red', 'Ответственный не назван'));
+      if (!effective.due && !effective.due_text) warning.append(node('span', 'warning-badge amber', 'Срок не назван'));
+      deadline.hidden = Boolean(effective.due || !effective.due_text);
+      deadline.textContent = effective.due_text ? `Срок: ${effective.due_text} (дата не распознана)` : '';
+    }
+    card.addEventListener('input', updateWarnings);
+    updateWarnings(); card.append(deadline, warning);
   }
   if ((item.quotes || []).length) {
     const quotes = node('div', 'quote-list');
@@ -1438,23 +1492,22 @@ function renderProtocolItem(item) {
   return card;
 }
 
+function validateProtocolText(items) {
+  const invalid = (items || []).find((item) => !protocolPayload(item, state.protocolDrafts[item.id]).text);
+  if (!invalid) return true;
+  showNotice('Заполните формулировку каждого пункта протокола.');
+  const card = $$('.protocol-item').find((element) => element.dataset.itemId === String(invalid.id));
+  $('textarea', card || document)?.focus();
+  return false;
+}
+
 async function saveProtocolEdits(data = state.meetingData) {
   const protocol = data.protocol;
   if (!protocol) return;
   const sentDrafts = new Map((protocol.items || []).map((item) => [item.id, state.protocolDrafts[item.id]]));
   const sentFields = new Map(dirtyFields);
-  const items = (protocol.items || []).map((item) => {
-    if (item.confirmed) return { id: item.id, kind: item.kind, text: item.text, outcome: item.outcome, assignee: item.assignee, due: item.due, due_text: item.due_text };
-    const draft = state.protocolDrafts[item.id] || {};
-    return {
-      id: item.id, kind: item.kind,
-      text: draft.text ?? item.text,
-      outcome: Object.prototype.hasOwnProperty.call(draft, 'outcome') ? draft.outcome : item.outcome,
-      assignee: (draft.assignee ?? item.assignee ?? '').trim() || null,
-      due: (draft.due ?? item.due) || null,
-      due_text: (draft.dueText ?? (draft.due ? '' : item.due_text) ?? '').trim() || null,
-    };
-  });
+  if (!validateProtocolText(protocol.items)) throw new ApiError('Заполните формулировку каждого пункта протокола.', 422, 'invalid_protocol');
+  const items = (protocol.items || []).map((item) => protocolPayload(item, state.protocolDrafts[item.id]));
   const result = await request(`/meetings/${encodeURIComponent(data.meeting.id)}/protocol`, { method: 'PUT', body: { items } });
   data.protocol = result.protocol;
   if (String(state.meetingData?.meeting?.id) === String(data.meeting.id)) state.meetingData.protocol = result.protocol;
@@ -1575,9 +1628,10 @@ function renderTaskCard(task, collection, meetingOnly) {
 }
 
 async function openTasks() {
+  if (!state.user) { render(); return; }
   if (state.tasksStatus === 'loading') { setPage('tasks'); return; }
   if (state.voiceCapture?.recording) await stopVoiceCapture();
-  state.page = 'tasks'; state.tasks = []; state.tasksStatus = 'loading'; render();
+  state.tasks = []; state.tasksStatus = 'loading'; setPage('tasks');
   try {
     const result = await request('/tasks');
     state.tasks = result.tasks || []; state.tasksStatus = 'ready';
@@ -1591,14 +1645,18 @@ async function openTasks() {
 
 async function loadSearch(query) {
   clearNotice();
+  state.searchQuery = query; state.searchResults = []; state.searchError = ''; state.searchStatus = 'loading';
+  setPage('search');
+  const sequence = ++searchSequence;
   try {
     const result = await request(`/search?q=${encodeURIComponent(query)}`);
-    state.searchResults = result.results || [];
-    render();
+    if (sequence !== searchSequence) return;
+    state.searchResults = result.results || []; state.searchStatus = 'ready';
   } catch (error) {
-    showNotice(error.message);
-    render();
+    if (sequence !== searchSequence || error.code === 'stale_session') return;
+    state.searchStatus = 'error'; state.searchError = error.message;
   }
+  if (state.page === 'search') render();
 }
 
 function renderSearchResults(app) {
@@ -1609,6 +1667,8 @@ function renderSearchResults(app) {
   copy.append(node('p', 'muted-copy', 'Цитата открывается в исходном фрагменте документа.'));
   intro.append(copy, makeButton('К встречам', () => setPage('meetings'), 'back-button'));
   app.append(intro);
+  if (state.searchStatus === 'loading') { app.append(node('p', 'muted-copy', 'Ищу в доступных документах…')); return; }
+  if (state.searchStatus === 'error') { app.append(node('p', 'inline-error', state.searchError), makeButton('Повторить поиск', () => void loadSearch(state.searchQuery))); return; }
   if (!state.searchResults.length) {
     app.append(emptyState('Ничего не найдено', 'Попробуйте изменить формулировку запроса.'));
     return;
@@ -1630,7 +1690,7 @@ $$('[data-action="show-tasks"]').forEach((button) => button.addEventListener('cl
 $$('[data-action="show-overview"]').forEach((button) => button.addEventListener('click', () => setPage('overview')));
 $$('[data-action="show-knowledge"]').forEach((button) => button.addEventListener('click', () => ui.openKnowledge()));
 $('[data-action="close-source"]').addEventListener('click', closeSource);
-$('#source-panel').addEventListener('close', () => { sourceSequence++; $('#source-panel').hidden = true; $('#source-content').replaceChildren(); });
+$('#source-panel').addEventListener('close', () => { if (!$('#source-panel').open) closeSource(); });
 document.addEventListener('input', (event) => {
   const control = event.target;
   if (!control.matches('input, textarea, select')) return;
