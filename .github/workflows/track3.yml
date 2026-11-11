@@ -51,7 +51,7 @@ jobs:
         if: always() && steps.dependencies.outcome == 'success'
         id: browser
         timeout-minutes: 5
-        run: python -m playwright install --with-deps chromium
+        run: python -m playwright install chromium
       - name: UI owner's exact browser command
         if: always() && steps.browser.outcome == 'success'
         run: python -m unittest discover -s tests/ui_track3 -p 'test_browser.py' -v
