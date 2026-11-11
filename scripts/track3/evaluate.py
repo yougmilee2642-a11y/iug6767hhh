@@ -29,7 +29,7 @@ def norm(text):
 
 
 def frozen_check():
-    hashes = json.loads((ROOT/'evaluation/track3/frozen.json').read_text())
+    hashes = json.loads((ROOT/'evaluation/track3/frozen.json').read_text(encoding='utf-8'))
     for name, digest in hashes.items():
         if hashlib.sha256((ROOT/name).read_bytes()).hexdigest() != digest:
             raise ValueError('Frozen dataset changed: '+name)
@@ -280,7 +280,7 @@ def run_evaluation(report, exclusive_window, checkpoint):
     report['model_metadata_status'] = 'observed'
     report['status'] = 'running'
     checkpoint(report)
-    gold = json.loads(GOLD.read_text())
+    gold = json.loads(GOLD.read_text(encoding='utf-8'))
     with tempfile.TemporaryDirectory(prefix='track3-live-') as temporary:
         os.environ['MEETINGS_SECRET'] = 'synthetic-live-evaluation-secret'
         from scripts.track3.seed import seed
@@ -339,7 +339,7 @@ def predictions_digest(report):
 
 
 def summarize(report):
-    gold = json.loads(GOLD.read_text())
+    gold = json.loads(GOLD.read_text(encoding='utf-8'))
     controls = {control['key']: control for control in gold['transcripts']}
     observed, issues = {}, []
     for item in report['transcripts']:

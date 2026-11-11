@@ -9,7 +9,7 @@ GOLD = ROOT / 'evaluation/track3'
 
 
 def write_json(path, obj):
-    path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + '\n', encoding='utf-8', newline='\n')
 
 
 def build():
@@ -44,7 +44,7 @@ def build():
     docs = []
     for key, kind, day, owner, access, text in records:
         filename = f'fp_{key}.txt'
-        (DEST / 'documents' / filename).write_text(f'Фотопринт | {kind}\nДата документа: {day}\n\n{text}\n', encoding='utf-8')
+        (DEST / 'documents' / filename).write_text(f'Фотопринт | {kind}\nДата документа: {day}\n\n{text}\n', encoding='utf-8', newline='\n')
         docs.append(dict(key=key, filename=filename, title=f'Фотопринт — {kind}', document_type=kind,
                          authored_at=day, uploaded_at=day+'T09:00:00+03:00', owner=owner, access=access))
     # Each control transcript contains six explicit active tasks, an excluded cancellation,
@@ -118,7 +118,7 @@ def build():
     for key, title, when, lines, tasks in transcript_data:
         transcript = '\n'.join(f'{name}: {text}' for name, text in lines) + '\n'
         filename = key+'.txt'
-        (DEST / 'transcripts' / filename).write_text(transcript, encoding='utf-8')
+        (DEST / 'transcripts' / filename).write_text(transcript, encoding='utf-8', newline='\n')
         meetings.append(dict(key=key, title='Фотопринт — '+title, scheduled_at=when, owner='irina',
                              access=[], transcript=filename, documents=[d['key'] for d in docs if d['owner']=='irina']))
         gold.append(dict(key=key, transcript_sha256=hashlib.sha256(transcript.encode()).hexdigest(),
@@ -175,7 +175,9 @@ def build():
     write_json(DEST/'manifest.json',fixture)
     write_json(GOLD/'gold.json',dict(version='photoprint-gold-v1', transcripts=gold, questions=questions,
                                   matching_policy='one-to-one + verified exact quote + frozen alternatives; uncertain needs independent human review'))
-    paths = sorted([p for p in DEST.rglob('*') if p.is_file()] + [GOLD/'gold.json'])
+    paths = sorted([DEST/'manifest.json', GOLD/'gold.json']
+                   + [DEST/'documents'/d['filename'] for d in docs]
+                   + [DEST/'transcripts'/m['transcript'] for m in meetings])
     write_json(GOLD/'frozen.json', {p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in paths})
 
 

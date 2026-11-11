@@ -17,8 +17,8 @@ def main():
     args = parser.parse_args()
     try:
         output = ReportFile(args.output)
-        report = json.loads(Path(args.report).read_text())
-        review = json.loads(Path(args.review).read_text())
+        report = json.loads(Path(args.report).read_text(encoding='utf-8'))
+        review = json.loads(Path(args.review).read_text(encoding='utf-8'))
         if report['status'] not in ('passed', 'failed'):
             raise ValueError('Cannot score a missing, running or interrupted evaluation')
         if report.get('schema_version') != 2 or report.get('scorer_version') != SCORER_VERSION:
@@ -28,7 +28,7 @@ def main():
         digest = predictions_digest(report)
         if digest != report.get('predictions_sha256') or review.get('predictions_sha256') != digest:
             raise ValueError('Predictions hash mismatch')
-        controls = {control['key']: control['tasks'] for control in json.loads(GOLD.read_text())['transcripts']}
+        controls = {control['key']: control['tasks'] for control in json.loads(GOLD.read_text(encoding='utf-8'))['transcripts']}
         if set(review.get('transcripts', {})) - set(controls):
             raise ValueError('Review contains an unknown transcript key')
         for transcript in report['transcripts']:

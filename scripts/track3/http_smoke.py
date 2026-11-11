@@ -124,7 +124,7 @@ def main():
     try: result=run();code=0
     except Exception as e: result={'status':'failed','error_type':type(e).__name__,'detail':str(e)};code=1
     result['elapsed_seconds']=time.perf_counter()-start
-    Path(a.output).write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
+    Path(a.output).write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n', encoding='utf-8')
     print(json.dumps({k:v for k,v in result.items() if k!='requests'},ensure_ascii=False))
     return code
 
