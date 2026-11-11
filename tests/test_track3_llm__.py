@@ -86,3 +86,10 @@ def test_timeout():
     def fail(r): raise httpx.ReadTimeout('test',request=r)
     with pytest.raises(LocalAIError) as e: MeetingLLM(transport=httpx.MockTransport(fail)).json('s','u',SCHEMA)
     assert e.value.code=='timeout'
+
+
+def test_invalid_url_maps_to_safe_unavailable(monkeypatch):
+    monkeypatch.setenv('OLLAMA_BASE_URL','https://gateway.example:bad')
+    monkeypatch.setenv('OLLAMA_API_KEY',TOKEN)
+    with pytest.raises(LocalAIError) as e: MeetingLLM().json('s','u',SCHEMA)
+    assert e.value.code=='unavailable'

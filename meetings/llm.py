@@ -51,7 +51,7 @@ class MeetingLLM:
             return result
         except httpx.TimeoutException:
             raise LocalAIError('timeout') from None
-        except httpx.HTTPError:
+        except (httpx.HTTPError, httpx.InvalidURL):
             raise LocalAIError('unavailable') from None
         except (ValueError, KeyError, TypeError):
             raise LocalAIError('invalid_reply') from None

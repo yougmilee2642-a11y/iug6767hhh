@@ -185,3 +185,13 @@ def test_summary_failed_transcript_stays_in_denominator():
     summarize(report)
     assert report['overall']['gold_tasks']==18 and report['overall']['recall']==6/18
     assert report['status']=='failed'
+
+
+def test_scorer_weak_quote_and_wrong_duplicate_cannot_hide_correct_task():
+    gold,u,p=scoring_fixture()
+    p[0]['quotes'][0]['text']='12 ноября 2026 года'
+    assert score_tasks(gold,p,u)['recall']==5/6
+    gold,u,p=scoring_fixture()
+    wrong=copy.deepcopy(p[0]);wrong['assignee']='Пётр'
+    score=score_tasks(gold,[wrong]+p,u)
+    assert score['recall']==1 and score['precision']==6/7
