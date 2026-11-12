@@ -3084,6 +3084,27 @@
             "type": "string",
             "title": "Doc Type",
             "default": "документ"
+          },
+          "department_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department Id"
+          },
+          "authored_at": {
+            "type": "string",
+            "title": "Authored At",
+            "default": ""
+          },
+          "valid_until": {
+            "type": "string",
+            "title": "Valid Until",
+            "default": ""
           }
         },
         "type": "object",

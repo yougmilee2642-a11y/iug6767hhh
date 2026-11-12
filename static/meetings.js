@@ -4,7 +4,6 @@ import { voiceAssistant } from './meetings/voice.js';
 import { administrationUI } from './meetings/administration.js';
 import { crmUI } from './meetings/crm.js';
 import { calendarUI } from './meetings/calendar.js';
-import { documentsUI } from './meetings/documents.js';
 
 const API = '/api/meet';
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -53,7 +52,6 @@ const ui = track3UI({ node, makeButton, makeInput, makeTextarea, makeSelect, req
 const administration = administrationUI({ node, makeButton, makeInput, request, runAction, state, dateLabel });
 const crm = crmUI({ node, makeButton, makeInput, request, runAction, state, dateLabel, ui });
 const calendarTools = calendarUI({ node, makeButton, makeInput, request, runAction, state, dateLabel, ui, markSaved });
-const documentTools = documentsUI({ node, makeButton, makeInput, request, runAction, state, dateLabel, ui, markSaved });
 const assistant = voiceAssistant({ node, makeButton, request, state, openSource, dateLabel, navigate: (page) => {
   if (page === 'tasks') void openTasks(); else setPage(page);
 } });
@@ -405,7 +403,7 @@ function render() {
   else if (state.page === 'audit') void administration.renderAudit(app);
   else if (state.page === 'meeting' && state.meetingData) renderMeeting(app);
   else if (state.page === 'overview') ui.renderOverview(app);
-  else if (state.page === 'knowledge') { ui.renderKnowledge(app); documentTools.panel(app); }
+  else if (state.page === 'knowledge') ui.renderKnowledge(app);
   else if (state.page === 'tasks') renderTaskBoard(app, state.tasks, false);
   else if (state.page === 'search') renderSearchResults(app);
   else renderMeetings(app);
@@ -782,7 +780,6 @@ function renderPreparation(target) {
   heading.append(headingCopy, permit(generate, 'prep.generate'));
   prep.append(heading);
   const result = data.prep;
-  for (const warning of result?.warnings || []) prep.append(node('p','gap-state',warning.message));
   if (!result) prep.append(emptyState('Справки пока нет', (data.documents || []).length ? 'Нажмите «Сформировать справку» — локальная модель соберёт факты со ссылками на фрагменты.' : 'Сначала прикрепите документы, затем сформируйте краткую справку.'));
   else {
     if (result.status === 'insufficient_data') {
@@ -796,6 +793,7 @@ function renderPreparation(target) {
       }
       prep.append(gaps);
     }
+    (result.warnings || []).forEach(w=>prep.append(node('p','access-limited-note',w.message)));
     renderClaimGroup(prep, 'Краткая справка', result.brief || []);
     renderClaimGroup(prep, 'Предлагаемая повестка', result.agenda || []);
     renderClaimGroup(prep, 'Вопросы', result.questions || []);
@@ -1806,8 +1804,8 @@ function renderSearchResults(app) {
     const card = node('article', 'search-result panel');
     card.append(node('h2', '', result.document_title || result.title || 'Документ'));
     card.append(node('p', 'source-location', result.location || 'Фрагмент документа'));
+    if (result.stale) card.append(node('p','access-limited-note','Источник устарел. Проверьте версию и срок действия.'));
     card.append(node('p', '', result.snippet || result.text || ''));
-    if (result.warnings?.stale) card.append(node('p','gap-state','Источник устарел: проверьте версию и срок действия.'));
     card.append(citationButton(result.id, result.snippet || result.text, 'fragment', 'Открыть фрагмент'));
     list.append(card);
   });

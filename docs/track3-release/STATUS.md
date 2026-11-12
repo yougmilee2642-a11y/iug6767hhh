@@ -19,9 +19,10 @@ FTS5/BM25 с ACL до индексации и статистики ранжир�
   полностью success: Python/Node/35 UI, browser→HTTP, Linux base/runtime install,
   Windows release/runtime install. Прежний Windows startup/provider smoke исправлен;
   исходные неуспешные отчёты сохранены в истории и TEST_REPORT.
-- Новые версии: 26 целевых тестов; финальный полный 1453 passed/28 skipped/0 failed,
-  155,76 s. Первоначальный полный 1450 также прошёл до 3 дополнительных случаев.
-  Node 66 passed. Настоящий HTTP версий/cancel/replay/restart passed 5,47 s.
+- Объединение с опубликованным45a3f12 сохраняет мульти-file и metadata UI и
+  добавляет hardening источников. Итог:1474 passed/28 skipped/0 failed,216,56s;
+  Node66 passed. Целевые47 passed. HTTP/restart/provider503 passed6,22s.
+  Старый QA сохраняет цитаты с предупреждением; новые запросы используют актуальное.
 - Frozen 5 расшифровок/30 задач/36 QA: double pipeline_passed, 17/17 claims с источником,
   0 прав/ложных действий. Это проверка конвейера и метрик, не качество модели.
 - Локальный Chromium ограничен socket policy; новый браузерный путь версий добавлен

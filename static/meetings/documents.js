@@ -1,118 +1,184 @@
-// Functional document history/preview controls; existing components and no CSS.
-export function documentsUI(h) {
-  const {node,makeButton:button,makeInput:input,request,runAction:run,state,ui,dateLabel:date,markSaved}=h;
-  const current=(id,epoch)=>state.user?.id===id && state.epoch===epoch;
-  const classification={public:'Вся компания',internal:'Сотрудники',department:'Отдел',confidential:'Ограниченный доступ',secret:'Закрыт для ассистента'};
-  const status=(doc)=>`${doc.superseded ? ' · Заменён' : ''}${doc.expired ? ' · Срок действия истёк' : ''}`;
-  function warnings(parent,data) {
-    for(const warning of data.warnings || [])parent.append(node('p','gap-state',warning.message));
-    if(data.partial)parent.append(node('p','gap-state','Результат неполный: некоторые фрагменты пропущены или достигнут лимит. Откройте исходный файл.'));
+// Document controls reuse the existing form, panel and preview styles.
+export function documentLibrary(h) {
+  const {node, makeButton: button, makeInput: input, makeSelect: select, request, runAction: run,
+    state, render, dateLabel: date, showNotice, toast, dialog, field, sourceButton, claims} = h;
+  let generation = 0;
+  let filters = {text:'', classification:'', kind:'', history:false};
+  let versionDrafts = new Map();
+  const classificationLabel = {public:'Вся компания',internal:'Сотрудники',department:'Отдел',confidential:'Ограниченный доступ',secret:'Закрыт для ассистента'};
+  const can = capability => state.capabilities.includes(capability);
+  const label = doc => `${doc.title} · версия ${doc.version || 1}`;
+  const cancel = id => request(`/confirmations/${encodeURIComponent(id)}/cancel`, {method:'POST'});
+  const notice = (parent, warnings) => (warnings || []).forEach(w => parent.append(node('p','access-limited-note',w.message)));
+  const reset = () => { generation++; filters = {text:'', classification:'', kind:'', history:false}; versionDrafts.clear(); };
+  const partial = (parent,result) => { if(result.partial) parent.append(node('p','access-limited-note','Результат неполный: часть фрагментов пропущена или достигнут лимит. Откройте исходный файл.')); };
+  async function reload() {
+    const current = generation;
+    const result = await request('/documents');
+    if (current !== generation) return false;
+    state.documents = result.documents || [];
+    if (state.page === 'knowledge') render();
+    return true;
   }
-  function download(doc) {
-    const a=node('a','download-link','Открыть исходный файл');a.href=`/api/meet/documents/${doc.id}/download`;return a;
+  function source(parent, cited) {
+    parent.append(node('p','',cited.quote), sourceButton(cited));
   }
-  async function summary(doc) {
-    const id=state.user.id,epoch=state.epoch;
-    const data=await request(`/documents/${doc.id}/summary`);if(!current(id,epoch))return;
-    const content=node('div','');content.append(node('p','muted-copy',data.notice));warnings(content,data);
-    if(!data.claims.length)content.append(node('p','','Подходящих выдержек не найдено. Откройте исходный файл.'));
-    for(const claim of data.claims){content.append(node('p','',claim.text));for(const s of claim.sources)content.append(ui.sourceButton(s));}
-    content.append(download(doc));ui.dialog(`Кратко · ${doc.title}`,content,async()=>{},null,'Закрыть');
-  }
-  async function history(doc) {
-    const id=state.user.id,epoch=state.epoch;
-    const data=await request(`/documents/${doc.id}/versions`);if(!current(id,epoch))return;
-    const content=node('div','');
-    content.append(node('p','muted-copy','Показаны версии, доступные вам сейчас. Привязки встреч к версии сохраняются.'));
-    for(const v of data.versions)content.append(node('p','',`Версия ${v.version} · ${date(v.authored_at || v.created_at)}${status(v)}`),download(v));
-    const allowed=data.versions.filter(v=>v.confidentiality!=='secret');
-    if(allowed.length<2){ui.dialog('Версии документа',content,async()=>{},null,'Закрыть');return;}
-    const picks=[];
-    for(const [label,chosen] of [['Исходная версия',allowed[0].id],['Новая версия',allowed.at(-1).id]]){
-      const wrap=node('label','meeting-field'),select=node('select','');select.setAttribute('aria-label',label);
-      for(const v of allowed){const option=node('option','',`Версия ${v.version} · ${date(v.authored_at || v.created_at)}`);option.value=v.id;option.selected=v.id===chosen;select.append(option);}
-      wrap.append(node('span','field-label',label),select);content.append(wrap);picks.push(select);
+  async function open(doc, mode, target) {
+    const current = generation;
+    const result = await request(`/documents/${doc.id}/${mode}`);
+    if (generation !== current) return;
+    target.replaceChildren(node('h3','',`${mode === 'summary' ? 'Кратко' : 'Версии'}: ${doc.title}`));
+    if (mode === 'summary') {
+      target.append(node('p','muted-copy',result.notice));
+      notice(target, result.warnings);
+      partial(target,result);
+      if (!result.claims?.length) target.append(node('p','','Недостаточно подходящих фрагментов.'));
+      else claims(target, result.claims);
+      return;
     }
-    let modal;
-    modal=ui.dialog('Версии документа',content,async()=>{
-      // Resolve before replacing the dialog so failures preserve the selection.
-      const a=picks[0].value,b=picks[1].value;
-      const data=await request(`/documents/${a}/compare/${b}`);
-      if(!current(id,epoch))return;
-      modal.close();showComparison(data);
-    },null,'Сравнить');
-  }
-  function showComparison(data) {
-    const content=node('div','');content.append(node('p','muted-copy',data.notice));warnings(content,data);
-    if(!data.changes.length)content.append(node('p','','В подходящих фрагментах различий нет.'));
-    for(const change of data.changes){const block=node('article','claim-item');
-      for(const [label,key] of [['Было','before'],['Стало','after']]){
-        block.append(node('h3','',label));
-        if(!change[key].length)block.append(node('p','muted-copy','Нет фрагмента'));
-        for(const s of change[key])block.append(node('p','',s.quote),ui.sourceButton(s));
-      }content.append(block);
-    }ui.dialog('Сравнение версий',content,async()=>{},null,'Закрыть');
-  }
-  function versionForm(parent,doc,onDone) {
-    const details=node('details',''),form=node('form','upload-form');details.append(node('summary','','Новая версия'));
-    const file=input({label:'Файл новой версии',type:'file',required:true});
-    file.input.accept='.txt,.docx,.pdf,.xlsx,.csv,.pptx,.md,.html,.eml';
-    const authored=input({label:'Дата документа · Минск (необязательно)',type:'datetime-local'});
-    const until=input({label:'Действует до · Минск (необязательно)',type:'datetime-local'});
-    const submit=button('Предпросмотр новой версии',null,'secondary-button','submit');
-    form.append(file.wrap,authored.wrap,until.wrap,submit);
-    form.addEventListener('submit',event=>{event.preventDefault();if(!file.input.files[0])return;
-      const id=state.user.id,epoch=state.epoch;
-      void run(submit,async()=>{
-        const payload=new FormData();payload.append('file',file.input.files[0]);
-        if(authored.input.value)payload.append('authored_at',ui.zonedISO(authored.input.value,'Europe/Minsk'));
-        if(until.input.value)payload.append('valid_until',ui.zonedISO(until.input.value,'Europe/Minsk'));
-        const data=await request(`/documents/${doc.id}/versions/preview`,{method:'POST',body:payload});
-        if(!current(id,epoch)||!form.isConnected)return;
-        const view=data.preview,content=node('div','');
-        content.append(node('p','',`${view.title} · версия ${view.version}`),node('p','',view.filename),
-          node('p','task-meta',`Дата документа: ${date(view.authored_at)} · Действует до: ${view.valid_until ? date(view.valid_until) : 'Не ограничено'}`),
-          node('p','task-meta',`Фрагментов: ${view.fragments_count}`),node('p','muted-copy',view.notice));
-        const key=crypto.randomUUID();
-        ui.dialog('Подтвердить новую версию',content,async()=>{
-          await request(`/documents/${doc.id}/versions/confirm`,{method:'POST',body:{confirmation_id:data.confirmation_id,idempotency_key:key}});
-          if(current(id,epoch)){markSaved(form);await onDone();}
-        },()=>request(`/confirmations/${data.confirmation_id}/cancel`,{method:'POST'}));
+    const versions = result.versions || [];
+    const comparable = versions.filter(v=>v.confidentiality!=='secret');
+    const from = select(comparable.map(v=>({value:v.id,label:label(v)})), comparable[0]?.id);
+    const to = select(comparable.map(v=>({value:v.id,label:label(v)})), comparable.at(-1)?.id);
+    versions.forEach(v=>{
+      const row = node('article','panel');
+      row.append(node('p','',`${label(v)} · ${date(v.authored_at || v.created_at)}${v.stale ? ' · устарел' : ''}`));
+      row.append(button('Открыть источник',()=>h.openDocument(v),'secondary-button'));
+      target.append(row);
+    });
+    if (comparable.length < 2) return;
+    const diff = node('section','panel');
+    const compare = button('Сравнить версии',async()=>run(compare,async()=>{
+      const output = await request(`/documents/${encodeURIComponent(from.value)}/compare/${encodeURIComponent(to.value)}`);
+      if (current !== generation) return;
+      diff.replaceChildren(node('h3','','Изменения по фрагментам'));
+      partial(diff,output);notice(diff,output.warnings);
+      if (!output.changes.length) diff.append(node('p','','Текст фрагментов совпадает.'));
+      output.changes.forEach(change=>{
+        const block = node('article','panel');
+        block.append(node('h4','',({insert:'Добавлено',delete:'Удалено',replace:'Заменено'})[change.change]));
+        change.before.forEach(cited=>{ block.append(node('b','','Было')); source(block,cited); });
+        change.after.forEach(cited=>{ block.append(node('b','','Стало')); source(block,cited); });
+        diff.append(block);
       });
-    });details.append(form);parent.append(details);
+    }),'secondary-button');
+    target.append(field('Было · версия',from),field('Стало · версия',to),compare,diff);
   }
-  function controls(parent,doc,onDone) {
-    const actions=node('div','inline-actions');
-    for(const [label,action] of [['Кратко',()=>summary(doc)],['Версии',()=>history(doc)]]){
-      if(label==='Кратко' && doc.confidentiality==='secret')continue;
-      const b=button(label,()=>void run(b,action));actions.append(b);
-    }parent.append(actions);
-    if(doc.owner_id===state.user.id && ui.can('documents.upload') && !doc.superseded)versionForm(parent,doc,onDone);
+  async function newVersion(doc) {
+    const current = generation;
+    const origin = document.activeElement;
+    const draft = versionDrafts.get(doc.id);
+    const form = node('form','meet-form-grid');
+    const file = input({label:'Файл новой версии',type:'file',required:!draft?.file});
+    const authored = input({label:'Дата документа (ISO 8601 с часовым поясом)',placeholder:'2026-11-12T10:00:00+03:00',value:draft?.authored || ''});
+    const valid = input({label:'Действует до (ISO 8601, необязательно)',placeholder:'2026-12-31T23:59:59+03:00',value:draft?.valid || ''});
+    if(draft?.file) form.append(node('p','task-meta',`Ранее выбран файл: ${draft.file.name}. Можно выбрать другой.`));
+    form.append(node('p','',`${label(doc)}. Доступ наследуется, прежние цитаты сохранятся.`),file.wrap,authored.wrap,valid.wrap);
+    form.addEventListener('submit',event=>event.preventDefault());
+    const editor = dialog('Загрузить новую версию',form,async()=>{
+      const selected = file.input.files[0] || draft?.file;
+      if (!selected) throw new Error('Выберите файл новой версии.');
+      const body = new FormData(); body.append('file',selected);
+      body.append('authored_at',authored.input.value); body.append('valid_until',valid.input.value);
+      const result = await request(`/documents/${doc.id}/versions/preview`,{method:'POST',body});
+      if (current !== generation) return;
+      versionDrafts.set(doc.id,{file:selected,authored:authored.input.value,valid:valid.input.value});
+      editor.close(); editor.addEventListener('close',()=>{
+        if (current !== generation) return;
+        const content = node('div');
+        content.append(node('p','',`${result.preview.title} · версия ${result.preview.version}`),
+          node('p','',`Файл: ${result.preview.filename}. Фрагментов: ${result.preview.fragments_count}`),
+          node('p','',`Дата документа: ${date(result.preview.authored_at)}`),
+          node('p','',`Действует до: ${result.preview.valid_until ? date(result.preview.valid_until) : 'не ограничено'}`),
+          node('p','',result.preview.notice));
+        const idempotency = crypto.randomUUID();
+        dialog('Подтвердить новую версию',content,async()=>{
+          await request(`/documents/${doc.id}/versions/confirm`,{method:'POST',body:{confirmation_id:result.confirmation_id,idempotency_key:idempotency}});
+          versionDrafts.delete(doc.id);
+          if (await reload()) toast('Новая версия сохранена');
+        },()=>cancel(result.confirmation_id),'Подтвердить',origin);
+      },{once:true});
+    },null,'Предпросмотр',origin);
   }
-  function panel(parent) {
-    const id=state.user.id,epoch=state.epoch,details=node('details','panel');
-    details.append(node('summary','','Документы · версии и выдержки'));
-    const content=node('div','');details.append(content);parent.append(details);
-    let loaded=false;
-    async function load(){
-      const data=await request('/documents');if(!current(id,epoch)||!details.isConnected)return;
-      state.documents=data.documents || [];loaded=true;content.replaceChildren();
-      const filter=input({label:'Название документа',placeholder:'Фильтр по названию'});
-      const history=input({label:'Показать заменённые версии',type:'checkbox'});
-      const list=node('div','');content.append(node('p','muted-copy','Поиск и ответы используют актуальную доступную версию. Файлы и ссылки встреч сохраняются.'),filter.wrap,history.wrap,list);
-      function draw(){list.replaceChildren();
-        const docs=state.documents.filter(d=>(history.input.checked || !d.superseded) && (d.title || d.filename || '').toLowerCase().includes(filter.input.value.toLowerCase()));
-        if(!docs.length)list.append(node('p','empty-copy','Документов по фильтру нет.'));
-        for(const doc of docs){const card=node('article','claim-item');
-          card.append(node('h3','',doc.title || doc.filename),node('p','task-meta',`Версия ${doc.version || 1} · ${classification[doc.confidentiality] || 'Ограниченный доступ'}${status(doc)}`),
-            node('p','task-meta',`Дата документа: ${date(doc.authored_at || doc.created_at)}`),download(doc));
-          controls(card,doc,load);list.append(card);
+  async function openDocument(doc) {
+    const current = generation;
+    const result = await request(`/documents/${doc.id}`);
+    if (current !== generation) return;
+    const first = result.fragments?.[0];
+    if (first) await h.openSource('fragment',first.id,first.text);
+  }
+  function uploadForm(parent) {
+    const form=node('form','meet-form-grid');
+    const files=input({label:'Добавить документы',type:'file',required:true}); files.input.multiple=true;
+    files.input.accept='.txt,.docx,.pdf,.xlsx,.csv,.pptx,.md,.html,.eml';
+    const kinds=select(['регламент','договор','план','протокол','письмо','отчёт','реестр','документ'].map(value=>({value,label:value})),'документ');
+    const classifications=state.user.level==='employee' ? ['department'] : ['confidential','department','internal','public','secret'];
+    const classification=select(classifications.map(value=>({value,label:classificationLabel[value]})));
+    const departments=new Map();
+    for (const user of [state.user,...state.users]) if (user.department_id) departments.set(String(user.department_id),user.department_name || `Отдел ${user.department_id}`);
+    const department=select([{value:'',label:'Мой отдел'},...[...departments].map(([value,label])=>({value,label}))]);
+    department.disabled=state.user.level!=='director';
+    const authored=input({label:'Дата загружаемых документов (ISO 8601)',placeholder:'2026-11-12T10:00:00+03:00'});
+    const valid=input({label:'Срок действия загружаемых документов (ISO 8601, необязательно)'});
+    const upload=button('Загрузить документы',null,'secondary-button','submit');
+    const result=node('p','task-meta'); result.setAttribute('role','status');
+    form.append(files.wrap,field('Отдел документа',department),field('Конфиденциальность при загрузке',classification),field('Тип при загрузке',kinds),authored.wrap,valid.wrap,upload,result);
+    form.addEventListener('submit',async event=>{
+      event.preventDefault();
+      const current=generation;
+      const selected=[...files.input.files];
+      if (!selected.length) return;
+      await run(upload,async()=>{
+        let saved=0;
+        for (const file of selected) {
+          if (current!==generation) return;
+          const body=new FormData(); body.append('file',file);
+          body.append('confidentiality',classification.value);body.append('doc_type',kinds.value);
+          if (department.value) body.append('department_id',department.value);
+          body.append('authored_at',authored.input.value);body.append('valid_until',valid.input.value);
+          const output=await request('/documents',{method:'POST',body});
+          if (current!==generation) return;
+          state.documents=[...state.documents.filter(d=>d.id!==output.document.id),output.document];
+          result.textContent=`Загружено ${++saved} из ${selected.length}.`;
         }
-      }filter.input.addEventListener('input',draw);history.input.addEventListener('change',draw);draw();
-    }
-    details.addEventListener('toggle',()=>{if(details.open && !loaded){loaded=true;void load().catch(error=>{
-      if(current(id,epoch)&&details.isConnected){loaded=false;content.replaceChildren(node('p','notice',error.message));}
-    });}});
+        if (current===generation) { files.input.value=''; await reload(); toast(`Загружено документов: ${saved}`); }
+      });
+    });
+    parent.append(form);
   }
-  return {panel,controls};
+  function renderLibrary(parent) {
+    if (!can('meetings.read')) return;
+    const disclosure = node('details','panel');
+    disclosure.append(node('summary','','Документы · версии и источники'));
+    if (can('documents.upload')) uploadForm(disclosure);
+    const controls = node('div','meet-form-grid');
+    const text = input({label:'Фильтр документов по названию',value:filters.text});
+    const classification = select([{value:'',label:'Все уровни доступа'},...['public','internal','department','confidential','secret'].map(value=>({value,label:classificationLabel[value]}))],filters.classification);
+    const kind = select([{value:'',label:'Все типы'},...[...new Set(state.documents.map(d=>d.doc_type))].filter(Boolean).map(value=>({value,label:value}))],filters.kind);
+    const history = input({label:'Показать заменённые версии',type:'checkbox'}); history.input.checked=filters.history;
+    controls.append(text.wrap,field('Конфиденциальность',classification),field('Тип документа',kind),history.wrap);
+    const list=node('div','search-results'), output=node('section','panel');
+    const draw=()=>{
+      filters={text:text.input.value,classification:classification.value,kind:kind.value,history:history.input.checked};
+      list.replaceChildren();
+      const docs=state.documents.filter(d=>(filters.history || !d.superseded) && (!filters.classification || filters.classification===d.confidentiality) && (!filters.kind || filters.kind===d.doc_type) && d.title.toLocaleLowerCase('ru').includes(filters.text.toLocaleLowerCase('ru')));
+      if (!docs.length) list.append(node('p','empty-copy','Доступных документов по фильтрам нет.'));
+      docs.forEach(doc=>{
+        const row=node('article','panel');
+        row.append(node('h3','',label(doc)),node('p','task-meta',`${doc.doc_type} · ${classificationLabel[doc.confidentiality] || 'Ограниченный доступ'} · ${date(doc.authored_at || doc.created_at)}${doc.stale ? ' · устарел' : ''}`));
+        const actions=node('div','inline-actions');
+        const addAction=(name,fn)=>{ const b=button(name,()=>run(b,fn),'secondary-button'); actions.append(b); };
+        addAction('Открыть источник',()=>openDocument(doc));
+        if(doc.confidentiality!=='secret')addAction('Кратко',()=>open(doc,'summary',output));
+        addAction('Версии / сравнить',()=>open(doc,'versions',output));
+        if (can('documents.upload') && Number(doc.owner_id)===Number(state.user.id) && !doc.superseded) addAction('Новая версия',()=>newVersion(doc));
+        row.append(actions); list.append(row);
+      });
+    };
+    [text.input,classification,kind,history.input].forEach(control=>control.addEventListener('input',draw));
+    const refresh=button('Обновить документы',()=>run(refresh,reload),'secondary-button');
+    disclosure.append(controls,refresh,list,output); draw(); parent.append(disclosure);
+  }
+  h.openDocument = openDocument;
+  return {render:renderLibrary,reset};
 }

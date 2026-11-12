@@ -16,6 +16,58 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 
+
+def document_editions(page):
+    """Real HTTP/UI, no model inference; upload, cancel, confirm and source diff."""
+    page.get_by_role('button', name='Знания', exact=True).click()
+    panel = page.locator('details').filter(has=page.get_by_text('Документы · версии и источники', exact=True))
+    def expand():
+        if not panel.evaluate('element => element.open'):
+            panel.locator('summary').click()
+    expand()
+    page.get_by_label('Добавить документы', exact=True).set_input_files([{
+        'name':'browser-edition.txt', 'mimeType':'text/plain',
+        'buffer':'Поставка тестового картона состоится 20 ноября. Участок готов.'.encode()}, {
+        'name':'browser-guide.md','mimeType':'text/markdown','buffer':'# Памятка\nУчебные файлы не содержат данных клиентов.'.encode()}])
+    page.get_by_role('button', name='Загрузить документы', exact=True).click()
+    page.get_by_text('Загружено документов: 2', exact=True).wait_for()
+    expand()
+    page.get_by_label('Фильтр документов по названию', exact=True).fill('browser-edition')
+    card = panel.locator('article').filter(has=page.get_by_role('heading', name='browser-edition · версия 1', exact=True))
+    card.get_by_role('button', name='Кратко', exact=True).click()
+    panel.get_by_text('Выдержки первых пяти подходящих фрагментов; это не полная смысловая сводка.', exact=True).wait_for()
+    card.get_by_role('button', name='Новая версия', exact=True).click()
+    editor = page.get_by_role('dialog').filter(has=page.get_by_role('heading', name='Загрузить новую версию', exact=True))
+    def prepare():
+        editor.get_by_label('Файл новой версии', exact=True).set_input_files({
+            'name':'browser-edition-v2.txt','mimeType':'text/plain',
+            'buffer':'Поставка тестового картона состоится 25 ноября. Участок готов.'.encode()})
+        editor.get_by_role('button', name='Предпросмотр', exact=True).click()
+    prepare()
+    preview = page.get_by_role('dialog').filter(has=page.get_by_role('heading', name='Подтвердить новую версию', exact=True))
+    with page.expect_response(lambda r:'/api/meet/confirmations/' in r.url and r.url.endswith('/cancel') and r.status==200):
+        preview.get_by_role('button', name='Отмена', exact=True).click()
+    card.get_by_role('button', name='Новая версия', exact=True).click()
+    editor.get_by_text('Ранее выбран файл: browser-edition-v2.txt. Можно выбрать другой.',exact=True).wait_for()
+    editor.get_by_role('button', name='Предпросмотр', exact=True).click()
+    preview.get_by_role('button', name='Подтвердить', exact=True).click()
+    page.get_by_text('Новая версия сохранена', exact=True).wait_for()
+    expand()
+    current = panel.locator('article').filter(has=page.get_by_role('heading', name='browser-edition · версия 2', exact=True))
+    current.get_by_role('button', name='Версии / сравнить', exact=True).click()
+    page.get_by_role('button', name='Сравнить версии', exact=True).click()
+    panel.get_by_role('heading', name='Изменения по фрагментам', exact=True).wait_for()
+    assert panel.get_by_text('Поставка тестового картона состоится 20 ноября. Участок готов.', exact=True).count()
+    assert panel.get_by_text('Поставка тестового картона состоится 25 ноября. Участок готов.', exact=True).count()
+    page.get_by_label('Показать заменённые версии', exact=True).check()
+    card.wait_for()
+    for width in (360,768,1440):
+        page.set_viewport_size({'width':width,'height':1000})
+        assert page.evaluate('document.documentElement.scrollWidth <= innerWidth+1'), ('documents overflow',width)
+    page.get_by_role('button', name='Обзор', exact=True).click()
+    page.get_by_role('heading', name='Обзор', exact=True).wait_for()
+
+
 def run(artifacts):
     import httpx
     from playwright.sync_api import sync_playwright
@@ -47,10 +99,6 @@ def run(artifacts):
                     result = fixture.put(f'/api/meet/meetings/{decision_meeting}/transcript',json={'text':'Марина: Решили проверить резерв картона перед запуском Premium.'}); result.raise_for_status()
                     utterance_id = result.json()['utterances'][0]['id']
                     result = fixture.put(f'/api/meet/meetings/{decision_meeting}/protocol',json={'items':[{'kind':'decision','text':'Проверить резерв картона перед запуском Premium','quotes':[{'utterance_id':utterance_id}]}]}); result.raise_for_status()
-                    fixture.post('/api/meet/login',json={'login':'director','password':'director-demo'}).raise_for_status()
-                    result = fixture.post('/api/meet/documents', files={'file':('versions.txt','Поставка картона состоится 20 ноября. Склад подготовит площадку.'.encode())},
-                                          data={'title':'Браузерная проверка версий картона'})
-                    result.raise_for_status()
                 with sync_playwright() as pw:
                     browser = pw.chromium.launch(executable_path=shutil.which('chromium') or pw.chromium.executable_path,
                                                  headless=True, args=['--no-sandbox'])
@@ -67,42 +115,12 @@ def run(artifacts):
                                 page.get_by_role('heading', name=heading, exact=True).wait_for()
                                 assert not errors, {'login':login,'page_errors':errors}
                                 if login == 'director':
+                                    document_editions(page)
                                     page.get_by_label('Поиск по документам',exact=True).fill('картон')
                                     page.get_by_role('button',name='Найти',exact=True).click()
                                     page.get_by_role('heading',name='Результаты: картон',exact=True).wait_for()
                                     page.locator('.search-result').first.wait_for()
                                     assert page.locator('.search-result').count()>0
-                                    page.get_by_role('button',name='Знания',exact=True).click()
-                                    library=page.locator('details').filter(has=page.get_by_text('Документы · версии и выдержки',exact=True))
-                                    library.locator('summary').first.click()
-                                    library.get_by_label('Название документа',exact=True).fill('Браузерная проверка версий картона')
-                                    doc=library.locator('article').filter(has=page.get_by_role('heading',name='Браузерная проверка версий картона',exact=True))
-                                    doc.get_by_role('button',name='Кратко',exact=True).click()
-                                    brief=page.get_by_role('dialog').filter(has=page.get_by_role('heading',name='Кратко · Браузерная проверка версий картона',exact=True))
-                                    brief.wait_for();assert '20 ноября' in brief.inner_text()
-                                    brief.get_by_role('button',name='Закрыть',exact=True).click();brief.wait_for(state='hidden')
-                                    doc.locator('summary').click()
-                                    doc.get_by_label('Файл новой версии',exact=True).set_input_files({'name':'new.txt','mimeType':'text/plain',
-                                        'buffer':'Поставка картона состоится 25 ноября. Склад подготовит площадку.'.encode()})
-                                    doc.get_by_role('button',name='Предпросмотр новой версии',exact=True).click()
-                                    version=page.get_by_role('dialog').filter(has=page.get_by_role('heading',name='Подтвердить новую версию',exact=True))
-                                    version.wait_for()
-                                    with page.expect_response(lambda response:'/api/meet/confirmations/' in response.url and response.url.endswith('/cancel') and response.status==200):
-                                        version.get_by_role('button',name='Отмена',exact=True).click()
-                                    assert doc.get_by_label('Файл новой версии',exact=True).input_value().endswith('new.txt')
-                                    doc.get_by_role('button',name='Предпросмотр новой версии',exact=True).click();version.wait_for()
-                                    with page.expect_response(lambda response:response.url.endswith('/versions/confirm') and response.status==200):
-                                        version.get_by_role('button',name='Подтвердить',exact=True).click()
-                                    version.wait_for(state='hidden');doc.get_by_text('Версия 2',exact=False).wait_for()
-                                    doc.get_by_role('button',name='Версии',exact=True).click()
-                                    history=page.get_by_role('dialog').filter(has=page.get_by_role('heading',name='Версии документа',exact=True));history.wait_for()
-                                    history.get_by_role('button',name='Сравнить',exact=True).click()
-                                    diff=page.get_by_role('dialog').filter(has=page.get_by_role('heading',name='Сравнение версий',exact=True));diff.wait_for()
-                                    assert '20 ноября' in diff.inner_text() and '25 ноября' in diff.inner_text()
-                                    diff.get_by_role('button',name='Закрыть',exact=True).click();diff.wait_for(state='hidden')
-                                    for width in (360,768,1440):
-                                        page.set_viewport_size({'width':width,'height':1000})
-                                        assert page.evaluate('document.documentElement.scrollWidth <= innerWidth+1'), ('documents overflow',width)
                                     page.get_by_role('button',name='Обзор',exact=True).click()
                                     page.get_by_role('heading',name='Обзор',exact=True).wait_for()
                                 if login == 'prod_head':

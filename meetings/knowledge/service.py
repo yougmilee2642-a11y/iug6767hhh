@@ -371,7 +371,9 @@ def load_answer(connection, actor, answer_id):
         if (not isinstance(fid, str) or not re.fullmatch(r'F[1-9]\d{0,18}', fid)
                 or int(fid[1:]) > 2**63 - 1 or fid in rows):
             raise stale_saved()
-        row = check_fragment(connection, actor, int(fid[1:]), saved['meeting_id'],include_history)
+        # A saved answer is a historical artifact. Keep its original, revalidated
+        # citations and show replacement/expiry warnings instead of rewriting it.
+        row = check_fragment(connection, actor, int(fid[1:]), saved['meeting_id'],True)
         rows[f"F{row['id']}"] = row
     claims = []
     if stored_claims:

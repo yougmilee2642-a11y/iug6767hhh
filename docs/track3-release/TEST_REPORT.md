@@ -8,12 +8,12 @@
 
 | Проверка | Результат и границы |
 |---|---|
-| Полный небраузерный Python | 1453 passed, 28 skipped, 0 failed, 155,76 s; `reports/v2-document-versions-python.log`. Шесть deprecation warnings PyMuPDF; skips не считаются passed. |
-| Node | 66 passed, 0 failed; `reports/v2-document-versions-node.log` |
-| Настоящий HTTP, 7 уровней | `reports/v2-document-versions-http.json`: KPI/ACL/CRM/ICS/smart slots, версии/cancel/replay/restart; без инференса |
-| Недоступная модель через настоящий HTTP | `reports/v2-document-versions-http.json`: реальные provider/prepare/protocol/QA → 503 model_*, расшифровка не изменена; наблюдаемые коды сохранены |
+| Полный небраузерный Python | 1474 passed, 28 skipped, 0 failed, 216,56 s; `reports/v2-document-integration-python.log`. Шесть deprecation warnings PyMuPDF; skips не считаются passed. |
+| Node | 66 passed, 0 failed; `reports/v2-document-integration-node.log` |
+| Настоящий HTTP, 7 уровней | `reports/v2-document-integration-http.json`: KPI/ACL/CRM/ICS/smart slots, версии/cancel/replay/restart; без инференса |
+| Недоступная модель через настоящий HTTP | `reports/v2-document-integration-http.json`: реальные provider/prepare/protocol/QA → 503 model_*, расшифровка не изменена; наблюдаемые коды сохранены |
 | Предыдущий чистый CI | [43166951277](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43166951277) на 574ab18: Linux base/runtime, Windows release/runtime, Python/Node/35 UI, browser→HTTP и evaluator success. Новые версии требуют нового CI. |
-| E13 на дублёре | `reports/v2-document-versions-double.json`: pipeline_passed, 30 задач/36 вопросов; quality NOT MEASURED, не live recall |
+| E13 на дублёре | `reports/v2-document-integration-double.json`: pipeline_passed, 30 задач/36 вопросов; quality NOT MEASURED, не live recall |
 | Первоначальный чистый base | `reports/v2-e14-initial-install.json`: 65,88 s всего; base install 25,28 s прошёл, seed упал без PDF reader; после test-профиля seed/restart прошли |
 | Изолированный runtime | `reports/v2-e14-initial-runtime.json`: 12,68 s, повтор seed/HTTP passed; pytest/Playwright/torch/scipy/av/soundfile отсутствуют. Кэш pip не контролировался. Профиль был незакоммичен, код клона 3dbc30c. |
 | Исправленная установка base/runtime | CI43166951277 Linux base/runtime и Windows runtime success; новые версии проверяются после commit отдельно. Кэш пакетов неконтролируемый. |
@@ -173,3 +173,42 @@ CI43164400635: Windows сервер запустился, но smoke упал н
   Gold не изменён, live модели не запускались. Новых зависимостей нет.
 - Границы: DOCUMENTS.md. Смысловая сводка/противоречия/обязательства и фоновая
   очистка временных файлов остаются. Формат ошибок и дата Source сохранены.
+
+
+## E6.2 / E6.4 / E6.5 · версии документов
+
+- Полный CPU: **1448 passed, 28 skipped, 0 failed**, 163,94 s. Новые21 проверки
+  покрывают версии/отмену/конкуренцию/ACL/актуальность/миграцию v12→13/метаданные.
+  Ни один старый тест не удалён. Raw: reports/v2-documents-python-final.log.
+- Node: **66 passed**, синтаксис новых/изменённых JS и compileall/diff passed.
+- Настоящий HTTP:7 уровней, immutable версии/отмена/replay/summary/diff/restart
+  passed. Режим без модели также passed: prepare/protocol/QA дают503
+  model_unavailable; версии/документы работают. Raw: v2-documents-*http.json.
+- Frozen photoprint-v2 pipeline:30/30 задач,36/36QA,17/17 claims с источником,
+  0 нарушений прав/ложных действий. Gold не менялся. Это double, не live-качество.
+- Локальный browser NOT RUN: Chromium упал до открытия страницы с socket()
+  Operation not permitted. Raw: reports/v2-documents-browser.json. Новый путь
+  upload→summary→preview/cancel→confirm→history/diff включён в v2_ui_check.py/CI.
+- Новых библиотек/весов нет. Semantic-summary и P2-противоречия/обязательства
+  не заявлены: кнопка «Кратко» возвращает явно помеченные дословные выдержки.
+- Предыдущий574ab18/CI43166951277 завершился SUCCESS целиком, включая Windows.
+  Новый срез требует отдельного CI; прежний успех на него не переносится.
+
+## Совмещение с опубликованным45a3f12
+
+Merge сохраняет обе поставки и все тесты:1474 passed/28 skipped/0 failed,
+216,56s; Node66/0; целевые47/0. Дополнительная проверка Source.source_at=дата
+загрузки, а не authored_at:1 passed. HTTP/restart/provider503/версии passed6,22s.
+Файлы `v2-document-integration-*` относятся к совмещённому рабочему дереву
+(до merge commit, JSON честно показывает dirty и прежний HEAD7e18d23).
+
+Сохранён опубликованный контракт исторического ответа QA:200 с прежними цитатами
+и предупреждением. При новой генерации смена источника по-прежнему409. Из нашей
+новой тестовой поставки изменены ожидания двух чтений и owner-only404; защиты
+прав/цитат/актуальности не отключены. Исходные тесты и21 тест удалённой поставки
+не удалены. Мульти-file/metadata/filters сохранены, partial и File после cancel
+добавлены в UI; CI должен проверить2 файла, повторpreview и мобильные ширины.
+
+До merge чистый7e18d23: base40,693s/runtime27,094s, оба passed, первичные JSON
+`v2-document-versions-{base,runtime}-install.json`. Запуски параллельны, кэш
+неконтролируемый, без моделей. Совмещённый commit требует отдельной установки.

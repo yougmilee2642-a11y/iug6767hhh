@@ -123,7 +123,7 @@ def test_owner_only_writes_and_foreign_content_denial_is_audited(env):
     assert preview(env['petr'], did).status_code == 404
     with store.db() as c:
         c.execute('INSERT INTO document_access VALUES (?,2)', (did,))
-    assert preview(env['petr'], did).status_code == 403
+    assert preview(env['petr'], did).status_code == 404
     with store.db() as c:
         c.execute("UPDATE users SET level='admin' WHERE login='irina'")
     for tail in ('versions', 'summary', f'compare/{did}'):
@@ -145,7 +145,9 @@ def test_default_search_qa_and_saved_answers_track_latest_version(env):
     assert r.status_code == 200, r.text
     assert r.json()['claims'][0]['text'] == NEW
     assert OLD not in json.dumps(env['model'].calls[-1], ensure_ascii=False)
-    assert env['irina'].get(f"/api/meet/qa/{old['answer_id']}").json()['code'] == 'stale_sources'
+    prior = env['irina'].get(f"/api/meet/qa/{old['answer_id']}")
+    assert prior.status_code == 200 and prior.json()['claims'][0]['text'] == OLD
+    assert prior.json()['warnings'][0]['superseded']
     historical = ask(env['irina'], include_history=True).json()
     assert historical['warnings'][0]['superseded']
     assert env['irina'].get(f"/api/meet/qa/{historical['answer_id']}").status_code == 200
@@ -174,7 +176,8 @@ def test_meeting_attachments_are_explicit_and_select_current_only_within_scope(e
     assert env['irina'].post(f'/api/meet/meetings/{mid}/documents', json={'document_id':new}).status_code == 200
     r = ask(env['irina'], meeting_id=mid)
     assert r.json()['claims'][0]['text'] == NEW
-    assert env['irina'].get(f"/api/meet/qa/{historical.json()['answer_id']}").status_code == 409
+    prior = env['irina'].get(f"/api/meet/qa/{historical.json()['answer_id']}")
+    assert prior.status_code == 200 and prior.json()['warnings'][0]['superseded']
 
 
 def test_hidden_versions_cannot_influence_rank_freshness_or_history_links(env):

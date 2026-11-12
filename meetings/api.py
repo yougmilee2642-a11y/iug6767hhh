@@ -571,29 +571,41 @@ def router():
     @api.post('/api/meet/documents')
     async def upload(request: Request, file: UploadFile = File(...), meeting_id: int | None = Form(default=None),
                      share_with: str = Form(default=''), title: str = Form(default=''),
-                     confidentiality: str = Form(default='confidential'), doc_type: str = Form(default='документ')):
+                     confidentiality: str = Form(default='confidential'), doc_type: str = Form(default='документ'),
+                     department_id: int | None = Form(default=None), authored_at: str = Form(default=''),
+                     valid_until: str = Form(default='')):
         user = current_user(request)
         require(user, 'documents.upload', action='document.upload')
         if confidentiality not in access.CLASSIFICATIONS:
             raise MeetError(422, 'invalid_classification', 'Неизвестный уровень конфиденциальности.')
         if user.get('level') == 'employee' and confidentiality != 'department':
             raise MeetError(422, 'department_document_only', 'Сотрудник загружает документ своего отдела с уровнем department.')
+        from meetings.document_versions import metadata_time
+        authored = metadata_time(authored_at) or store.now()
+        until = metadata_time(valid_until)
+        if until and store.parse_aware(until) <= store.parse_aware(authored):
+            raise MeetError(422, 'invalid_validity', 'Срок действия должен быть позже даты документа.')
+        department = department_id if department_id is not None else user.get('department_id')
+        if user.get('level') != 'director' and department != user.get('department_id'):
+            raise forbidden(user, 'documents.upload', 'department', department, 'document.upload')
         share = [int(v) for v in re.findall(r'\d+', share_with)]
         if share:
             require(user, 'documents.share', action='document.share')
         data = await file.read(docs.MAX_BYTES + 1)
-        filename = Path(file.filename or 'document.txt').name[:200]
+        filename = Path((file.filename or 'document.txt').replace('\\', '/')).name[:200]
         try:
             kind, fragments = docs.fragments(filename, data)
         except docs.DocumentError as error:
             raise MeetError(422, 'bad_document', str(error)) from None
         with store.db() as connection:
+            if department is not None and not connection.execute('SELECT 1 FROM departments WHERE id=?', (department,)).fetchone():
+                raise MeetError(422, 'invalid_department', 'Отдел не найден.')
             if meeting_id is not None:
                 _meeting(connection, user, meeting_id, 'meetings.edit', 'meeting.attach_document')
             cursor = connection.execute(
-                'INSERT INTO documents(owner_id,title,filename,kind,content,sha256,created_at,department_id,confidentiality,doc_type,authored_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+                'INSERT INTO documents(owner_id,title,filename,kind,content,sha256,created_at,department_id,confidentiality,doc_type,authored_at,valid_until) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
                 (user['id'], (title.strip() or filename.rsplit('.', 1)[0])[:200], filename, kind, data,
-                 hashlib.sha256(data).hexdigest(), store.now(), user.get('department_id'), confidentiality, doc_type[:80], store.now()))
+                 hashlib.sha256(data).hexdigest(), store.now(), department, confidentiality, doc_type[:80], authored, until))
             document_id = cursor.lastrowid
             connection.executemany('INSERT INTO fragments(document_id,idx,location,text) VALUES (?,?,?,?)',
                                    [(document_id, f['idx'], f['location'], f['text']) for f in fragments])
@@ -623,6 +635,7 @@ def router():
             row = connection.execute('SELECT * FROM documents WHERE id=?', (document_id,)).fetchone()
             fragments = [store.fragment_out(f, row['title']) for f in connection.execute(
                 'SELECT * FROM fragments WHERE document_id=? ORDER BY idx', (document_id,))]
+            store.audit(connection, user['id'], 'document_read', object_type='document', object_id=document_id)
             return {'document': store.document_out(connection, row, user['id']), 'fragments': fragments}
 
     @api.get('/api/meet/documents/{document_id}/download')
@@ -662,7 +675,8 @@ def router():
             results = []
             for row in index.search(connection, user['id'], q,include_history=include_history):
                 results.append({**store.fragment_out(row), 'snippet': row['text'][:240], 'source_at':row['created_at'],
-                                'warnings':freshness(connection,user['id'],row['document_id'])})
+                                'warnings':freshness(connection,user['id'],row['document_id']),
+                                **freshness(connection,user['id'],row['document_id'])})
             store.audit(connection, user['id'], 'search', query=store.safe_text(q, 100), results=len(results),
                         source_ids=[r['id'] for r in results[:50]])
             return {'results': results[:50]}

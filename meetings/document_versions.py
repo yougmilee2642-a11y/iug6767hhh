@@ -31,10 +31,10 @@ def read(c, user, did, *, model=False):
 
 def owned(c, user, did):
     row = read(c, user, did)
-    require(user, 'documents.upload', action='document.version')
     if row['owner_id'] != user['id']:
         from meetings.api import denied
         raise denied(user, 'document', did, 'document.version')
+    require(user, 'documents.upload', action='document.version')
     return row
 
 

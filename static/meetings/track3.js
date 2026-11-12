@@ -1,3 +1,4 @@
+import { documentLibrary } from './documents.js';
 // Track 3 views. API payloads follow the core and knowledge server handoffs.
 // This module has no demo fallback; fixtures live exclusively in tests/ui_track3.
 export function track3UI(h) {
@@ -37,8 +38,11 @@ export function track3UI(h) {
     catch { return date(value); }
   };
 
+  const documents = documentLibrary({...h, dialog, field, sourceButton, claims});
+
   function reset({ keepDrafts = false } = {}) {
     generation++;
+    documents.reset();
     overview = answer = null;
     overviewStatus = 'idle';
     question = context = answerContext = answerQuestion = '';
@@ -244,18 +248,19 @@ export function track3UI(h) {
 
   function renderKnowledge(parent) {
     heading(parent, 'Знания', 'Ответы по проверенным утверждениям из доступных материалов.');
+    documents.render(parent);
     const form = node('form', 'panel meet-knowledge');
     const scope = select([{ value: '', label: 'Все доступные материалы' }, ...state.meetings.map((m) => ({ value: m.id, label: m.title }))], context);
     scope.addEventListener('change', () => { context = scope.value; answer = null; qaSequence++; render(); });
     const q = textarea({ label: 'Ваш вопрос', value: question, required: true, rows: 3 });
     q.input.maxLength = 2000;
     q.input.addEventListener('input', () => { question = q.input.value; });
+    const history = input({label:'Искать также в истории версий',type:'checkbox'});
+    history.input.checked=includeHistory;history.input.disabled=qaBusy;
+    history.input.addEventListener('change',()=>{includeHistory=history.input.checked;answer=null;qaSequence++;render();});
     const submit = button(qaBusy ? 'Формируется ответ…' : 'Задать вопрос', null, 'primary-button', 'submit');
     submit.disabled = qaBusy || !can('qa.ask');
     scope.disabled = qaBusy;
-    const history=input({label:'Искать также в прошлых версиях',type:'checkbox'});
-    history.input.checked=includeHistory;history.input.disabled=qaBusy;
-    history.input.addEventListener('change',()=>{includeHistory=history.input.checked;answer=null;qaSequence++;render();});
     form.append(field('Контекст', scope), q.wrap, history.wrap, submit);
     form.addEventListener('submit', async (event) => {
       event.preventDefault(); if (qaBusy || !q.input.value.trim()) return;
@@ -266,7 +271,7 @@ export function track3UI(h) {
       const sequence = ++qaSequence;
       qaBusy = true; answer = null; submit.disabled = true;
       await run(submit, async () => {
-        const result = await request('/qa', { method: 'POST', body: { question: askedQuestion, include_history: includeHistory, ...(askedContext ? { meeting_id: Number(askedContext) } : {}) } });
+        const result = await request('/qa', { method: 'POST', body: { question: askedQuestion, include_history:history.input.checked, ...(askedContext ? { meeting_id: Number(askedContext) } : {}) } });
         if (current === generation && sequence === qaSequence) { answer = result; answerContext = askedContext; answerQuestion = askedQuestion; qaBusy = false; if (state.page === 'knowledge') render(); }
       }, { model: true, label: 'Формируется ответ…' });
       if (current !== generation || sequence !== qaSequence) return;
@@ -280,7 +285,6 @@ export function track3UI(h) {
     result.setAttribute('aria-label', 'Ответ');
     const groundedClaims = (answer.claims || []).filter((claim) => claim.sources?.length);
     result.append(node('p', 'task-meta', `Вопрос: ${answerQuestion}`));
-    for(const warning of answer.warnings || [])result.append(node('p','gap-state',warning.message));
     if (answer.status !== 'grounded' || !groundedClaims.length) {
       result.append(node('h2', '', 'Оснований не найдено'), node('p', '', 'В доступных материалах недостаточно проверяемых данных. Уточните вопрос или добавьте материалы.'));
     } else {
@@ -288,6 +292,7 @@ export function track3UI(h) {
       // Render only claims carrying server-verified sources, never free-form answer HTML.
       claims(result, groundedClaims);
     }
+    (answer.warnings || []).forEach(w=>result.append(node('p','access-limited-note',w.message)));
     result.append(node('p', 'task-meta', `Сформировано: ${date(answer.generated_at)}`));
     result.append(feedback('qa_answer', answer.answer_id, askedMeeting()));
     parent.append(result);
