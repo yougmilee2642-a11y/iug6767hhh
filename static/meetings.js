@@ -54,7 +54,7 @@ const ui = track3UI({ node, makeButton, makeInput, makeTextarea, makeSelect, req
 const administration = administrationUI({ node, makeButton, makeInput, request, runAction, state, dateLabel });
 const crm = crmUI({ node, makeButton, makeInput, request, runAction, state, dateLabel, ui });
 const calendarTools = calendarUI({ node, makeButton, makeInput, request, runAction, state, dateLabel, ui, markSaved });
-const assistant = voiceAssistant({ node, makeButton, request, state, openSource, dateLabel, navigate: (page) => {
+const assistant = voiceAssistant({ node, makeButton, request, state, openSource, dateLabel, openMeeting, navigate: (page) => {
   if (page === 'tasks') void openTasks(); else setPage(page);
 } });
 

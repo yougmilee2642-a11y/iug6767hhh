@@ -2,6 +2,7 @@
 // «Окей, Фокус») -> /api/meet/voice/ask -> a short phrase aloud, the full answer with sources on screen.
 // Without the opt-in wake mode the microphone is on only while the user holds the turn.
 const MAX_SECONDS = 30;
+const VOICE_RATE = 1.25;         // скорость речи Фокуса (1 — обычная)
 const PACKET_MS = 100;           // pcm-capture-worklet posts 1600 samples at 16 kHz
 const WAKE_SILENCE_MS = 700;     // end of a wake segment
 const QUESTION_SILENCE_MS = 1300;
@@ -29,6 +30,10 @@ export function voiceAssistant(h) {
   const loudBox = node('input', '');
   loudBox.type = 'checkbox';
   loud.append(loudBox, node('span', '', 'Я один в комнате — озвучивать и ответы по закрытым данным'));
+  // Выбор запоминается для этого пользователя в этом браузере.
+  const aloneKey = () => `focus-alone:${state.user?.id ?? ''}`;
+  const restoreAlone = () => { try { loudBox.checked = localStorage.getItem(aloneKey()) === '1'; } catch { loudBox.checked = false; } };
+  loudBox.addEventListener('change', () => { try { localStorage.setItem(aloneKey(), loudBox.checked ? '1' : '0'); } catch { /* storage off */ } });
   const form = node('form', 'voice-form');
   const typed = node('input', '');
   typed.type = 'text';
@@ -77,7 +82,7 @@ export function voiceAssistant(h) {
   function setStatus(text) { status.textContent = text; }
 
   // Приветствие при открытии и подсказки — как у голосового помощника, а не пустая форма.
-  const SUGGESTIONS = ['Что важного сегодня?', 'Сколько просроченных задач?', 'Что ты умеешь?'];
+  const SUGGESTIONS = ['Какие у меня сегодня встречи?', 'Какие ближайшие сроки?', 'Что важного сегодня?', 'Что ты умеешь?'];
   function partOfDay() {
     const hour = Number(new Intl.DateTimeFormat('ru-RU', { hour: 'numeric', hour12: false, timeZone: 'Europe/Minsk' }).format(new Date()));
     return hour >= 5 && hour < 12 ? 'Доброе утро' : hour < 18 && hour >= 12 ? 'Добрый день' : hour >= 18 && hour < 23 ? 'Добрый вечер' : 'Доброй ночи';
@@ -93,6 +98,7 @@ export function voiceAssistant(h) {
 
   function mount(container) {
     if (!state.user || !state.capabilities.includes('qa.ask')) { talk.remove(); panel.hidden = true; return; }
+    restoreAlone();
     talk.textContent = capture ? 'Отправить вопрос' : 'Спросить голосом';
     talk.classList.toggle('recording', Boolean(capture));
     container.prepend(talk);
@@ -101,7 +107,7 @@ export function voiceAssistant(h) {
   function reset() {
     sequence++; stopSpeaking(); void cancelCapture(); void stopWake('');
     wakeConsentBox.checked = false; wakeButton.disabled = true;
-    panel.hidden = true; heard.textContent = ''; result.replaceChildren(); setStatus(''); loudBox.checked = false;
+    panel.hidden = true; heard.textContent = ''; result.replaceChildren(); setStatus(''); restoreAlone();
   }
 
   async function toggle() {
@@ -228,6 +234,9 @@ export function voiceAssistant(h) {
       if (mine !== sequence) return;
       window.CallwiseVoiceTiming.tts_ms = Math.round(performance.now() - ttsStarted);
       player = new Audio(URL.createObjectURL(audio));
+      // Быстрее, без «мультяшного» голоса: браузер сохраняет высоту тона.
+      player.preservesPitch = true;
+      player.playbackRate = VOICE_RATE;
       if (wake) wake.paused = true;  // never hear itself
       hush.hidden = false;
       player.addEventListener('ended', () => { stopSpeaking(); setStatus('Готово.'); }, { once: true });
@@ -382,6 +391,24 @@ export function voiceAssistant(h) {
     const phrase = node('p', `voice-phrase${reply.speak ? '' : ' voice-phrase-silent'}`, reply.display);
     result.append(phrase);
     if (reply.route === 'chat' || reply.route === 'restricted') return;
+    if (reply.route === 'agenda') {
+      const list = node('ul', 'voice-items');
+      for (const item of (reply.answer?.items || []).slice(0, 12)) {
+        const row = node('li', item.late ? 'late' : '');
+        const copy = node('span', '');
+        copy.append(node('b', '', item.title), node('small', '', item.meta || ''));
+        row.append(copy);
+        if (item.meeting_id) {
+          const tab = item.kind === 'task' ? 'tasks' : item.kind === 'decision' ? 'protocol' : undefined;
+          row.append(makeButton('Открыть', () => void h.openMeeting(item.meeting_id, tab), 'voice-item-open'));
+        }
+        list.append(row);
+      }
+      if (list.childNodes.length) result.append(list);
+      const page = { my_tasks: 'tasks', person_tasks: 'tasks', deadlines: 'tasks', documents: 'knowledge' }[reply.answer?.kind];
+      if (page) result.append(makeButton(page === 'tasks' ? 'Все задачи' : 'Открыть знания', () => h.navigate(page), 'secondary-button'));
+      return;
+    }
     if (reply.route === 'action') {
       result.append(makeButton(reply.open_page === 'calendar' ? 'Открыть встречи' : 'Открыть задачи', () => {
         h.navigate(reply.open_page === 'calendar' ? 'meetings' : 'tasks');

@@ -198,6 +198,26 @@ def answer_briefing(actor_user, text, meeting_id, details):
     return result, phrase, private
 
 
+def answer_agenda(actor_user, kind, text, meeting_id, details):
+    """Встречи, задачи, сроки, решения, документы. None — вопрос не распознан, идём дальше."""
+    from meetings import voice_agenda
+    auth.require(actor_user, 'meetings.read', action='voice.ask')
+    generated = utc_now()
+    with store.db() as connection:
+        connection.execute('BEGIN')
+        if meeting_id is not None and not store.can_read_meeting(connection, actor_user['id'], meeting_id):
+            raise MeetError(404, 'not_found', 'Не найдено или нет доступа.')
+        found = voice_agenda.answer(connection, actor_user, kind, text, generated)
+        if found is None:
+            return None
+        phrase, items = found
+        # Speak only what every listener could open themselves.
+        private = any(not voice_agenda.visible_to(connection, member, items)
+                      for member in audience(connection, actor_user['id'], meeting_id) if member != actor_user['id'])
+    details['source_ids'] = [f'{item["kind"]}:{item["id"]}' for item in items]
+    return {'status': 'ok', 'kind': kind, 'items': items}, phrase, private
+
+
 def ask(actor_user, text, meeting_id, speak_private, details):
     from meetings.privacy import prohibited_intent, refusal
     prohibited = prohibited_intent(text)
@@ -226,8 +246,21 @@ def ask(actor_user, text, meeting_id, speak_private, details):
         if hello:
             reply.update(spoken=hello + reply['spoken'], display=hello + reply['display'])
         return reply
-    handler = {'overview':answer_overview,'briefing':answer_briefing}.get(kind,answer_knowledge)
-    result, phrase, private = handler(actor_user, text, meeting_id, details)
+    agenda = None
+    if kind in ('overview', 'knowledge'):
+        from meetings import voice_agenda
+        if auth.has_capability(actor_user, 'meetings.read'):
+            for agenda_kind in voice_agenda.detect(text):
+                agenda = answer_agenda(actor_user, agenda_kind, text, meeting_id, details)
+                if agenda is not None:
+                    break
+    if agenda is not None:
+        kind = 'agenda'
+        details['route'] = kind
+        result, phrase, private = agenda
+    else:
+        handler = {'overview':answer_overview,'briefing':answer_briefing}.get(kind,answer_knowledge)
+        result, phrase, private = handler(actor_user, text, meeting_id, details)
     if kind == 'knowledge' and result.get('status') != 'grounded':
         phrase = f'{phrase} {voice_chat.suggestion()}'
     phrase = hello + phrase
