@@ -15,10 +15,11 @@ export function operationsUI(h) {
     for(const [name,label] of [['email','E-mail'],['telegram','Telegram'],['bitrix','Битрикс24']]){
       const field=input({label:`Уведомления: ${label}`,type:'checkbox'});field.input.checked=Boolean(data.settings[name+'_enabled']);controls[name+'_enabled']=field.input;settings.append(field.wrap);
     }
+    const reminder=input({label:'Напомнить о встрече за минут (0 — выключено)',type:'number',value:data.settings.reminder_minutes ?? 15});reminder.input.min='0';reminder.input.max='1440';settings.append(reminder.wrap);
     settings.append(node('p','muted-copy','Внешние каналы сохраняются в outbox. Реальные сервисы не подключены.'));
     const save=button('Предпросмотр настроек',null,'secondary-button','submit');settings.append(save);
     settings.addEventListener('submit',event=>{event.preventDefault();void run(save,async()=>{
-      const result=await request('/notification-settings/preview',{method:'POST',body:Object.fromEntries(Object.entries(controls).map(([k,v])=>[k,v.checked]))});
+      const result=await request('/notification-settings/preview',{method:'POST',body:{...Object.fromEntries(Object.entries(controls).map(([k,v])=>[k,v.checked])),reminder_minutes:Number(reminder.input.value)}});
       preview('Подтвердить каналы уведомлений',result,body=>request('/notification-settings/confirm',{method:'POST',body}));
     });});parent.append(settings);
     if(!data.notifications.length)parent.append(node('p','empty-copy','Доступных уведомлений нет.'));

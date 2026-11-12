@@ -1,4 +1,19 @@
 import { documentLibrary } from './documents.js';
+import { formulaLine } from './formula.js';
+
+// Демо «Фотопринт»: вопросы, на которые в документах роли есть подтверждённый ответ.
+const EXAMPLE_QUESTIONS = {
+  director: ['Каков демо-бюджет акции Premium?', 'Какова доля завершённых в срок заказов по срезу ERP?'],
+  prod_head: ['По скольким контрольным точкам ОТК проверяет переплёт Premium?', 'Когда назначено плановое ТО Kolbus и какова его продолжительность по графику?',
+    'Каков прогноз загрузки переплёта Kolbus на 15–21 декабря?', 'При каком условии подтверждённый брак Premium направляется на бесплатную перепечатку?'],
+  sup_head: ['Какова цель первого ответа по браку и кому передаётся просрочка?', 'Сколько из 400 обращений закрыла Mary и на сколько ответили в SLA?'],
+  mod_lead: ['Какое разрешение проверяет модерация макетов Premium перед производством?'],
+  designer: ['Какие поля обреза нужны для макета обложки Premium по брифу дизайнера?'],
+  picpac_lead: ['Каков срок изготовления Lite, Classic и Premium без доставки в демо?'],
+  mkt_lead: ['Какова скидка демо-акции Premium и до какой даты она действует?'],
+  sales_head: ['Что согласуется для корпоративных выпускных альбомов до запуска печати?'],
+};
+const $ = (selector) => document.querySelector(selector);
 // Track 3 views. API payloads follow the core and knowledge server handoffs.
 // This module has no demo fallback; fixtures live exclusively in tests/ui_track3.
 export function track3UI(h) {
@@ -146,25 +161,83 @@ export function track3UI(h) {
     if (state.page === 'overview') render();
   }
 
+  const zoneDay = (value, zone) => {
+    try { return new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value)); }
+    catch { return String(value).slice(0, 10); }
+  };
+  const zoneTime = (value, zone) => {
+    try { return new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: zone }).format(new Date(value)); }
+    catch { return ''; }
+  };
+
+  function todayColumn(parent) {
+    const zone = state.timezone;
+    const today = zoneDay(new Date(), zone);
+    const dated = state.meetings.filter((m) => m.scheduled_at).sort((a, b) => String(a.scheduled_at).localeCompare(String(b.scheduled_at)));
+    let list = dated.filter((m) => zoneDay(m.scheduled_at, m.timezone || zone) === today);
+    const title = list.length ? 'Сегодня' : 'Ближайшие встречи';
+    if (!list.length) list = dated.filter((m) => zoneDay(m.scheduled_at, m.timezone || zone) > today).slice(0, 3);
+    const column = node('section', 'overview-column');
+    column.append(node('h2', '', title));
+    if (!list.length) column.append(node('p', 'empty-copy', 'Запланированных встреч нет.'));
+    for (const meeting of list) {
+      const row = node('article', 'overview-meeting');
+      const when = zoneDay(meeting.scheduled_at, meeting.timezone || zone) === today
+        ? zoneTime(meeting.scheduled_at, meeting.timezone || zone)
+        : new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' }).format(new Date(meeting.scheduled_at));
+      const copy = node('div', '');
+      const people = (meeting.participants || []).length;
+      const topic = meeting.topic && meeting.topic.trim() !== (meeting.title || '').trim() ? meeting.topic : '';
+      copy.append(node('b', '', meeting.title || 'Без названия'), node('small', '', [topic, people ? `${people} ${people % 10 === 1 && people % 100 !== 11 ? 'участник' : people % 10 >= 2 && people % 10 <= 4 && (people % 100 < 10 || people % 100 >= 20) ? 'участника' : 'участников'}` : ''].filter(Boolean).join(' · ')));
+      row.append(node('span', 'overview-time', when), copy, button('Открыть', () => void openMeeting(meeting.id), 'task-meeting-link'));
+      column.append(row);
+    }
+    return column;
+  }
+
+  function attentionColumn() {
+    const column = node('section', 'overview-column');
+    column.append(node('h2', '', 'Требуют внимания'));
+    const tasks = overview.overdue_tasks || [];
+    if (!tasks.length) column.append(node('p', 'empty-copy', 'Просроченных задач в доступных данных нет.'));
+    for (const task of tasks) {
+      const row = node('article', 'overview-attention');
+      row.append(node('b', '', task.text), node('small', '', `до ${date(task.due)}${task.meeting_title ? ` · ${task.meeting_title}` : ''}`));
+      row.append(button(`Открыть задачу во встрече «${task.meeting_title || task.meeting_id}»`, () => void openTask(task), 'task-meeting-link'));
+      column.append(row);
+    }
+    return column;
+  }
+
   function renderOverview(parent) {
-    heading(parent, 'Обзор', 'Показатели доступных данных и контроль поручений.');
+    const day = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: state.timezone }).format(new Date());
+    const hour = Number(new Intl.DateTimeFormat('ru-RU', { hour: 'numeric', hour12: false, timeZone: state.timezone }).format(new Date()));
+    const hello = hour >= 5 && hour < 12 ? 'Доброе утро' : hour >= 12 && hour < 18 ? 'Добрый день' : hour >= 18 && hour < 23 ? 'Добрый вечер' : 'Доброй ночи';
+    const name = String(state.user?.name || '').trim().split(/\s+/)[0];
+    heading(parent, 'Обзор', `${hello}${name ? `, ${name}` : ''} · ${day.charAt(0).toUpperCase() + day.slice(1)}`);
+    if (can('meetings.create')) {
+      const create = button('Новая встреча', () => { state.showCreateMeeting = true; h.navigate('meetings'); }, 'primary-button accent-button');
+      parent.lastElementChild.append(create);
+    }
     if (overviewStatus === 'idle') { void loadOverview(); return; }
     if (overviewStatus === 'loading') { parent.append(node('p', '', 'Загружаю показатели…')); return; }
-    const refresh = button('Обновить обзор', () => void loadOverview());
-    parent.append(refresh);
     if (overviewStatus === 'error') {
-      parent.append(node('p', 'inline-error', overview.message)); return;
+      parent.append(button('Обновить обзор', () => void loadOverview()), node('p', 'inline-error', overview.message)); return;
     }
-    parent.append(node('p', 'muted-copy', `Актуальность витрины: ${date(overview.as_of)} · Рассчитано: ${date(overview.generated_at)}`));
     for (const warning of overview.warnings || []) parent.append(node('p', 'gap-state', warning));
+    const columns = node('div', 'overview-columns');
+    columns.append(todayColumn(), attentionColumn());
+    parent.append(columns);
+    const meta = node('div', 'overview-meta');
+    meta.append(node('h2', '', 'Показатели'), node('p', 'muted-copy', `Актуальность витрины: ${date(overview.as_of)} · Рассчитано: ${date(overview.generated_at)}`),
+      button('Обновить обзор', () => void loadOverview(), 'text-button'));
+    parent.append(meta);
     const grid = node('div', 'meet-kpi-grid');
     for (const metric of overview.metrics || []) {
       const card = node('article', 'panel meet-kpi');
       card.append(node('h2', '', metric.label), node('strong', 'meet-kpi-value', metric.value == null ? 'Нет данных' : `${metric.value} ${metric.unit || ''}`));
-      card.append(node('p', 'task-meta', `Формула: ${metric.formula || 'Не предоставлена'}`));
-      if (metric.status) card.append(node('p', metric.status === 'critical' ? 'warning-badge red' : metric.status === 'warning' ? 'warning-badge amber' : 'task-meta', `Демо-порог: ${{ok:'в норме',warning:'внимание',critical:'критично',no_data:'нет данных',informational:'справочно'}[metric.status] || metric.status}`));
-      if (metric.numerator != null && metric.denominator != null) card.append(node('p','task-meta',`Числитель ${metric.numerator} · знаменатель ${metric.denominator}`));
-      if (metric.as_of) card.append(node('p','task-meta',`Источник: ${date(metric.as_of)}`));
+      card.append(formulaLine(node, metric));
+      if (['warning', 'critical'].includes(metric.status)) card.append(node('p', metric.status === 'critical' ? 'warning-badge red' : 'warning-badge amber', `Демо-порог: ${metric.status === 'critical' ? 'критично' : 'внимание'}`));
       if (metric.source) card.append(sourceButton(metric.source));
       grid.append(card);
     }
@@ -193,14 +266,6 @@ export function track3UI(h) {
       }
     }
     claims(parent, overview.summary);
-    parent.append(node('h2', '', 'Просроченные задачи'));
-    if (!(overview.overdue_tasks || []).length) parent.append(node('p', 'empty-copy', 'Просроченных задач в доступных данных нет.'));
-    for (const task of overview.overdue_tasks || []) {
-      const row = node('article', 'panel task-card');
-      row.append(node('p', '', task.text), node('p', 'task-meta', `Срок: ${date(task.due)}`));
-      row.append(button(`Открыть задачу во встрече «${task.meeting_title || task.meeting_id}»`, () => void openTask(task), 'task-meeting-link'));
-      parent.append(row);
-    }
   }
 
   async function controlDecision(item, meetingId, existing = null) {
@@ -247,8 +312,24 @@ export function track3UI(h) {
   }
 
   function renderKnowledge(parent) {
-    heading(parent, 'Знания', 'Ответы по проверенным утверждениям из доступных материалов.');
-    documents.render(parent);
+    heading(parent, 'Знания', 'Спросите о встречах и документах');
+    const layout = node('div', 'knowledge-layout');
+    const aside = node('aside', 'knowledge-sources');
+    aside.append(node('h2', '', 'Источники'));
+    const recent = state.documents.filter((d) => !d.superseded).slice(0, 8);
+    const list = node('ul', 'knowledge-source-list');
+    for (const doc of recent) {
+      const item = node('li', '');
+      item.append(button(doc.title || doc.filename || 'Документ', () => void run(null, () => documents.open(doc)), 'source-link'));
+      list.append(item);
+    }
+    if (!recent.length) aside.append(node('p', 'empty-copy', 'Доступных материалов пока нет.'));
+    else aside.append(list);
+    documents.render(aside);
+    const main = node('div', 'knowledge-main');
+    layout.append(aside, main);
+    parent.append(layout);
+    parent = main;
     const form = node('form', 'panel meet-knowledge');
     const scope = select([{ value: '', label: 'Все доступные материалы' }, ...state.meetings.map((m) => ({ value: m.id, label: m.title }))], context);
     scope.addEventListener('change', () => { context = scope.value; answer = null; qaSequence++; render(); });
@@ -279,6 +360,13 @@ export function track3UI(h) {
       if (state.page === 'knowledge') render();
     });
     parent.append(form);
+    const examples = EXAMPLE_QUESTIONS[state.user?.login] || [];
+    if (examples.length && !qaBusy) {
+      const box = node('div', 'question-examples');
+      box.append(node('span', 'question-examples-title', 'Например'));
+      for (const text of examples) box.append(button(text, () => { question = text; answer = null; render(); $('.knowledge-main textarea')?.focus(); }, 'question-example'));
+      parent.append(box);
+    }
     if (qaBusy) parent.append(node('p', 'muted-copy', 'Модель обрабатывает вопрос. Можно перейти в другой раздел.'));
     if (!answer) return;
     const result = node('section', 'panel meet-knowledge');
@@ -367,6 +455,8 @@ export function track3UI(h) {
     duration.input.min = 15; duration.input.max = 540; duration.input.step = 15;
     const smart = node('input');smart.type='checkbox';smart.checked=saved.smart ?? true;
     const smartLabel=field('Учитывать смены, перерывы и буфер 10 минут',smart);
+    const weekends=node('input');weekends.type='checkbox';weekends.checked=saved.weekends ?? false;
+    const weekendsLabel=field('Искать также в выходные (при наличии рабочих смен)',weekends);
     let revision = 0;
     const viewGeneration = generation;
     const participants = node('fieldset', 'access-users'); participants.append(node('legend', '', 'Календарные участники из тестового справочника'));
@@ -381,11 +471,11 @@ export function track3UI(h) {
     participants.append(load);
     const search = button('Найти свободное время', null, 'secondary-button', 'submit');
     search.disabled = !can('calendar.view') || !saved.directory;
-    form.append(zone.wrap, start.wrap, end.wrap, duration.wrap, smartLabel, participants, search);
+    form.append(zone.wrap, start.wrap, end.wrap, duration.wrap, smartLabel, weekendsLabel, participants, search);
     const slots = node('div', 'meet-slots'); slots.setAttribute('aria-live', 'polite');
     const rememberRange = () => calendarDrafts.set(calendarKey, { ...calendarDrafts.get(calendarKey), zone: zone.input.value,
       start: start.input.value, end: end.input.value, duration: duration.input.value,
-      smart:smart.checked,
+      smart:smart.checked,weekends:weekends.checked,
       participantIds: [...participants.querySelectorAll('input[data-calendar-role="participant"]:checked')].map((box) => box.value),
       optionalIds:[...participants.querySelectorAll('input[data-calendar-role="optional"]:checked')].map((box)=>box.value) });
     function renderParticipants(directory) {
@@ -429,6 +519,7 @@ export function track3UI(h) {
           timezone: zone.input.value.trim(), range_start: zonedISO(start.input.value, zone.input.value.trim()),
           range_end: zonedISO(end.input.value, zone.input.value.trim()), duration_minutes: Number(duration.input.value),
           smart:smart.checked,
+          include_weekends:weekends.checked,
           participant_ids: [...participants.querySelectorAll('input[data-calendar-role="participant"]:checked')].filter(box=>!smart.checked || !participants.querySelector(`input[data-calendar-role="optional"][value="${box.value}"]`)?.checked).map((box) => Number(box.value)),
           optional_participant_ids:smart.checked ? [...participants.querySelectorAll('input[data-calendar-role="optional"]:checked:not(:disabled)')].map(box=>Number(box.value)) : [],
         };
@@ -574,5 +665,20 @@ export function track3UI(h) {
     return new Date([...candidates][0]).toISOString();
   }
 
-  return { can, reset, discardForeignDrafts, dialog, planning, feedback, sourceButton, renderOverview, renderKnowledge, openKnowledge, editTask, controlDecision, loadOverview, zonedISO };
+  async function seedCalendar(meetingId,hint) {
+    const owner=state.user?.id,current=generation,page=state.page;
+    const result=await request('/calendar/participants');
+    if(state.user?.id!==owner || generation!==current || state.page!==page)return false;
+    const zone=hint.timezone || state.timezone;
+    const local=(value)=>{
+      if(!value)return '';
+      const parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(value)).map(p=>[p.type,p.value]));
+      return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+    };
+    calendarDrafts.set(`${owner}/${meetingId}`,{zone,start:local(hint.range_start),end:local(hint.range_end),duration:hint.duration_minutes,
+      smart:true,weekends:hint.range_start?['Sat','Sun'].includes(new Intl.DateTimeFormat('en-US',{timeZone:zone,weekday:'short'}).format(new Date(hint.range_start))):false,
+      participantIds:hint.participant_ids.map(String),directory:result.participants});
+    return true;
+  }
+  return { can, reset, discardForeignDrafts, dialog, planning, seedCalendar, feedback, sourceButton, renderOverview, renderKnowledge, openKnowledge, editTask, controlDecision, loadOverview, zonedISO };
 }

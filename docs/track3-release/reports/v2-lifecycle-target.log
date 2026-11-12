@@ -1,0 +1,20 @@
+................                                                         [100%]
+=============================== warnings summary ===============================
+../../80c6e160b1f6/track3-clean-venv/lib/python3.12/site-packages/starlette/testclient.py:37
+  /workspace/scratch/80c6e160b1f6/track3-clean-venv/lib/python3.12/site-packages/starlette/testclient.py:37: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = typing.Callable[[], typing.ContextManager[anyio.abc.BlockingPortal]]
+
+tests/test_track3_media.py::test_no_consent_or_invalid_file_creates_nothing
+tests/test_track3_media.py::test_no_consent_or_invalid_file_creates_nothing
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+tests/test_track3_media.py::test_no_consent_or_invalid_file_creates_nothing
+tests/test_track3_media.py::test_no_consent_or_invalid_file_creates_nothing
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/test_track3_media.py::test_no_consent_or_invalid_file_creates_nothing
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+16 passed, 6 warnings in 19.99s
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute

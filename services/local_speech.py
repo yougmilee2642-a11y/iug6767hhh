@@ -104,8 +104,9 @@ def speech_window(audio, speech, sample_rate=16000):
     return audio[start:end]
 
 
-def synthesize_local(text):
+def synthesize_local(text, speaker=None):
     # Only the spoken copy changes. Dialogue/history retain the original text.
+    # `speaker` overrides LOCAL_TTS_SPEAKER for one caller (Фокус has its own voice).
     spoken_text=prepare_russian_speech(text)
     if not spoken_text:
         raise ValueError('После подготовки не осталось текста для озвучки.')
@@ -116,9 +117,10 @@ def synthesize_local(text):
         load_models()
         import soundfile as sf
         import torch
-        speaker=os.getenv('LOCAL_TTS_SPEAKER','xenia')
+        setting='FOCUS_TTS_SPEAKER' if speaker else 'LOCAL_TTS_SPEAKER'
+        speaker=speaker or os.getenv('LOCAL_TTS_SPEAKER','xenia')
         if speaker not in _tts.speakers:
-            raise ValueError('LOCAL_TTS_SPEAKER отсутствует в установленной модели.')
+            raise ValueError(f'{setting} ({speaker}) отсутствует в установленной модели.')
         with torch.inference_mode():
             audio=_tts.apply_tts(text=spoken_text,speaker=speaker,sample_rate=sample_rate,
                 put_accent=True,put_yo=True,put_stress_homo=True,put_yo_homo=True)

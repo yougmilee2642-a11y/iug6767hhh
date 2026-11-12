@@ -36,7 +36,8 @@ def department_context(connection, user, meeting, previous_tasks):
     order_ids = set(re.findall(r'PP-\d{4}-\d{5}', meeting['title'] + ' ' + meeting['topic']))
     for row in rows:
         links = json.loads(row['linked_entities'])
-        if row['meeting_department'] != department and not any(link.get('kind')=='order' and link.get('id') in order_ids for link in links):
+        series_match = meeting['series_id'] and connection.execute('SELECT 1 FROM meetings WHERE id=? AND series_id=?', (row['meeting_id'], meeting['series_id'])).fetchone()
+        if row['meeting_department'] != department and not series_match and not any(link.get('kind')=='order' and link.get('id') in order_ids for link in links):
             continue
         if row['id'] in seen: continue
         task = store.task_out(connection,row); task['source'] = task_source(connection,task)
@@ -74,5 +75,11 @@ def department_context(connection, user, meeting, previous_tasks):
                                     'source_at':r['as_of'],'locator':f"[{r['period_start']}, {r['period_end']})"} for r in snapshots]})
     as_of = min(snapshots,key=lambda r:store.parse_aware(r['as_of']))['as_of'] if snapshots else None
     if as_of and now-store.parse_aware(as_of)>timedelta(hours=48): warnings.append('Снимок отдела старше 48 часов.')
-    return {'previous_questions':questions,'kpi_context':{'department_id':department,'as_of':as_of,'metrics':metrics,'warnings':warnings},
+    from meetings.auth import has_capability
+    document_context={}
+    if has_capability(user,'qa.ask'):
+        from meetings.document_insights import build
+        insight=build(connection,user,meeting['id'])
+        document_context={'document_conflicts':insight['conflicts'],'commitments':insight['commitments'],'document_insights_partial':insight['partial']}
+    return {**document_context,'previous_questions':questions,'kpi_context':{'department_id':department,'as_of':as_of,'metrics':metrics,'warnings':warnings},
             'unquoted_previous_questions':hidden},tasks

@@ -225,7 +225,9 @@ def proposal(c,user,text,mid):
         status='done' if re.search('закрой|выполнен|заверш',text,re.I) else 'in_progress' if re.search('в работ',text,re.I) else 'blocked' if re.search('заблок',text,re.I) else None
         return {'kind':'task_change','task_id':tid,'status':status,'text':text,'meeting_id':mid,'requires_clarification':([] if tid and status else ['задача','новый статус'])}
     kind='meeting' if re.search('встреч|планёр|созвон',text,re.I) else 'task' if re.search('задач|поручени',text,re.I) else None
-    return {'kind':kind,'meeting_id':mid,'text':text,'requires_clarification':['ответственный','срок'] if kind=='task' else ['время','участники']} if kind else None
+    if not kind:return None
+    from meetings.intent import fields
+    return {'kind':kind,'meeting_id':mid,'text':text,**fields(c,user,text,kind,mid)}
 
 
 def question(user,text,mid,conversation,audit):

@@ -23,6 +23,8 @@ def clean(c,now=None):
     counts['utterances']=0
     for mid in mids:
         counts['utterances']+=c.execute('DELETE FROM utterances WHERE meeting_id=?',(mid,)).rowcount
+        if exists(c,'media_segments'):
+            c.execute('DELETE FROM media_segments WHERE job_id IN (SELECT id FROM media_jobs WHERE meeting_id=?)',(mid,))
         c.execute("UPDATE protocol_items SET quotes='[]' WHERE meeting_id=?",(mid,))
         c.execute("UPDATE protocols SET summary='[]' WHERE meeting_id=?",(mid,))
         for task in c.execute('SELECT id,source_quote FROM tasks WHERE meeting_id=?',(mid,)).fetchall():
@@ -51,7 +53,7 @@ def test_marker():
     return path
 
 
-BUSINESS_TABLES=('protocol_mail_outbox','notification_outbox','notifications','task_comments','task_history','task_origins','decision_controls',
+BUSINESS_TABLES=('action_basis','protocol_mail_outbox','notification_outbox','notifications','task_comments','task_history','task_origins','decision_controls',
     'media_segments','media_assets','media_jobs','calls','task_effect_checks','commitments',
     'assistant_messages','assistant_evidence','assistant_conversations','qa_answers','calendar_provider_outbox','calendar_outbox','calendar_event_participants',
     'calendar_events','calendar_import_state','calendar_busy','calendar_subscriptions','integration_outbox','mock_crm_objects',
@@ -81,6 +83,7 @@ def delete_user(c,user_id):
     counts={'meetings':c.execute('SELECT count(*) FROM meetings WHERE owner_id=?',(user_id,)).fetchone()[0],
             'documents':c.execute('SELECT count(*) FROM documents WHERE owner_id=?',(user_id,)).fetchone()[0]}
     owned_tasks=[r[0] for r in c.execute('SELECT t.id FROM tasks t JOIN meetings m ON m.id=t.meeting_id WHERE m.owner_id=?',(user_id,))]
+    c.execute("DELETE FROM action_basis WHERE confirmed_by=? OR (object_type='meeting' AND object_id IN (SELECT id FROM meetings WHERE owner_id=?)) OR (object_type='task' AND object_id IN (SELECT t.id FROM tasks t JOIN meetings m ON m.id=t.meeting_id WHERE m.owner_id=?))",(user_id,user_id,user_id))
     for tid in owned_tasks:
         c.execute("DELETE FROM mock_crm_objects WHERE kind='task' AND object_id=?",(tid,))
         c.execute("DELETE FROM integration_outbox WHERE object_type='task' AND object_id=?",(tid,))

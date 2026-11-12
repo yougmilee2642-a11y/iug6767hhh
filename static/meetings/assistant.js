@@ -8,8 +8,8 @@ export function assistantUI(h) {
     const form=node('form','meet-form-grid');
     const text=textarea({label:proposal.kind==='meeting'?'Тема встречи':'Текст поручения',value:proposal.text,rows:3});
     const meeting=select([{value:'',label:'Выберите встречу-основание'},...state.meetings.map(m=>({value:m.id,label:m.title}))],proposal.meeting_id || '');
-    const person=select([{value:'',label:'Требует уточнения'},...state.users.filter(p=>p.active!==0 && !['admin','auditor'].includes(p.level)).map(p=>({value:p.id,label:p.name}))]);
-    const due=input({label:'Срок поручения',type:'date'});
+    const person=select([{value:'',label:'Требует уточнения'},...state.users.filter(p=>p.active!==0 && !['admin','auditor'].includes(p.level)).map(p=>({value:p.id,label:p.name}))],proposal.assignee_user_id || '');
+    const due=input({label:'Срок поручения',type:'date',value:proposal.due || ''});
     form.append(text.wrap);
     let taskId,status;
     if(proposal.kind==='task_change'){
@@ -18,17 +18,24 @@ export function assistantUI(h) {
       form.append(taskId.wrap,field('Новый статус',status));
     }
     if(proposal.kind==='task')form.append(field('Встреча-основание',meeting),field('Ответственный',person),due.wrap);
+    if(proposal.requires_clarification?.length)form.append(node('p','gap-state','Уточните: '+proposal.requires_clarification.join(', ')+'.'));
+    if(proposal.calendar_hint)form.append(node('p','muted-copy',`Календарь: ${proposal.calendar_hint.range_start?date(proposal.calendar_hint.range_start):'дата требует уточнения'}; участников для подбора: ${proposal.calendar_hint.participant_ids.length}. Это параметры поиска, встреча ещё не назначена.`));
     const preview=button('Предпросмотр',null,'secondary-button','submit');form.append(preview);
     form.addEventListener('submit',event=>{event.preventDefault();void run(preview,async()=>{
       const data={kind:proposal.kind,text:text.input.value,meeting_id:meeting.value?Number(meeting.value):null,
-        assignee_user_id:person.value?Number(person.value):null,due:due.input.value || null,task_id:taskId?.input.value?Number(taskId.input.value):null,status:status?.value || null};
+        assignee_user_id:person.value?Number(person.value):null,due:due.input.value || null,task_id:taskId?.input.value?Number(taskId.input.value):null,status:status?.value || null,basis:proposal.basis || null,calendar_hint:proposal.calendar_hint || null};
       const result=await request('/assistant/actions/preview',{method:'POST',body:data});
       const content=node('div');content.append(node('p','',result.preview.text),node('p','',result.preview.origin),node('p','',`Срок: ${result.preview.due || 'требует уточнения'}`));
       if(result.preview.status_after)content.append(node('p','',`Новый статус: ${result.preview.status_after}`));
+      if(result.preview._basis_source)content.append(button('Открыть источник действия',()=>void openSource(result.preview.basis.kind,result.preview.basis.id),'citation-chip'));
+      if(result.preview._participant_names?.length)content.append(node('p','','Участники проекта: '+result.preview._participant_names.join(', ')));
       const key=crypto.randomUUID();
       ui.dialog('Подтвердить действие ассистента',content,async()=>{
         const saved=await request('/assistant/actions/confirm',{method:'POST',body:{confirmation_id:result.confirmation_id,idempotency_key:key}});
         card.replaceChildren(node('p','',saved.notice),button('Открыть встречу',()=>void openMeeting(saved.meeting_id),'secondary-button'));
+        if(saved.calendar_hint)card.append(button('Подобрать время по параметрам',()=>void run(null,async()=>{
+          if(await ui.seedCalendar(saved.meeting_id,saved.calendar_hint))await openMeeting(saved.meeting_id,'prep');
+        })));
       },()=>request(`/confirmations/${result.confirmation_id}/cancel`,{method:'POST'}));
     });});
     card.append(form);

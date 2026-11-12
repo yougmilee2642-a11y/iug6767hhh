@@ -6,6 +6,7 @@ existing validators display evidence from authorized stored sources. Tokens are
 request-local and never grant access to another source.
 """
 import re
+from contextlib import closing
 import sqlite3
 import unicodedata
 
@@ -42,7 +43,8 @@ def customer_names():
         return []
     # A privacy guard must not create/migrate a DB as a side effect of a pure extraction call.
     try:
-        with sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True, timeout=2) as c:
+        # sqlite3's own context manager only commits; closing() releases the file (Windows locks it otherwise).
+        with closing(sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True, timeout=2)) as c:
             if not c.execute("SELECT 1 FROM sqlite_master WHERE name='crm_customers'").fetchone():
                 return []
             return [r[0] for r in c.execute('SELECT display_name FROM crm_customers') if len(r[0].strip()) >= 3]

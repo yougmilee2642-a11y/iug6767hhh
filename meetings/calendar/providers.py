@@ -180,5 +180,5 @@ def provider(c, actor=None):
     name = configured_name()
     if name == 'mock': return MockCalendar(c, actor)
     if name == 'bitrix24': return Bitrix24Calendar(c, actor)
-    # Google is added through the existing validated freeBusy/events boundary.
-    raise IntegrationError('disabled')
+    from meetings.calendar.google import GoogleCalendar
+    return GoogleCalendar(c, actor)

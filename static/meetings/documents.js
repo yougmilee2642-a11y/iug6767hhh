@@ -158,6 +158,25 @@ export function documentLibrary(h) {
     const history = input({label:'Показать заменённые версии',type:'checkbox'}); history.input.checked=filters.history;
     controls.append(text.wrap,field('Конфиденциальность',classification),field('Тип документа',kind),history.wrap);
     const list=node('div','search-results'), output=node('section','panel');
+    const insights=button('Противоречия и обязательства',()=>run(insights,async()=>{
+      const current=generation;const result=await request('/document-insights');
+      if(current!==generation || !output.isConnected)return;
+      output.replaceChildren(node('h3','','Противоречия и обязательства'),node('p','muted-copy',result.notice));
+      partial(output,result);for(const warning of result.warnings)output.append(node('p','access-limited-note',warning));
+      if(!result.conflicts.length)output.append(node('p','','Возможных противоречий по поддерживаемым правилам не найдено.'));
+      for(const conflict of result.conflicts){
+        const card=node('article','panel');card.append(node('p','',conflict.text));for(const cited of conflict.sources)source(card,cited);output.append(card);
+      }
+      output.append(node('h3','','Карта обязательств'));
+      if(!result.commitments.length)output.append(node('p','','Явных обещаний в доступных источниках не найдено.'));
+      for(const promise of result.commitments){
+        const card=node('article','panel');card.append(node('p','',`${promise.who}: ${promise.what}`),node('p','task-meta',`Срок: ${promise.due || 'требует уточнения'}; исполнение проверяет человек.`));
+        for(const cited of promise.sources)source(card,cited);
+        for(const task of promise.tasks)card.append(node('p','task-meta',`Связанное поручение №${task.id}: ${({open:'открыто',in_progress:'в работе',blocked:'заблокировано',done:'готово',cancelled:'отменено'})[task.status] || 'требует проверки'}`));
+        if(can('protocol.confirm'))card.append(button('Подготовить задачу по обязательству',()=>h.propose(promise.proposed_action),'secondary-button'));
+        output.append(card);
+      }
+    }),'secondary-button');
     const draw=()=>{
       filters={text:text.input.value,classification:classification.value,kind:kind.value,history:history.input.checked};
       list.replaceChildren();
@@ -177,8 +196,8 @@ export function documentLibrary(h) {
     };
     [text.input,classification,kind,history.input].forEach(control=>control.addEventListener('input',draw));
     const refresh=button('Обновить документы',()=>run(refresh,reload),'secondary-button');
-    disclosure.append(controls,refresh,list,output); draw(); parent.append(disclosure);
+    disclosure.append(controls,refresh,insights,list,output); draw(); parent.append(disclosure);
   }
   h.openDocument = openDocument;
-  return {render:renderLibrary,reset};
+  return {render:renderLibrary,reset,open:openDocument};
 }

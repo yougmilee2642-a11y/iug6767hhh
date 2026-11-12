@@ -126,11 +126,18 @@ def install(app):
     app.include_router(operations_router())
     from meetings.protocol_export import router as protocol_export_router
     app.include_router(protocol_export_router())
+    from meetings.media.api import router as media_router, install_background as media_background
+    app.include_router(media_router())
+    media_background(app)
+    from meetings.calls import router as calls_router
+    app.include_router(calls_router())
+    from meetings.document_insights import router as document_insights_router
+    app.include_router(document_insights_router())
     install_background(app)
     extras = _optional_routers()
     for extra in extras:
         app.include_router(extra)
-    if len(extras) == len(OPTIONAL_ROUTERS):  # the voice assistant only reads through knowledge + overview
+    if len(extras) == len(OPTIONAL_ROUTERS):
         from meetings.voice import router as voice_router
         app.include_router(voice_router())
 
@@ -1206,7 +1213,8 @@ def router():
                 "SELECT * FROM tasks WHERE meeting_id=? AND status NOT IN ('done','cancelled') ORDER BY COALESCE(due,'9999'), id", (meeting_id,))]
             agenda = [{'task_id': t['id'], 'text': t['text'], 'assignee': t['assignee'], 'due': t['due'] or t['due_text'],
                        'status': t['status']} for t in open_tasks]
-            result = {'agenda': agenda}
+            from meetings.agenda import context as agenda_context
+            result = {'agenda': agenda,'context':agenda_context(connection,user,row)}
             if payload.create_meeting:
                 cursor = connection.execute(
                     'INSERT INTO meetings(owner_id,title,topic,participants,followup_of,created_at) VALUES (?,?,?,?,?,?)',

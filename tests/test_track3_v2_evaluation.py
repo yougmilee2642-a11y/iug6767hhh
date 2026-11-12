@@ -20,7 +20,7 @@ def pipeline_report(tmp_path_factory):
 
 
 def test_frozen_sizes_categories_and_call():
-    gold=json.loads(v2.GOLD.read_text())
+    gold=json.loads(v2.GOLD.read_text(encoding='utf-8'))
     assert v2.frozen_check()==hashlib.sha256(v2.GOLD.read_bytes()).hexdigest()
     assert len(gold['transcripts'])==5
     assert sum(len(t['tasks']) for t in gold['transcripts'])==30
@@ -52,18 +52,18 @@ def test_missing_window_blocks_before_any_model_construction(monkeypatch):
 
 
 def test_tampered_dataset_is_rejected(tmp_path,monkeypatch):
-    hashes=json.loads(v2.FROZEN.read_text())
+    hashes=json.loads(v2.FROZEN.read_text(encoding='utf-8'))
     for name in hashes:
         target=tmp_path/name;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(v2.ROOT/name,target)
     monkeypatch.setattr(v2,'ROOT',tmp_path)
     path=tmp_path/'demo/track3/transcripts/call_defect.txt'
-    path.write_text(path.read_text()+'\nНовая строка')
+    path.write_text(path.read_text(encoding='utf-8')+'\nНовая строка',encoding='utf-8')
     with pytest.raises(evaluate.EvaluationBlocked,match='frozen_v2_dataset_changed'):v2.frozen_check()
 
 
 def test_roster_identity_is_exact_and_duplicate_is_not_double_credit(pipeline_report):
     r=deepcopy(pipeline_report); item=r['transcripts'][0]
-    control=json.loads(v2.GOLD.read_text())['transcripts'][0]
+    control=json.loads(v2.GOLD.read_text(encoding='utf-8'))['transcripts'][0]
     p=item['predictions']; anna=next(x for x in p if (x.get('assignee') or '').startswith('Анна'))
     assert anna['assignee']=='Анна Морозова'
     extra=deepcopy(anna);extra['assignee']='Анна Выдуманная'
@@ -105,7 +105,7 @@ def test_cli_double_preserves_report_and_labels_quality(tmp_path):
     command=[sys.executable,str(v2.ROOT/'scripts/track3/evaluate.py'),'--dataset','photoprint-v2','--scripted-double','--output',str(path)]
     result=subprocess.run(command,cwd=v2.ROOT,capture_output=True,text=True,timeout=45)
     assert result.returncode==0,result.stderr+result.stdout
-    report=json.loads(path.read_text())
+    report=json.loads(path.read_text(encoding='utf-8'))
     assert report['status']=='pipeline_passed' and report['quality_status'].startswith('not_measured')
     original=path.read_bytes()
     again=subprocess.run(command,cwd=v2.ROOT,capture_output=True,text=True,timeout=15)

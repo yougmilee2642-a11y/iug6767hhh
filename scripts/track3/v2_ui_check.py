@@ -1,5 +1,6 @@
 """Photoprint role forms against actual product HTTP; synthetic QA double only."""
 import argparse
+import io
 import json
 from datetime import datetime, timedelta, timezone
 import os
@@ -11,6 +12,7 @@ import sys
 import tempfile
 import time
 import traceback
+import wave
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -61,6 +63,9 @@ def document_editions(page):
     assert panel.get_by_text('Поставка тестового картона состоится 25 ноября. Участок готов.', exact=True).count()
     page.get_by_label('Показать заменённые версии', exact=True).check()
     card.wait_for()
+    panel.get_by_role('button',name='Противоречия и обязательства',exact=True).click()
+    panel.get_by_role('heading',name='Карта обязательств',exact=True).wait_for()
+    assert panel.get_by_text('Возможное противоречие: картон 0,9 мм, дата поставки: 2026-11-20 / 2026-11-25.',exact=True).count()
     for width in (360,768,1440):
         page.set_viewport_size({'width':width,'height':1000})
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth+1'), ('documents overflow',width)
@@ -99,11 +104,17 @@ def run(artifacts):
                     result = fixture.put(f'/api/meet/meetings/{decision_meeting}/transcript',json={'text':'Марина: Решили проверить резерв картона перед запуском Premium.'}); result.raise_for_status()
                     utterance_id = result.json()['utterances'][0]['id']
                     result = fixture.put(f'/api/meet/meetings/{decision_meeting}/protocol',json={'items':[{'kind':'decision','text':'Проверить резерв картона перед запуском Premium','quotes':[{'utterance_id':utterance_id}]}]}); result.raise_for_status()
+                    fixture.post('/api/meet/login',json={'login':'sup_head','password':'sup_head-demo'}).raise_for_status()
+                    p=fixture.post('/api/meet/calls/preview',json={'direction':'in','agent_user_id':ids['users']['sup_agent'],
+                        'started_at':datetime.now(timezone.utc).isoformat(),'consent':True,'segments':[
+                            {'speaker':'Оператор','text':'Здравствуйте, меня зовут Светлана. Уточните номер заказа.'},
+                            {'speaker':'Клиент','text':'Брак переплёта Premium. Верните деньги.'}]});p.raise_for_status()
+                    fixture.post('/api/meet/calls/confirm',json={'confirmation_id':p.json()['confirmation_id'],'idempotency_key':'browser-call-fixture'}).raise_for_status()
                 with sync_playwright() as pw:
                     browser = pw.chromium.launch(executable_path=shutil.which('chromium') or pw.chromium.executable_path,
                                                  headless=True, args=['--no-sandbox'])
                     try:
-                        for login, heading in [('director','Обзор'), ('prod_head','Обзор'), ('operator','Обзор'),
+                        for login, heading in [('director','Обзор'), ('prod_head','Обзор'), ('sup_head','Обзор'), ('operator','Обзор'),
                                                ('designer','Обзор'), ('admin','Администрирование · Пользователи'), ('auditor','Журнал действий')]:
                             context = browser.new_context(viewport={'width':1440, 'height':1000})
                             try:
@@ -121,6 +132,11 @@ def run(artifacts):
                                     page.get_by_label('Сообщение ассистенту',exact=True).fill('Что просрочено?')
                                     page.get_by_role('button',name='Спросить Фокус',exact=True).click()
                                     page.locator('[aria-label="Ответы ассистента"] .citation-chip').first.wait_for()
+                                    page.get_by_label('Сообщение ассистенту',exact=True).fill('Поставь задачу Петрову проверить картон до пятницы')
+                                    page.get_by_role('button',name='Спросить Фокус',exact=True).click()
+                                    page.get_by_label('Ответственный',exact=True).wait_for()
+                                    assert page.get_by_label('Ответственный',exact=True).input_value()==str(ids['users']['operator'])
+                                    assert page.get_by_label('Срок поручения',exact=True).input_value()
                                     page.get_by_role('button',name='Уведомления',exact=True).click()
                                     page.get_by_role('heading',name='Уведомления',exact=True).wait_for()
                                     page.get_by_role('button',name='Предпросмотр настроек',exact=True).wait_for()
@@ -144,10 +160,27 @@ def run(artifacts):
                                     page.get_by_role('heading',name='Хранение данных',exact=True).wait_for()
                                     page.get_by_role('button',name='Предпросмотр политики',exact=True).wait_for()
                                     page.get_by_role('button',name='Пользователи',exact=True).click()
+                                if login == 'sup_head':
+                                    page.get_by_role('button',name='Звонки',exact=True).click()
+                                    page.get_by_role('heading',name='Звонки',exact=True).wait_for()
+                                    page.get_by_role('button',name='Проверить импорт звонка',exact=True).wait_for()
+                                    page.get_by_role('button').filter(has_text='Звонок 1').click()
+                                    analysis=page.get_by_role('dialog').filter(has=page.get_by_role('heading',name='Анализ звонка',exact=True))
+                                    analysis.get_by_text('Есть сигнал риска, нужна проверка человеком.',exact=True).wait_for()
+                                    assert analysis.locator('.citation-chip').count()>0
+                                    analysis.get_by_role('button',name='Закрыть',exact=True).click()
                                 if login == 'prod_head':
                                     page.get_by_role('button',name='Встречи',exact=True).click()
                                     calendar=page.locator('details').filter(has=page.get_by_text('Мой календарь · ICS и приглашения',exact=True))
-                                    calendar.locator('summary').click()
+                                    calendar.locator('summary').first.click()
+                                    series=calendar.locator('details').filter(has=page.get_by_text('Повторяющиеся встречи',exact=True))
+                                    series.locator('summary').click()
+                                    series.get_by_label('Название серии',exact=True).fill('Браузерная серия')
+                                    series.get_by_label('Учитывать смены, перерывы и буфер',exact=True).uncheck()
+                                    series.get_by_role('button',name='Предпросмотр всех дат серии',exact=True).click()
+                                    series_dialog=page.get_by_role('dialog').filter(has=page.get_by_role('heading',name='Проверить всю серию',exact=True))
+                                    series_dialog.wait_for();assert series_dialog.locator('p').count()>=7
+                                    series_dialog.get_by_role('button',name='Отменить',exact=True).click();series_dialog.wait_for(state='hidden')
                                     payload=(b'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:browser-import\r\n'
                                              b'DTSTART:20261201T060000Z\r\nDTEND:20261201T070000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n')
                                     calendar.get_by_label('Импорт занятости (.ics)',exact=True).set_input_files({'name':'busy.ics','mimeType':'text/calendar','buffer':payload})
@@ -194,6 +227,18 @@ def run(artifacts):
                                     editor.get_by_role('button',name='Предпросмотр',exact=True).click()
                                     preview = page.get_by_role('dialog').filter(has=page.get_by_role('heading',name='Подтвердить контроль решения',exact=True))
                                     preview.wait_for(); preview.get_by_role('button',name='Подтвердить',exact=True).click(); preview.wait_for(state='hidden')
+                                    page.get_by_role('button',name='2 · Материалы',exact=True).click()
+                                    page.get_by_role('heading',name='Загрузить запись с согласия',exact=True).wait_for()
+                                    audio=io.BytesIO()
+                                    with wave.open(audio,'wb') as wav:
+                                        wav.setnchannels(1);wav.setsampwidth(2);wav.setframerate(16000);wav.writeframes(b'\x01\x00'*1600)
+                                    page.get_by_label('Аудиофайл WAV/MP3/M4A/OGG/WebM',exact=True).set_input_files({'name':'synthetic.wav','mimeType':'audio/wav','buffer':audio.getvalue()})
+                                    page.get_by_label('Все участники согласны на запись, расшифровку и хранение аудио.',exact=True).check()
+                                    with page.expect_response(lambda r:r.url.endswith(f'/api/meet/meetings/{decision_meeting}/audio') and r.status==503):
+                                        page.get_by_role('button',name='Загрузить запись',exact=True).click()
+                                    page.get_by_text('Модели распознавания не настроены. Файл сохранён; обработку можно повторить после настройки.',exact=True).wait_for()
+                                    page.get_by_role('button',name='Аналитика встречи',exact=True).click()
+                                    page.get_by_text('Таймкодов нет: доля речи и паузы не рассчитываются.',exact=True).wait_for()
                                     page.get_by_role('button',name='Обзор',exact=True).click()
                                     page.get_by_role('heading',name='Решения на контроле',exact=True).wait_for()
                                 if login == 'operator':

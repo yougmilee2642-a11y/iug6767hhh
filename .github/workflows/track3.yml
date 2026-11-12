@@ -68,6 +68,8 @@ jobs:
           node --check static/meetings/briefing.js
           node --check static/meetings/assistant.js
           node --check static/meetings/operations.js
+          node --check static/meetings/media.js
+          node --check static/meetings/calls.js
           node --check static/meetings/protocol.js
           node --check static/meetings/voice.js
           node --check static/meetings/administration.js
@@ -84,6 +86,9 @@ jobs:
       - name: V2 evaluator pipeline (scripted double, no live quality claim)
         if: always() && steps.dependencies.outcome == 'success'
         run: python scripts/track3/evaluate.py --dataset photoprint-v2 --scripted-double --output /tmp/track3-v2-evaluation.json
+      - name: Frozen call topics, checklist, citations and scope (no inference)
+        if: always() && steps.dependencies.outcome == 'success'
+        run: python scripts/track3/evaluate_calls.py --output /tmp/track3-calls-control.json
       - name: Python syntax and whitespace
         if: always() && steps.dependencies.outcome == 'success'
         run: |

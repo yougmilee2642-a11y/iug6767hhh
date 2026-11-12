@@ -1,5 +1,6 @@
 """Real product HTTP/restart, synthetic roles and a scripted QA double; no live inference."""
 import argparse
+import io
 import json
 import os
 from pathlib import Path
@@ -8,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import wave
 from datetime import datetime, timedelta, timezone
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -23,6 +25,8 @@ def model_failure_code(error):
 
 
 def server(db, port, unavailable=False):
+    os.environ.update(MEETINGS_AUDIO_PIPELINE_ENABLED='0',MEETINGS_CALENDAR_PROVIDER='mock',
+                      MEETINGS_BITRIX_ENABLED='0',MEETINGS_SEMANTIC_SUMMARY='0',MEETINGS_ASSISTANT_MODEL_ROUTER='0',MEETINGS_CALL_TOPIC_MODEL='0')
     from scripts.track3.start import configure
     from meetings import llm
     configure(Path(db))
@@ -209,6 +213,41 @@ def run(unavailable=False):
             request('prod_head','GET','/retention',expected=403)
             request('admin','GET','/integrations/employees')
             request('operator','GET','/notifications')
+            voice_action=request('prod_head','POST','/voice/ask',json={'text':'Поставь задачу Петрову проверить картон до пятницы'})
+            assert voice_action['route']=='action_draft' and voice_action['proposed_action']['assignee_user_id']==ids['users']['operator']
+            meeting_action=request('prod_head','POST','/voice/ask',json={'text':'Назначь встречу с логистикой на завтра'})['proposed_action']
+            assert meeting_action['calendar_hint']['participant_ids']==[ids['users']['log_head']]
+            prepared=request('prod_head','POST','/assistant/actions/preview',json={
+                'kind':'meeting','text':meeting_action['text'],'calendar_hint':meeting_action['calendar_hint']})
+            prepared=request('prod_head','POST','/assistant/actions/confirm',json={
+                'confirmation_id':prepared['confirmation_id'],'idempotency_key':'http-voice-meeting-hint'})
+            assert prepared['calendar_hint']==meeting_action['calendar_hint']
+            assert request('prod_head','GET',f"/meetings/{prepared['meeting_id']}")['meeting']['scheduled_at'] is None
+            audio=io.BytesIO()
+            with wave.open(audio,'wb') as wav:
+                wav.setnchannels(1);wav.setsampwidth(2);wav.setframerate(16000);wav.writeframes(b'\x01\x00'*1600)
+            files={'file':('synthetic.wav',audio.getvalue(),'audio/wav')}
+            request('prod_head','POST',f'/meetings/{action_meeting}/audio',files=files,data={'consent':'false'},expected=403)
+            job=request('prod_head','POST',f'/meetings/{action_meeting}/audio',files=files,data={'consent':'true'},expected=503)['job']
+            assert job['error_code']=='asr_unavailable'
+            assert clients['prod_head'].get(f"/api/meet/media-assets/{job['asset_id']}/audio").content==audio.getvalue()
+            request('designer','GET',f"/media-assets/{job['asset_id']}/audio",expected=404)
+            request('prod_head','GET',f"/media-jobs/{job['id']}")
+            call=request('director','POST','/calls/preview',json={'direction':'in','agent_user_id':ids['users']['sup_agent'],
+                'consent':True,'started_at':datetime.now(timezone.utc).isoformat(),'segments':[
+                    {'speaker':'Оператор','text':'Здравствуйте, меня зовут Светлана. Уточните номер заказа.'},
+                    {'speaker':'Клиент','text':'Это брак переплёта Premium, верните деньги.'}]})
+            call=request('director','POST','/calls/confirm',json={'confirmation_id':call['confirmation_id'],'idempotency_key':'http-call-import'})
+            analysis=request('director','GET',f"/calls/{call['call_id']}")
+            assert analysis['risk']['flag'] and analysis['topics']
+            request('operator','GET',f"/calls/{call['call_id']}",expected=404)
+            assert request('director','GET','/calls/problems')['problems']
+            source=request('prod_head','GET','/overview')['metrics'][0]['source']
+            metric_action=request('prod_head','POST','/assistant/actions/preview',json={
+                'kind':'meeting','text':'Проверить показатель из HTTP','basis':{'kind':'metric','id':source['id']}})
+            metric_action=request('prod_head','POST','/assistant/actions/confirm',json={
+                'confirmation_id':metric_action['confirmation_id'],'idempotency_key':'http-metric-action'})
+            request('prod_head','GET',f"/meetings/{metric_action['meeting_id']}")
             doc = request('director','POST','/documents',files={'file':('editions.txt','Учебный график версий: поставка картона 20 ноября.'.encode())},
                           data={'title':'HTTP проверка истории версий'})['document']
             version_route = f"/documents/{doc['id']}"
@@ -225,6 +264,17 @@ def run(unavailable=False):
             assert request('director','GET',version_route+f"/compare/{edition['id']}")['changes']
             assert {row['document_id'] for row in request('director','GET','/search',params={'q':'Учебный график версий'})['results']}=={edition['id']}
             request('admin','GET',version_route+'/summary',expected=404)
+            series_start=(datetime.now(timezone.utc)+timedelta(days=50)).replace(hour=10,minute=0,second=0,microsecond=0)
+            series_preview=request('prod_head','POST','/calendar/series/preview',json={
+                'title':'HTTP серия планёрок','start_at':series_start.isoformat(),'frequency':'weekdays','count':2,'smart':False})
+            series_token={'confirmation_id':series_preview['confirmation_id'],'idempotency_key':'http-series'}
+            series=request('prod_head','POST','/calendar/series/confirm',json=series_token)
+            assert len(series['meeting_ids'])==2
+            assert request('prod_head','POST','/calendar/series/confirm',json=series_token)['already_confirmed']
+            insights=request('director','GET','/document-insights')
+            assert any(c['entity']=='картон 0,9 мм' for c in insights['conflicts'])
+            assert insights['commitments']
+            request('admin','GET','/document-insights',expected=403)
             stop(); proc = start()
             assert request('operator', 'GET', '/me')['user']['login'] == 'operator'
             assert request('prod_head','GET',f"/crm/tasks/{task['id']}")['outbox']['external_ref']==crm_result['external_ref']
@@ -235,12 +285,17 @@ def run(unavailable=False):
             request('designer', 'GET', f'/meetings/{mid}', expected=404)
             assert len(request('director','GET',version_route+'/versions')['versions'])==2
             assert request('director','POST',version_route+'/versions/confirm',json=version_token)['document']['id']==edition['id']
+            assert any(s['id']==series['series_id'] for s in request('prod_head','GET','/calendar/series')['series'])
             return {'status':'passed', 'model':('unavailable loopback; no live inference' if unavailable else
                                                'scripted double; live quality not measured'), 'roles':len(clients),
                     'model_failure_path': 'passed' if unavailable else 'not_run',
                     'observed_model_errors':observed_model_errors,
                     'requests':events, 'kpi_before_mutation':metrics, 'restart':'passed', 'calendar_interchange':'passed',
                     'document_versions':'passed', 'daily_briefing':'passed',
+                    'audio_retained_503':'passed','call_analysis':'passed','metric_action':'passed',
+                    'voice_action_fields':'passed',
+                    'recurring_series':'passed',
+                    'document_insights':'passed',
                     'smart_calendar':{'slot_count':len(smart['slots']),'warnings':smart['warnings']}}
         finally:
             stop()

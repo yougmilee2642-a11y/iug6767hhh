@@ -20,3 +20,6 @@ data/*/
 proof/
 .claude/
 data/*.key
+
+# Local demo databases (scripts/track3/seed_fotoprint_demo.py)
+demo-db/

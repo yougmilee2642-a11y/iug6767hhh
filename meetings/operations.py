@@ -22,6 +22,7 @@ class Channels(BaseModel):
     email_enabled: bool=False
     telegram_enabled: bool=False
     bitrix_enabled: bool=False
+    reminder_minutes: int=Field(default=15,ge=0,le=1440)
 
 
 class Comment(BaseModel):
@@ -47,7 +48,7 @@ def router():
             rows=[dict(r) for r in c.execute('SELECT * FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 200',(user['id'],))
                   if notifications.readable(c,user['id'],r['object_type'],r['object_id'])]
             settings=c.execute('SELECT * FROM notification_settings WHERE user_id=?',(user['id'],)).fetchone()
-            return {'notifications':rows,'unread':sum(not r['read_at'] for r in rows),'settings':dict(settings) if settings else {k:False for k in Channels.model_fields}}
+            return {'notifications':rows,'unread':sum(not r['read_at'] for r in rows),'settings':dict(settings) if settings else Channels().model_dump()}
 
     @api.post('/api/meet/notifications/{notification_id}/read')
     def mark(notification_id: int,request: Request):
@@ -77,9 +78,9 @@ def router():
             old=c.execute('SELECT version FROM notification_settings WHERE user_id=?',(user['id'],)).fetchone()
             if (old[0] if old else 0)!=p['object_version']:raise MeetError(409,'stale','Настройки изменились. Проверьте заново.')
             data=p['payload']
-            c.execute('INSERT INTO notification_settings(user_id,email_enabled,telegram_enabled,bitrix_enabled) VALUES (?,?,?,?) '
-                      'ON CONFLICT(user_id) DO UPDATE SET email_enabled=excluded.email_enabled,telegram_enabled=excluded.telegram_enabled,bitrix_enabled=excluded.bitrix_enabled,version=version+1',
-                      (user['id'],data['email_enabled'],data['telegram_enabled'],data['bitrix_enabled']))
+            c.execute('INSERT INTO notification_settings(user_id,email_enabled,telegram_enabled,bitrix_enabled,reminder_minutes) VALUES (?,?,?,?,?) '
+                      'ON CONFLICT(user_id) DO UPDATE SET email_enabled=excluded.email_enabled,telegram_enabled=excluded.telegram_enabled,bitrix_enabled=excluded.bitrix_enabled,reminder_minutes=excluded.reminder_minutes,version=version+1',
+                      (user['id'],data['email_enabled'],data['telegram_enabled'],data['bitrix_enabled'],data['reminder_minutes']))
             confirmations.finish(c,payload.confirmation_id,payload.idempotency_key,{'settings':data})
             store.audit(c,user['id'],'notification_settings_confirmed',object_type='user',object_id=user['id'],stage='confirm')
             return {'settings':data,'already_confirmed':False}
@@ -215,4 +216,5 @@ def install_background(app):
     def finish():
         stop.set()
         for thread in started:thread.join(timeout=1)
-    app.add_event_handler('startup',start);app.add_event_handler('shutdown',finish)
+    from meetings.lifecycle import install
+    install(app,start,finish)

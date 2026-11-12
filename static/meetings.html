@@ -3,24 +3,26 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f6efe6">
+  <meta name="theme-color" content="#f4ece5">
   <title>Фокус — встречи и знания</title>
   <link rel="icon" href="/static/focus-logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/style.css">
   <link rel="stylesheet" href="/static/product.css">
   <link rel="stylesheet" href="/static/meetings.css">
+  <link rel="stylesheet" href="/static/meetings-minimal.css">
 </head>
 <body class="meetings-page">
   <header class="meetings-topbar">
     <a class="meetings-brand" href="/meetings" aria-label="Фокус, к списку встреч">
       <svg class="meetings-brand-mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M16 10.8L27.13 17.23M20.5 13.4V26.25M20.5 18.6L9.37 25.03M16 21.2L4.87 14.77M11.5 18.6V5.75M11.5 13.4L22.63 6.97" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path class="lens-core" d="M16 10.8L20.5 13.4V18.6L16 21.2L11.5 18.6V13.4Z"/></svg>
-      <span><b>Фокус</b><small>встречи и знания</small></span>
+      <span><b>Фокус</b></span>
     </a>
     <nav class="meetings-nav" aria-label="Разделы встреч">
       <button type="button" data-action="show-overview">Обзор</button>
-      <button type="button" data-action="show-meetings" class="nav-current">Встречи</button>
+      <button type="button" data-action="show-meetings">Встречи</button>
       <button type="button" data-action="show-knowledge">Знания</button>
       <button type="button" data-action="show-tasks">Задачи</button>
+      <span id="nav-extra" class="nav-extra"></span>
     </nav>
     <div class="meetings-account" id="account"></div>
   </header>

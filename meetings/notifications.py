@@ -57,10 +57,13 @@ def tick(c,now=None):
     for event in c.execute("SELECT * FROM calendar_events WHERE status='confirmed'"):
         try:start=store.parse_aware(event['start_at'])
         except store.TimeError:continue
-        if now <=start <=now+timedelta(minutes=15):
+        if now <=start <=now+timedelta(minutes=1440):
             people={event['organizer_id'],*[r[0] for r in c.execute('SELECT user_id FROM calendar_event_participants WHERE event_id=?',(event['id'],))]}
             for uid in people:
-                if event['meeting_id']:emit(c,uid,'meeting_soon','meeting',event['meeting_id'],'Встреча начнётся в течение 15 минут.',f"meeting:{event['id']}:{uid}:{event['start_at']}")
+                preference=c.execute('SELECT reminder_minutes FROM notification_settings WHERE user_id=?',(uid,)).fetchone()
+                minutes=preference[0] if preference else 15
+                if minutes and start<=now+timedelta(minutes=minutes) and event['meeting_id']:
+                    emit(c,uid,'meeting_soon','meeting',event['meeting_id'],f'Встреча начнётся в течение {minutes} минут. Откройте повестку.',f"meeting:{event['id']}:{uid}:{event['start_at']}")
     if now.astimezone(MINSK).hour>=9:
         for user in c.execute('SELECT id FROM users WHERE active=1'):
             emit(c,user[0],'daily_briefing','briefing',day,'Доступен брифинг дня.',f'briefing:{user[0]}:{day}')

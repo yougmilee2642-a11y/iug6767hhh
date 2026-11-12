@@ -1864,6 +1864,94 @@
         }
       }
     },
+    "/api/meet/calendar/series": {
+      "get": {
+        "summary": "Listing",
+        "operationId": "listing_api_meet_calendar_series_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/calendar/series/preview": {
+      "post": {
+        "summary": "Preview",
+        "operationId": "preview_api_meet_calendar_series_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Series"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/calendar/series/confirm": {
+      "post": {
+        "summary": "Confirm",
+        "operationId": "confirm_api_meet_calendar_series_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmTokenIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/meet/feedback": {
       "post": {
         "summary": "Create",
@@ -2549,6 +2637,16 @@
             "schema": {
               "type": "integer",
               "title": "Document Id"
+            }
+          },
+          {
+            "name": "semantic",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Semantic"
             }
           }
         ],
@@ -3404,6 +3502,598 @@
         }
       }
     },
+    "/api/meet/meetings/{meeting_id}/audio": {
+      "post": {
+        "summary": "Upload",
+        "operationId": "upload_api_meet_meetings__meeting_id__audio_post",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_api_meet_meetings__meeting_id__audio_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Listing",
+        "operationId": "listing_api_meet_meetings__meeting_id__audio_get",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/media-jobs/{job_id}": {
+      "get": {
+        "summary": "Status",
+        "operationId": "status_api_meet_media_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/media-assets/{asset_id}/audio": {
+      "get": {
+        "summary": "Playback",
+        "operationId": "playback_api_meet_media_assets__asset_id__audio_get",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Asset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/media-jobs/{job_id}/retry": {
+      "post": {
+        "summary": "Retry",
+        "operationId": "retry_api_meet_media_jobs__job_id__retry_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/media-jobs/{job_id}/import/preview": {
+      "post": {
+        "summary": "Preview",
+        "operationId": "preview_api_meet_media_jobs__job_id__import_preview_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/meetings__media__api__Mapping"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/media-jobs/{job_id}/import/confirm": {
+      "post": {
+        "summary": "Confirm",
+        "operationId": "confirm_api_meet_media_jobs__job_id__import_confirm_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmTokenIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/meetings/{meeting_id}/analytics": {
+      "get": {
+        "summary": "Report",
+        "operationId": "report_api_meet_meetings__meeting_id__analytics_get",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/calls/problems": {
+      "get": {
+        "summary": "Problems",
+        "operationId": "problems_api_meet_calls_problems_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/calls/preview": {
+      "post": {
+        "summary": "Preview",
+        "operationId": "preview_api_meet_calls_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CallIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/calls/confirm": {
+      "post": {
+        "summary": "Confirm",
+        "operationId": "confirm_api_meet_calls_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmTokenIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/calls": {
+      "get": {
+        "summary": "Listing",
+        "operationId": "listing_api_meet_calls_get",
+        "parameters": [
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/calls/{call_id}": {
+      "get": {
+        "summary": "Detail",
+        "operationId": "detail_api_meet_calls__call_id__get",
+        "parameters": [
+          {
+            "name": "call_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Call Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/calls/{call_id}/topics": {
+      "get": {
+        "summary": "Topic Model",
+        "operationId": "topic_model_api_meet_calls__call_id__topics_get",
+        "parameters": [
+          {
+            "name": "call_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Call Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/document-insights": {
+      "get": {
+        "summary": "Insights",
+        "operationId": "insights_api_meet_document_insights_get",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 9223372036854775807,
+                  "exclusiveMinimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/meet/qa": {
       "post": {
         "summary": "Ask",
@@ -3984,6 +4674,26 @@
               }
             ],
             "title": "Status"
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Basis"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "calendar_hint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarHint"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -4047,6 +4757,28 @@
           "document_id"
         ],
         "title": "AttachIn"
+      },
+      "Basis": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "pattern": "^(metric|call|document|utterance)$",
+            "title": "Kind"
+          },
+          "id": {
+            "type": "string",
+            "maxLength": 240,
+            "minLength": 1,
+            "title": "Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "id"
+        ],
+        "title": "Basis"
       },
       "Body_import_preview_api_meet_calendar_import_preview_post": {
         "properties": {
@@ -4157,6 +4889,25 @@
         ],
         "title": "Body_upload_api_meet_documents_post"
       },
+      "Body_upload_api_meet_meetings__meeting_id__audio_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          },
+          "consent": {
+            "type": "boolean",
+            "title": "Consent",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_api_meet_meetings__meeting_id__audio_post"
+      },
       "Body_voice_transcribe_api_meet_voice_transcribe_post": {
         "properties": {
           "file": {
@@ -4184,6 +4935,157 @@
           "file"
         ],
         "title": "Body_voice_wake_api_meet_voice_wake_post"
+      },
+      "CalendarHint": {
+        "properties": {
+          "participant_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 30,
+            "title": "Participant Ids"
+          },
+          "range_start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Range Start"
+          },
+          "range_end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Range End"
+          },
+          "duration_minutes": {
+            "type": "integer",
+            "maximum": 480.0,
+            "minimum": 15.0,
+            "title": "Duration Minutes",
+            "default": 60
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 60,
+            "title": "Timezone",
+            "default": "Europe/Minsk"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "CalendarHint"
+      },
+      "CallIn": {
+        "properties": {
+          "direction": {
+            "type": "string",
+            "pattern": "^(in|out)$",
+            "title": "Direction"
+          },
+          "channel": {
+            "type": "string",
+            "pattern": "^(phone|telegram_voice|other)$",
+            "title": "Channel",
+            "default": "phone"
+          },
+          "agent_user_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "exclusiveMinimum": 0.0,
+            "title": "Agent User Id"
+          },
+          "agent_speaker_label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Speaker Label"
+          },
+          "client_ref": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Ref"
+          },
+          "order_no": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order No"
+          },
+          "started_at": {
+            "type": "string",
+            "maxLength": 40,
+            "title": "Started At"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 14400000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "consent": {
+            "type": "boolean",
+            "title": "Consent",
+            "default": false
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/Segment"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Segments"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "direction",
+          "agent_user_id",
+          "started_at",
+          "segments"
+        ],
+        "title": "CallIn"
       },
       "CancelIn": {
         "properties": {
@@ -4266,6 +5168,13 @@
             "type": "boolean",
             "title": "Bitrix Enabled",
             "default": false
+          },
+          "reminder_minutes": {
+            "type": "integer",
+            "maximum": 1440.0,
+            "minimum": 0.0,
+            "title": "Reminder Minutes",
+            "default": 15
           }
         },
         "additionalProperties": false,
@@ -4629,33 +5538,11 @@
         "type": "object",
         "title": "Mail"
       },
-      "Mapping": {
-        "properties": {
-          "user_id": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "User Id"
-          },
-          "external_id": {
-            "type": "string",
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "External Id"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "user_id",
-          "external_id"
-        ],
-        "title": "Mapping"
-      },
       "Mappings": {
         "properties": {
           "mappings": {
             "items": {
-              "$ref": "#/components/schemas/Mapping"
+              "$ref": "#/components/schemas/meetings__connectors__sync__Mapping"
             },
             "type": "array",
             "maxItems": 500,
@@ -4988,6 +5875,116 @@
           "question"
         ],
         "title": "Question"
+      },
+      "Segment": {
+        "properties": {
+          "speaker": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Speaker"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "start_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 14400000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Ms"
+          },
+          "end_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 14400000.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Ms"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "speaker",
+          "text"
+        ],
+        "title": "Segment"
+      },
+      "Series": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Title"
+          },
+          "start_at": {
+            "type": "string",
+            "maxLength": 40,
+            "title": "Start At"
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 60,
+            "title": "Timezone",
+            "default": "Europe/Minsk"
+          },
+          "frequency": {
+            "type": "string",
+            "pattern": "^(daily|weekdays|weekly)$",
+            "title": "Frequency"
+          },
+          "count": {
+            "type": "integer",
+            "maximum": 30.0,
+            "minimum": 2.0,
+            "title": "Count"
+          },
+          "duration_minutes": {
+            "type": "integer",
+            "maximum": 480.0,
+            "minimum": 15.0,
+            "title": "Duration Minutes",
+            "default": 30
+          },
+          "participant_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 29,
+            "title": "Participant Ids"
+          },
+          "smart": {
+            "type": "boolean",
+            "title": "Smart",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "start_at",
+          "frequency",
+          "count"
+        ],
+        "title": "Series"
       },
       "SlotsIn": {
         "properties": {
@@ -5407,6 +6404,28 @@
         ],
         "title": "Token"
       },
+      "meetings__connectors__sync__Mapping": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "User Id"
+          },
+          "external_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "External Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "user_id",
+          "external_id"
+        ],
+        "title": "Mapping"
+      },
       "meetings__decisions__Draft": {
         "properties": {
           "owner_user_id": {
@@ -5466,6 +6485,21 @@
           "idempotency_key"
         ],
         "title": "Token"
+      },
+      "meetings__media__api__Mapping": {
+        "properties": {
+          "speaker_map": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "maxProperties": 30,
+            "title": "Speaker Map"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Mapping"
       }
     }
   },

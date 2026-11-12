@@ -456,9 +456,11 @@ async def speech(payload: dict[str, str]):
     text = payload.get("text", "").strip()
     if not text or len(text) > 1500:
         raise HTTPException(400, "Для озвучки нужен текст от 1 до 1500 символов.")
+    # Фокус speaks with its own (male by default) voice; other callers keep LOCAL_TTS_SPEAKER.
+    speaker = os.getenv("FOCUS_TTS_SPEAKER", "aidar") if payload.get("voice") == "focus" else None
     if uses_local_ai():
         try:
-            audio=await asyncio.to_thread(local_speech.synthesize_local,text)
+            audio=await asyncio.to_thread(local_speech.synthesize_local,*((text,speaker) if speaker else (text,)))
             return Response(audio,media_type='audio/wav')
         except LocalAIError as exc: raise HTTPException(503,str(exc))
         except Exception:

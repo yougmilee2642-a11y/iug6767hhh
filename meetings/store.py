@@ -289,7 +289,7 @@ def meeting_out(connection, row) -> dict:
             'timezone': DISPLAY_ZONE, 'participants': json.loads(row['participants']), 'owner_id': row['owner_id'],
             'owner_name': user_name(connection, row['owner_id']), 'access_user_ids': access,
             'speaker_map': json.loads(row['speaker_map']), 'followup_of': row['followup_of'],
-            'created_at': row['created_at'], 'version': row['version'],
+            'created_at': row['created_at'], 'version': row['version'], 'series_id': row['series_id'],
             'department_id': row['department_id'], 'confidentiality': row['confidentiality']}
 
 
@@ -297,7 +297,9 @@ def utterance_out(row, speaker_map: dict) -> dict:
     label = row['speaker_label']
     return {'id': f"U{row['id']}", 'meeting_id': row['meeting_id'], 'idx': row['idx'], 'speaker_label': label,
             'speaker': speaker_map.get(label) or label, 'text': row['text'], 'original_text': row['original_text'],
-            'edited': bool(row['edited']), 'source': row['source'], 'start_ms': row['start_ms']}
+            'edited': bool(row['edited']), 'source': row['source'], 'start_ms': row['start_ms'],
+            'end_ms':row['end_ms'] if 'end_ms' in row.keys() else None,
+            'media_job_id':row['media_job_id'] if 'media_job_id' in row.keys() else None}
 
 
 def item_out(connection, row) -> dict:

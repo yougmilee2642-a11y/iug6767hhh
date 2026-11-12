@@ -7,6 +7,9 @@ import { voiceAssistant } from './meetings/voice.js';
 import { administrationUI } from './meetings/administration.js';
 import { crmUI } from './meetings/crm.js';
 import { calendarUI } from './meetings/calendar.js';
+import { mediaUI } from './meetings/media.js';
+import { callsUI } from './meetings/calls.js';
+import { formulaLine } from './meetings/formula.js';
 
 const API = '/api/meet';
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -51,12 +54,16 @@ let meetingSequence = 0;
 let searchSequence = 0;
 const ui = track3UI({ node, makeButton, makeInput, makeTextarea, makeSelect, request, runAction, state,
   dateLabel, render, openMeeting, openSource, showNotice, toast, refreshMeeting, markSaved, draftCheckpoint,
-  navigate: setPage });
+  navigate: setPage, propose:(proposal)=>{managerAssistant.propose(proposal);setPage('assistant');} });
 const managerAssistant = assistantUI({node,makeButton,makeInput,makeTextarea,makeSelect,request,runAction,state,ui,dateLabel,openMeeting,openSource});
 const administration = administrationUI({ node, makeButton, makeInput, request, runAction, state, dateLabel });
 const crm = crmUI({ node, makeButton, makeInput, request, runAction, state, dateLabel, ui });
-const calendarTools = calendarUI({ node, makeButton, makeInput, request, runAction, state, dateLabel, ui, markSaved });
-const assistant = voiceAssistant({ node, makeButton, request, state, openSource, dateLabel, proposeAction:(proposal)=>{managerAssistant.propose(proposal);setPage('assistant');}, navigate: (page) => {
+const calendarTools = calendarUI({ node, makeButton, makeInput, makeSelect, request, runAction, state, dateLabel, ui, markSaved, openMeeting });
+const mediaTools = mediaUI({node,makeButton,makeInput,makeSelect,request,runAction,state,ui,refreshMeeting});
+const callTools = callsUI({node,makeButton,makeInput,makeTextarea,makeSelect,request,runAction,state,ui,openMeeting,openSource,
+  propose:(proposal)=>{managerAssistant.propose(proposal);setPage('assistant');}});
+const assistant = voiceAssistant({ node, makeButton, request, state, openSource, dateLabel, openMeeting, proposeAction:(proposal)=>{managerAssistant.propose(proposal);setPage('assistant');}, navigate: (page) => {
+
   if (page === 'tasks') void openTasks(); else setPage(page);
 } });
 
@@ -362,22 +369,37 @@ function downloadLink(documentItem) {
   return link;
 }
 
+function initials(name) {
+  return String(name || '').trim().split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase() || '·';
+}
+
 function updateAccount() {
   const account = $('#account');
   account.replaceChildren();
+  const extra = $('#nav-extra');
+  extra?.replaceChildren();
   if (!state.user) return;
-  assistant.mount(account);
-  account.append(node('span', 'account-name', state.user.name || state.user.login));
-  if (state.user.level) account.append(node('span', 'account-name', `${state.user.level} · ${state.user.department?.code || ''}`));
-  for (const [capability, label, page] of [['users.manage','Пользователи','administration'], ['integrations.manage','Интеграции','integrations'], ['audit.read','Журнал','audit'], ['delegation.grant','Делегировать','delegation']]) {
-    if (state.capabilities.includes(capability)) account.append(makeButton(label, () => setPage(page)));
+  // Role pages sit in the main navigation (always visible), not behind a menu.
+  const pages = [['overview.read','Брифинг','briefing'], ['qa.ask','Ассистент','assistant'], ['calls.read','Звонки','calls'], ['retention.manage','Хранение данных','retention'], ['users.manage','Пользователи','administration'], ['integrations.manage','Интеграции','integrations'], ['audit.read','Журнал','audit'], ['delegation.grant','Делегировать','delegation']];
+  for (const [capability, label, page] of pages) {
+    if (!state.capabilities.includes(capability) || !extra) continue;
+    const item = makeButton(label, () => setPage(page));
+    item.dataset.page = page;
+    extra.append(item);
   }
-  account.append(makeButton('Уведомления',()=>setPage('notifications')));
-  if (state.capabilities.includes('retention.manage')) account.append(makeButton('Хранение данных',()=>setPage('retention')));
-  account.append(makeButton('Удалить мои данные',()=>{const content=node('p','','Запрос будет передан администратору. Данные удалятся только после его проверки и подтверждения.');ui.dialog('Запросить удаление данных',content,()=>request('/privacy/delete-request',{method:'POST'}),null,'Отправить запрос');}));
-  if (state.capabilities.includes('qa.ask')) account.append(makeButton('Ассистент',()=>setPage('assistant')));
-  if (state.capabilities.includes('overview.read')) account.append(makeButton('Брифинг',()=>setPage('briefing')));
-  account.append(makeButton('Выйти', () => void logout(), 'logout-button'));
+  (extra || account).append(makeButton('Уведомления',()=>setPage('notifications')));
+  (extra || account).append(makeButton('Удалить мои данные',()=>{const content=node('p','','Запрос будет передан администратору. Данные удалятся только после его проверки и подтверждения.');ui.dialog('Запросить удаление данных',content,()=>request('/privacy/delete-request',{method:'POST'}),null,'Отправить запрос');}));
+  assistant.mount(account);
+  const person = node('span', 'account-person');
+  const name = state.user.name || state.user.login;
+  const role = state.user.level ? `${state.user.level} · ${state.user.department?.code || ''}` : '';
+  person.append(node('span', 'account-avatar', initials(name)));
+  const names = node('span', 'account-names');
+  names.append(node('span', 'account-name', name));
+  if (role) names.append(node('span', 'account-role', role));
+  person.append(names);
+  if (role) person.title = role;
+  account.append(person, makeButton('Выйти', () => void logout(), 'logout-button'));
 }
 
 function setPage(page) {
@@ -391,10 +413,18 @@ function setPage(page) {
 }
 
 function updateNavigation() {
+  const nav = $('.meetings-nav');
+  if (nav) nav.hidden = !state.user;
   for (const button of $$('.meetings-nav [data-action]')) {
     button.disabled = !state.user;
     const page = button.dataset.action.replace('show-', '');
     const active = page === state.page || (page === 'meetings' && state.page === 'meeting');
+    button.classList.toggle('nav-current', active);
+    if (active) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  }
+  for (const button of $$('#nav-extra [data-page]')) {
+    const active = button.dataset.page === state.page;
     button.classList.toggle('nav-current', active);
     if (active) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');
@@ -421,6 +451,7 @@ function render() {
   else if (state.page === 'assistant') managerAssistant.render(app);
   else if (state.page === 'notifications') void runAction(null,()=>operations.notifications(app));
   else if (state.page === 'retention') void runAction(null,()=>operations.retention(app));
+  else if (state.page === 'calls') void runAction(null,()=>callTools.render(app));
   else if (state.page === 'knowledge') ui.renderKnowledge(app);
   else if (state.page === 'tasks') renderTaskBoard(app, state.tasks, false);
   else if (state.page === 'search') renderSearchResults(app);
@@ -439,13 +470,16 @@ function renderGlobalSearch() {
     input.name = 'q';
     input.placeholder = 'Поиск по документам';
     input.setAttribute('aria-label', 'Поиск по документам');
-    const button = makeButton('Найти', null, 'search-button', 'submit');
+    const button = makeButton('', null, 'search-button', 'submit');
+    button.setAttribute('aria-label', 'Найти');
+    button.title = 'Найти';
+    button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M15.5 15.5L20 20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
     form.append(input, button);
     $('.meetings-topbar').insertBefore(form, $('#account'));
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       const query = new FormData(form).get('q').toString().trim();
-      if (!query) return;
+      if (!query) { input.focus(); return; }
       void loadSearch(query);
     });
   }
@@ -455,13 +489,13 @@ function renderGlobalSearch() {
 }
 
 function renderLogin(app) {
-  const shell = node('section', 'login-card panel');
+  const shell = node('section', 'login-card');
   shell.append(node('p', 'eyebrow', 'РАБОЧЕЕ ПРОСТРАНСТВО'));
-  shell.append(node('h1', '', 'Фокус'));
-  shell.append(node('p', 'login-copy', 'Встречи, документы и решения в одном месте. Войдите в демо-профиль, чтобы открыть свои материалы.'));
+  shell.append(node('h1', '', 'Войти в Фокус'));
+  shell.append(node('p', 'login-copy', 'Встречи, знания и решения команды'));
   const form = node('form', 'login-form');
-  const login = makeInput({ label: 'Логин', required: true, name: 'login', placeholder: 'irina или petr' });
-  const password = makeInput({ label: 'Пароль', type: 'password', required: true, name: 'password', placeholder: 'Пароль демо-профиля' });
+  const login = makeInput({ label: 'Логин', required: true, name: 'login', placeholder: 'Логин' });
+  const password = makeInput({ label: 'Пароль', type: 'password', required: true, name: 'password', placeholder: 'Пароль' });
   const submit = makeButton('Войти', null, 'primary-button', 'submit');
   submit.disabled = login.input.disabled = password.input.disabled = Boolean(state.authTransition);
   if (state.authTransition) shell.append(node('p', 'muted-copy', 'Завершаю выход из аккаунта…'));
@@ -479,25 +513,35 @@ function renderLogin(app) {
     });
   });
   shell.append(form);
+  const roleNames = { director: 'Директор', head: 'Руководитель отдела', lead: 'Руководитель группы', employee: 'Сотрудник', contractor: 'Подрядчик', admin: 'Администратор', auditor: 'Аудитор' };
+  const demo = node('div', 'demo-accounts');
+  demo.append(node('span', 'demo-accounts-title', state.demoProfiles.length ? 'Демо-доступ · Фотопринт' : 'Демо-доступ'));
+  // With a seeded company (Фотопринт) offer its key roles; otherwise the classic pair.
+  const featured = ['director', 'prod_head', 'operator', 'designer'];
+  const people = state.demoProfiles.length
+    ? featured.map((key) => state.demoProfiles.find((p) => p.login === key)).filter(Boolean).map((p) => [p.login, p.name, roleNames[p.level] || p.level])
+    : [['irina', 'Ирина Власова', 'Руководитель проекта'], ['petr', 'Пётр Смирнов', 'Подрядчик, только чтение']];
+  for (const [user, name, role] of people) {
+    const row = makeButton('', () => {
+      login.input.value = user; password.input.value = `${user}-demo`;
+      form.requestSubmit();
+    }, 'demo-account-button');
+    row.setAttribute('aria-label', `Войти как ${name}`);
+    const copy = node('span', 'demo-account-copy');
+    copy.append(node('b', '', name), node('small', '', `${role} · ${user} / ${user}-demo`));
+    row.append(node('span', 'account-avatar', initials(name)), copy, node('span', 'row-arrow', '→'));
+    row.disabled = Boolean(state.authTransition);
+    demo.append(row);
+  }
+  shell.append(demo);
   if (state.demoProfiles.length) {
-    const label = node('label', 'meeting-field'); label.append(node('span', 'field-label', 'Войти как…'));
+    const label = node('label', 'meeting-field demo-role-picker'); label.append(node('span', 'field-label', 'Другие роли'));
     const select = node('select', ''); select.setAttribute('aria-label', 'Демо-роль');
-    select.append(node('option', '', 'Выберите демо-профиль'));
-    for (const person of state.demoProfiles) { const option = node('option', '', `${person.name} · ${person.level}`); option.value = person.login; select.append(option); }
-    select.addEventListener('change', () => { if (select.value) { login.input.value = select.value; password.input.value = select.value + '-demo'; } });
+    select.append(node('option', '', 'Выберите сотрудника'));
+    for (const person of state.demoProfiles) { const option = node('option', '', `${person.name} · ${roleNames[person.level] || person.level || 'демо'}`); option.value = person.login; select.append(option); }
+    select.addEventListener('change', () => { if (select.value) { login.input.value = select.value; password.input.value = select.value + '-demo'; submit.focus(); } });
     label.append(select); shell.append(label);
   }
-  const demo = node('div', 'demo-accounts');
-  demo.append(node('span', 'field-label', 'Демо-доступ'));
-  const irina = makeButton('Ирина · irina / irina-demo', () => {
-    login.input.value = 'irina'; password.input.value = 'irina-demo'; login.input.focus();
-  }, 'demo-account-button');
-  const petr = makeButton('Пётр · petr / petr-demo', () => {
-    login.input.value = 'petr'; password.input.value = 'petr-demo'; login.input.focus();
-  }, 'demo-account-button');
-  irina.disabled = petr.disabled = Boolean(state.authTransition);
-  demo.append(irina, petr);
-  shell.append(demo);
   app.append(shell);
 }
 
@@ -539,37 +583,114 @@ async function logout() {
 function renderMeetings(app) {
   const intro = node('section', 'meetings-heading');
   const copy = node('div', '');
-  copy.append(node('p', 'eyebrow', 'ПЛАНИРОВАНИЕ И ИТОГИ'));
   copy.append(node('h1', '', 'Встречи'));
   copy.append(node('p', 'muted-copy', 'Подготовьте повестку, сохраните материалы и подтвердите решения.'));
   const createToggle = makeButton(state.showCreateMeeting ? 'Скрыть форму' : 'Новая встреча', () => {
     state.showCreateMeeting = !state.showCreateMeeting;
     render();
-  }, 'primary-button');
+  }, 'primary-button accent-button');
   intro.append(copy, permit(createToggle, 'meetings.create'));
   app.append(intro);
   if (state.showCreateMeeting && ui.can('meetings.create')) app.append(renderCreateMeetingForm());
   const list = node('section', 'meeting-list');
-  list.append(node('h2', '', 'Мои встречи'));
-  if (!state.meetings.length) {
-    list.append(emptyState('Пока нет встреч', 'Создайте первую встречу, чтобы добавить документы и материалы.'));
-  } else {
-    const cards = node('div', 'meeting-card-grid');
-    state.meetings.forEach((meeting) => {
-      const card = node('article', 'meeting-card panel');
-      card.append(node('span', 'meeting-date-chip', `${dateLabel(meeting.scheduled_at, meeting.timezone || state.timezone)} · ${meeting.timezone || state.timezone}`));
-      card.append(node('h3', '', meeting.title || 'Без названия'));
-      card.append(node('p', 'meeting-topic', meeting.topic || 'Тема не указана'));
-      const participants = node('p', 'meeting-participants', (meeting.participants || []).join(' · ') || 'Участники не указаны');
-      card.append(participants);
-      const open = makeButton('Открыть встречу', () => void openMeeting(meeting.id), 'text-button');
-      card.append(open);
-      cards.append(card);
-    });
-    list.append(cards);
+  const today = dayKey(new Date(), state.timezone);
+  const byTime = (a, b) => String(a.scheduled_at || '9999').localeCompare(String(b.scheduled_at || '9999'));
+  const upcoming = state.meetings.filter((m) => !m.scheduled_at || dayKey(m.scheduled_at, m.timezone || state.timezone) >= today).sort(byTime);
+  const past = state.meetings.filter((m) => !upcoming.includes(m)).sort(byTime);
+  if (!state.meetingsTab) state.meetingsTab = upcoming.length || !past.length ? 'upcoming' : 'past';
+  const toolbar = node('div', 'list-toolbar');
+  const tabs = node('div', 'underline-tabs');
+  tabs.setAttribute('role', 'tablist');
+  for (const [key, label, count] of [['upcoming', 'Предстоящие', upcoming.length], ['past', 'Прошедшие', past.length]]) {
+    const tab = makeButton(`${label} · ${count}`, () => { state.meetingsTab = key; render(); }, `underline-tab${state.meetingsTab === key ? ' active' : ''}`);
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-selected', String(state.meetingsTab === key));
+    tabs.append(tab);
   }
+  const filter = node('label', 'toolbar-search');
+  const filterInput = node('input', '');
+  filterInput.type = 'search';
+  filterInput.placeholder = 'Поиск по встречам';
+  filterInput.setAttribute('aria-label', 'Поиск по встречам');
+  filterInput.value = state.meetingsFilter || '';
+  filter.append(filterInput);
+  toolbar.append(tabs, filter);
+  list.append(toolbar);
+  const groups = node('div', 'meeting-groups');
+  const drawGroups = () => {
+    groups.replaceChildren();
+    const needle = (state.meetingsFilter || '').toLocaleLowerCase('ru');
+    const chosen = (state.meetingsTab === 'past' ? [...past].reverse() : upcoming).filter((m) =>
+      !needle || `${m.title} ${m.topic} ${(m.participants || []).join(' ')}`.toLocaleLowerCase('ru').includes(needle));
+    if (!state.meetings.length) {
+      groups.append(emptyState('Пока нет встреч', 'Создайте первую встречу, чтобы добавить документы и материалы.'));
+      return;
+    }
+    if (!chosen.length) { groups.append(node('p', 'empty-copy', needle ? 'Ничего не найдено.' : 'Встреч в этом разделе нет.')); return; }
+    let current = null; let rows = null;
+    for (const meeting of chosen) {
+      const zone = meeting.timezone || state.timezone;
+      const key = meeting.scheduled_at ? dayKey(meeting.scheduled_at, zone) : '';
+      if (key !== current) {
+        current = key;
+        const group = node('section', 'meeting-day');
+        group.append(node('h2', '', dayHeading(key, today)));
+        rows = node('div', 'meeting-rows');
+        group.append(rows); groups.append(group);
+      }
+      rows.append(meetingRow(meeting, zone));
+    }
+  };
+  filterInput.addEventListener('input', () => { state.meetingsFilter = filterInput.value; drawGroups(); });
+  drawGroups();
+  list.append(groups);
   app.append(list);
   calendarTools.panel(app);
+}
+
+function dayKey(value, timeZone = 'Europe/Moscow') {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  try { return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date); }
+  catch { return date.toISOString().slice(0, 10); }
+}
+
+function dayHeading(key, today) {
+  if (!key) return 'Без даты';
+  const day = (offset) => { const d = new Date(`${today}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + offset); return d.toISOString().slice(0, 10); };
+  if (key === today) return 'Сегодня';
+  if (key === day(1)) return 'Завтра';
+  if (key === day(-1)) return 'Вчера';
+  const label = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${key}T12:00:00Z`));
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function timeLabel(value, timeZone) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  try { return new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone }).format(date); }
+  catch { return '—'; }
+}
+
+function plural(count, one, few, many) {
+  const n = Math.abs(count) % 100; const d = n % 10;
+  return n > 10 && n < 20 ? many : d === 1 ? one : d >= 2 && d <= 4 ? few : many;
+}
+
+function meetingRow(meeting, zone) {
+  const row = node('article', 'meeting-row');
+  row.append(node('span', 'meeting-row-time', timeLabel(meeting.scheduled_at, zone)));
+  const main = node('div', 'meeting-row-main');
+  main.append(node('h3', '', meeting.title || 'Без названия'));
+  if (meeting.topic && meeting.topic.trim() !== (meeting.title || '').trim()) main.append(node('p', '', meeting.topic));
+  const people = (meeting.participants || []).length;
+  row.append(main, node('span', 'meeting-row-meta', people ? `${people} ${plural(people, 'участник', 'участника', 'участников')}` : 'Участники не указаны'));
+  const open = makeButton('Открыть встречу', () => void openMeeting(meeting.id), 'row-open');
+  open.title = meeting.title || 'Открыть встречу';
+  row.append(open);
+  row.addEventListener('click', (event) => { if (!event.target.closest('button')) void openMeeting(meeting.id); });
+  return row;
 }
 
 function emptyState(title, description) {
@@ -850,7 +971,7 @@ function renderPreparation(target) {
       prep.append(node('p','task-meta',`Показатели отдела · данные ${dateLabel(context.as_of)}`));
       for (const metric of context.metrics || []) {
         const text = `${metric.label}: ${metric.value ?? 'не рассчитано'} ${metric.unit}`;
-        prep.append(node('p','',text), node('p','task-meta',`${metric.formula}; ${metric.numerator}/${metric.denominator}`));
+        prep.append(node('p','',text), formulaLine(node, metric));
         for (const source of metric.sources || []) prep.append(ui.sourceButton(source));
         prep.append(makeButton('Добавить показатель в проект повестки', () => addDraft(text,metric.sources)));
       }
@@ -859,6 +980,18 @@ function renderPreparation(target) {
     for (const task of followup.open_tasks || []) prep.append(makeButton(`В повестку: ${task.text}`, () => addDraft(task.text,[task.source])));
   }
   const draftAgenda = state.agendaDrafts[String(meeting.id)] || [];
+  if(followup?.document_insights_partial)prep.append(node('p','access-limited-note','Анализ документов неполный: достигнут лимит. Откройте реестр источников.'));
+  for(const conflict of followup?.document_conflicts || []){
+    const card=node('article','panel');card.append(node('h3','','Возможное противоречие'),node('p','',conflict.text));
+    for(const source of conflict.sources)card.append(ui.sourceButton(source));
+    card.append(makeButton('Добавить противоречие в проект повестки',()=>{
+      const items=state.agendaDrafts[String(meeting.id)] ||= [];if(!items.some(i=>i.text===conflict.text))items.push({text:conflict.text,sources:conflict.sources});render();
+    }));prep.append(card);
+  }
+  for(const promise of followup?.commitments || []){
+    const card=node('article','panel');card.append(node('p','',`Обязательство: ${promise.what}`));for(const source of promise.sources)card.append(ui.sourceButton(source));
+    if(can('protocol.confirm'))card.append(makeButton('Подготовить задачу по обязательству',()=>{managerAssistant.propose(promise.proposed_action);setPage('assistant');}));prep.append(card);
+  }
   if (draftAgenda.length) {
     prep.append(node('h3','','Локальный проект повестки'), node('p','muted-copy','Не сохранён на сервере; исчезнет после выхода или закрытия вкладки.'));
     for (const item of draftAgenda) {
@@ -944,7 +1077,7 @@ function renderMaterials(target) {
   voice.append(node('p', 'muted-copy', 'Речь распознаётся короткими фрагментами. Каждый фрагмент можно исправить перед добавлением.'));
   const voiceState = node('div', 'voice-capture-status');
   voiceState.id = 'voice-capture-status';
-  voiceState.textContent = state.voiceCapture?.recording ? 'Идёт запись · фрагменты до 15 секунд'
+  voiceState.textContent = state.voiceCapture?.recording ? 'Идёт запись, все уведомлены · фрагменты до 15 секунд'
     : state.voiceCapture ? 'Завершается распознавание фрагментов…' : 'Микрофон выключен';
   voice.append(voiceState);
   const consentLabel = node('label', 'record-consent');
@@ -953,6 +1086,7 @@ function renderMaterials(target) {
   consentLabel.append(consent, node('span', '', 'Я подтвердил(а), что все участники согласны на запись и расшифровку встречи.'));
   consentLabel.hidden = Boolean(state.voiceCapture?.recording);
   voice.append(permit(consentLabel, 'transcript.edit'));
+  voice.append(node('p','muted-copy','Автоостановка после двух минут тишины. Уже записанные фрагменты сохраняются.'));
   const voiceButton = makeButton(state.voiceCapture?.recording ? 'Остановить запись' : state.voiceCapture ? 'Распознавание…' : 'Начать запись', null,
     state.voiceCapture?.recording ? 'stop-recording-button' : 'primary-button');
   voiceButton.disabled = Boolean(state.voiceCapture && !state.voiceCapture.recording) || (!state.voiceCapture?.recording && !consent.checked);
@@ -986,6 +1120,7 @@ function renderMaterials(target) {
   utterances.append(list);
   layout.append(transcript, voice, utterances);
   target.append(layout);
+  mediaTools.mount(target,data.meeting);
   renderUtteranceList();
   renderSpeakerMapping();
 }
@@ -1226,6 +1361,7 @@ async function startVoiceCapture(meetingId, button) {
       const capture = {
         meetingId, epoch, stream, context, source, worklet, gain, recording: true,
         frames: [], sampleCount: 0, sentSamples: 0, queue: Promise.resolve(), flushResolve: null,
+        silenceSamples:0,
       };
       worklet.port.onmessage = ({ data }) => {
         if (data === 'flushed') { capture.flushResolve?.(); capture.flushResolve = null; return; }
@@ -1244,7 +1380,7 @@ async function startVoiceCapture(meetingId, button) {
   });
   if (started) {
     const status = $('#voice-capture-status');
-    if (status) status.textContent = 'Идёт запись · фрагменты до 15 секунд';
+    if (status) status.textContent = 'Идёт запись, все уведомлены · фрагменты до 15 секунд';
     const control = $('#voice-capture-toggle');
     if (control) { control.textContent = 'Остановить запись'; control.className = 'stop-recording-button'; }
     toast('Запись началась');
@@ -1255,6 +1391,12 @@ function acceptVoiceFrame(capture, frame) {
   if (capture.closed || capture.cancelled || capture.epoch !== state.epoch) return;
   capture.frames.push(frame);
   capture.sampleCount += frame.length;
+  let energy=0;for(const value of frame)energy+=value*value;
+  capture.silenceSamples=Math.sqrt(energy/Math.max(1,frame.length))<0.008 ? capture.silenceSamples+frame.length : 0;
+  if(capture.recording && capture.silenceSamples>=16000*120){
+    showNotice('Запись остановлена после двух минут тишины. Фрагменты сохранены для проверки.');
+    void stopVoiceCapture();return;
+  }
   const chunkSize = 16000 * 15;
   while (capture.sampleCount >= chunkSize) {
     const frames = takeVoiceSamples(capture, chunkSize);
@@ -1382,6 +1524,7 @@ async function openSource(kind, id, quote, source = {}) {
       content.replaceChildren();
       content.append(node('p', 'source-location', `${utterance.speaker || utterance.speaker_label || 'Говорящий ?'} · реплика ${utterance.idx ?? ''}`));
       appendHighlighted(content, utterance.text, quote);
+      await mediaTools.source(content,utterance,()=>panel.open && sequence===sourceSequence && epoch===state.epoch);
       const meeting = String(utterance.meeting_id) === String(state.meetingData?.meeting?.id)
         ? state.meetingData
         : await request(`/meetings/${encodeURIComponent(utterance.meeting_id)}`).catch(() => null);
@@ -1416,7 +1559,13 @@ async function openSource(kind, id, quote, source = {}) {
       }
       for (const warning of data?.warnings || []) content.append(node('p','access-limited-note',warning));
       if (data?.meeting) content.append(node('p','',data.meeting.title),node('p','task-meta',dateLabel(data.meeting.scheduled_at)),makeButton('Открыть встречу-источник',()=>{closeSource();void openMeeting(data.meeting.id);},'secondary-button'));
-      if (data?.metric) content.append(node('p','',`${data.metric.label}: ${data.metric.value ?? 'Нет данных'} ${data.metric.unit || ''}`),node('p','task-meta',`Формула: ${data.metric.formula}`));
+      if (data?.metric) content.append(node('p','',`${data.metric.label}: ${data.metric.value ?? 'Нет данных'} ${data.metric.unit || ''}`),formulaLine(node, data.metric));
+      if(kind==='metric' && data?.metric) {
+        const basis={kind:'metric',id:String(id)};
+        const propose=(type)=>{closeSource();managerAssistant.propose({kind:type,text:`Проверить показатель «${data.metric.label}»`,basis});setPage('assistant');};
+        if(state.capabilities.includes('meetings.create'))content.append(makeButton('Обсудить показатель на новой встрече',()=>propose('meeting')));
+        if(state.capabilities.includes('protocol.confirm'))content.append(makeButton('Предложить поручение по показателю',()=>propose('task')));
+      }
       const labels = { numerator: 'Числитель', denominator: 'Знаменатель', completed_orders: 'Завершённые заказы', on_time_orders: 'Заказы в срок', produced_units: 'Произведено единиц', defective_units: 'Бракованных единиц', occupied_capacity: 'Занятая мощность', available_capacity: 'Доступная мощность', order_no:'Заказ', status:'Статус', promised_at:'Обещанный срок', completed_at:'Завершён', first_response_seconds:'Первый ответ, секунд', sla_seconds:'SLA, секунд', closed_by:'Закрыто кем', occupied_hours:'Занятые часы', available_hours:'Доступные часы', section:'Участок', forecast:'Прогноз (0/1)' };
       const snapshots = data?.snapshots || [data];
       for (const snapshot of [data, ...snapshots.filter((item) => item !== data)]) {
@@ -1694,6 +1843,20 @@ function renderNextAgenda(parent, result) {
     list.append(row);
   });
   panel.append(list);
+  if(result.context) {
+    panel.append(node('p','muted-copy',result.context.notice));
+    for(const warning of result.context.warnings || [])panel.append(node('p','gap-state',warning));
+    for(const item of result.context.items || []) {
+      panel.append(node('p','',item.text));
+      for(const source of item.sources || [])panel.append(ui.sourceButton(source));
+      const meetingId=state.meetingData.meeting.id;
+      panel.append(makeButton('Добавить в проект повестки',()=>{
+        const drafts=state.agendaDrafts[String(meetingId)] ||= [];
+        if(!drafts.some(d=>d.text===item.text))drafts.push({text:item.text,sources:item.sources});
+        toast('Добавлено в локальный проект повестки подготовки.');
+      }));
+    }
+  }
   if (!result.meeting && result.agenda?.length && ui.can('meetings.create')) {
     panel.append(makeButton('Создать следующую встречу', () => {
       const preview = node('div');
@@ -1716,15 +1879,28 @@ function renderNextAgenda(parent, result) {
 
 function renderTaskBoard(parent, tasks, meetingOnly) {
   const board = node('section', `task-board ${meetingOnly ? 'meeting-task-board' : ''}`.trim());
+  const view = state.taskView || 'list';
+  const viewToggle = node('div', 'view-toggle');
+  for (const [key, label] of [['list', 'Списком'], ['board', 'Доской']]) {
+    const option = makeButton('', () => { state.taskView = key; render(); }, `view-toggle-button view-${key}${view === key ? ' active' : ''}`);
+    option.setAttribute('aria-label', `Показать задачи ${label.toLowerCase()}`);
+    option.setAttribute('aria-pressed', String(view === key));
+    option.title = label;
+    viewToggle.append(option);
+  }
   if (!meetingOnly) {
     const intro = node('div', 'meetings-heading');
     const copy = node('div', '');
-    copy.append(node('p', 'eyebrow', 'КОНТРОЛЬ ПОРУЧЕНИЙ'));
     copy.append(node('h1', '', 'Задачи'));
-    copy.append(node('p', 'muted-copy', 'Задачи собраны из подтверждённых протоколов доступных встреч.'));
+    const open = tasks.filter((task) => !['done', 'cancelled'].includes(task.status));
+    const overdue = open.filter(isOverdue).length;
+    copy.append(node('p', 'muted-copy', state.tasksStatus === 'ready'
+      ? `${open.length} ${plural(open.length, 'открытая', 'открытых', 'открытых')} · ${overdue} ${plural(overdue, 'просрочена', 'просрочены', 'просрочено')}`
+      : 'Задачи собраны из подтверждённых протоколов доступных встреч.'));
     intro.append(copy);
+    if (tasks.length) intro.append(viewToggle);
     parent.append(intro);
-  }
+  } else if (tasks.length) board.append(viewToggle);
   if (!meetingOnly && state.tasksStatus === 'loading') {
     board.append(node('p', '', 'Загружаю задачи…')); parent.append(board); return;
   }
@@ -1744,6 +1920,23 @@ function renderTaskBoard(parent, tasks, meetingOnly) {
   const filterLabel = node('label', 'meeting-field'); filterLabel.append(node('span','field-label','Требуют уточнения'), filter);
   filter.addEventListener('change', () => { state.taskFilter = filter.value; render(); }); board.append(filterLabel);
   if (state.taskFilter) tasks = activeTasks.filter(task => state.taskFilter === 'assignee' ? !task.assignee : state.taskFilter === 'due' ? !task.due : !task.assignee || !task.due);
+  if (view === 'list') {
+    const table = node('div', 'task-table');
+    table.setAttribute('role', 'table');
+    table.setAttribute('aria-label', 'Задачи');
+    const head = node('div', 'task-table-head');
+    head.setAttribute('role', 'row');
+    for (const title of ['Задача', 'Встреча', 'Срок', 'Статус']) { const cell = node('span', '', title); cell.setAttribute('role', 'columnheader'); head.append(cell); }
+    table.append(head);
+    const order = { open: 0, in_progress: 1, blocked: 2, done: 3, cancelled: 4 };
+    const sorted = [...tasks].sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9) || String(a.due || '9999').localeCompare(String(b.due || '9999')));
+    if (!sorted.length) table.append(node('p', 'empty-copy', 'Нет задач'));
+    sorted.forEach((task) => table.append(renderTaskRow(task, tasks, meetingOnly)));
+    board.append(table);
+    board.append(node('p', 'task-table-foot', `${sorted.length} ${plural(sorted.length, 'задача', 'задачи', 'задач')}`));
+    parent.append(board);
+    return;
+  }
   const columns = [
     ['open', 'Открытые'], ['in_progress', 'В работе'], ['blocked', 'Заблокированы'], ['done', 'Готово'], ['cancelled', 'Отменены'],
   ];
@@ -1767,6 +1960,65 @@ function renderTaskBoard(parent, tasks, meetingOnly) {
   });
   board.append(grid);
   parent.append(board);
+}
+
+const TASK_STATUS = { open: 'Открыта', in_progress: 'В работе', blocked: 'Заблокирована', done: 'Готова', cancelled: 'Отменена' };
+
+function isOverdue(task) {
+  if (!task.due || ['done', 'cancelled'].includes(task.status)) return false;
+  return String(task.due).slice(0, 10) < dayKey(new Date(), state.timezone);
+}
+
+function shortDate(value) {
+  const date = new Date(`${String(value).slice(0, 10)}T12:00:00Z`);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(date);
+}
+
+function renderTaskRow(task, collection, meetingOnly) {
+  const row = node('article', `task-row status-${task.status}`);
+  row.id = `task-${task.id}`; row.tabIndex = -1;
+  row.setAttribute('role', 'row');
+  const main = node('div', 'task-row-main');
+  main.setAttribute('role', 'cell');
+  main.append(node('p', 'task-card-text', task.text || 'Без описания'));
+  if (task.assignee) main.append(node('p', 'task-meta', `Ответственный: ${task.assignee}`));
+  else if (task.assignee_status === 'unknown') main.append(node('p', 'warning-badge red', 'Ответственный не назван'));
+  if (task.assignee_suggestion) main.append(node('p','task-meta',`Предположение: ${task.assignee_suggestion.name} · ${task.assignee_suggestion.reason}. Ответственный не назначен.`));
+  const priorities = {low:'Низкий', normal:'Обычный', high:'Высокий', urgent:'Срочный'};
+  const extra = [];
+  if (task.priority && task.priority !== 'normal') extra.push(`Приоритет: ${priorities[task.priority] || task.priority}`);
+  if (task.external_ref) extra.push(`CRM: ${task.external_ref}`);
+  if (extra.length) main.append(node('p', 'task-meta', extra.join(' · ')));
+  const actions = node('div', 'task-row-actions');
+  for (const entity of task.linked_entities || []) {
+    if (entity.kind==='order') actions.append(makeButton(`Заказ ${entity.id}`,()=>void runAction(null,()=>crm.openOrder(entity.id)),'task-meeting-link'));
+    else main.append(node('p','task-meta', `${{customer:'Клиент', document:'Документ'}[entity.kind] || 'Связь'}: ${entity.id}`));
+  }
+  if (task.protocol_item_id) actions.append(makeButton('Основание в протоколе', async () => {
+    await openMeeting(task.meeting_id,'protocol'); $$('.protocol-item').find(item => String(item.dataset.itemId) === String(task.protocol_item_id))?.focus();
+  },'task-meeting-link'));
+  if (task.source_quote?.utterance_id) actions.append(citationButton(task.source_quote.utterance_id, task.source_quote.text, 'utterance', 'Открыть цитату'));
+  if (ui.can('tasks.change')) actions.append(makeButton('Изменить задачу', () => ui.editTask(task, collection, meetingOnly), 'task-meeting-link'));
+  if (ui.can('crm.write')) {
+    if (!task.crm_status && !['done','cancelled'].includes(task.status)) actions.append(makeButton('Отправить в Битрикс24 · mock',()=>void runAction(null,()=>crm.exportTask(task,async()=>{ if(meetingOnly) await refreshMeeting(task.meeting_id); else await openTasks(); })),'task-meeting-link'));
+    actions.append(makeButton('Статус CRM · mock',()=>void runAction(null,()=>crm.status(task)),'task-meeting-link'));
+  }
+  actions.append(ui.feedback('task', task.id, task.meeting_id));
+  main.append(actions);
+  const meeting = node('div', 'task-row-meeting');
+  meeting.setAttribute('role', 'cell');
+  meeting.append(makeButton(task.meeting_title || 'Открыть встречу', () => void openMeeting(task.meeting_id), 'task-meeting-link'));
+  const due = node('div', `task-row-due${isOverdue(task) ? ' overdue' : ''}`);
+  due.setAttribute('role', 'cell');
+  if (task.due) due.append(node('span', '', shortDate(task.due)));
+  else if (task.due_text) due.append(node('span', '', `${task.due_text} (дата не распознана)`));
+  else if (task.due_status === 'unknown') due.append(node('span', 'warning-badge amber', 'Срок не назван'));
+  else due.append(node('span', 'empty-copy', '—'));
+  const status = node('div', 'task-row-status', isOverdue(task) ? 'Просрочено' : (TASK_STATUS[task.status] || task.status));
+  status.setAttribute('role', 'cell');
+  row.append(main, meeting, due, status);
+  return row;
 }
 
 function renderTaskCard(task, collection, meetingOnly) {

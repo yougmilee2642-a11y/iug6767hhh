@@ -188,6 +188,21 @@ def m017_calendar_provider(connection):
     upgrade(connection)
 
 
+def m018_media(connection):
+    from meetings.migrations.media import upgrade
+    upgrade(connection)
+
+
+def m019_action_basis(connection):
+    from meetings.migrations.action_basis import upgrade
+    upgrade(connection)
+
+
+def m020_planning(connection):
+    from meetings.migrations.planning import upgrade
+    upgrade(connection)
+
+
 MIGRATIONS = [
     (1, 'roles', m001_roles),
     (2, 'audit', m002_audit),
@@ -206,6 +221,9 @@ MIGRATIONS = [
     (15, 'operations', m015_operations),
     (16, 'protocol_export', m016_protocol_export),
     (17, 'calendar_provider', m017_calendar_provider),
+    (18, 'media', m018_media),
+    (19, 'action_basis', m019_action_basis),
+    (20, 'planning', m020_planning),
 ]
 LATEST = MIGRATIONS[-1][0]
 

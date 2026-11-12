@@ -19,10 +19,25 @@ from meetings.calendar import ics, service
 ACTION = 'calendar.import'
 
 
+FEED_TOKEN = re.compile(r'(/api/meet/calendar/feed/)[^\s/?]+')
+
+
+def _redact_feed(value):
+    if isinstance(value, (int, float)) or value is None:
+        return value
+    text = str(value)  # httpx passes URL objects
+    return FEED_TOKEN.sub(r'\1[REDACTED]', text) if FEED_TOKEN.search(text) else value
+
+
 class FeedRedaction(logging.Filter):
     def filter(self, record):
-        record.msg = re.sub(r'(/api/meet/calendar/feed/)[^\s/?]+', r'\1[REDACTED]', record.getMessage())
-        record.args = ()
+        # Redact inside the arguments and keep their shape: uvicorn's access
+        # formatter unpacks record.args (client, method, path, version, status).
+        if isinstance(record.args, tuple):
+            record.args = tuple(_redact_feed(arg) for arg in record.args)
+        elif isinstance(record.args, dict):
+            record.args = {key: _redact_feed(arg) for key, arg in record.args.items()}
+        record.msg = _redact_feed(record.msg)
         return True
 
 

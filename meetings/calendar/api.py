@@ -226,4 +226,6 @@ def router():
 
     from meetings.calendar.interchange import router as interchange_router
     api.include_router(interchange_router())
+    from meetings.calendar.series import router as series_router
+    api.include_router(series_router())
     return api

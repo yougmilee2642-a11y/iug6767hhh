@@ -1,0 +1,41 @@
+{
+  "required_topics": [
+    "topic-00",
+    "topic-02",
+    "topic-06",
+    "topic-15"
+  ],
+  "checklist_passed": true,
+  "risk": true,
+  "required_triggers": [
+    "брак",
+    "жалоба",
+    "верните деньги",
+    "отзыв"
+  ],
+  "overlap_ms": 1000,
+  "label_origin": "Ручные ожидаемые признаки синтетического контрольного текста; не ответы модели.",
+  "legacy": {
+    "required_topics": [
+      "topic-00",
+      "topic-02",
+      "topic-06",
+      "topic-08"
+    ],
+    "passed_checklist_codes": [
+      "greeting",
+      "introduced",
+      "order",
+      "solution",
+      "deadline"
+    ],
+    "risk": true,
+    "required_triggers": [
+      "брак",
+      "возврат",
+      "европочта",
+      "жалоба",
+      "отзыв"
+    ]
+  }
+}

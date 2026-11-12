@@ -44,8 +44,9 @@ try {
             $ts = Get-Command tailscale.exe -ErrorAction SilentlyContinue
             $tsPath = if ($ts) { $ts.Source } else { 'C:/Program Files/Tailscale/tailscale.exe' }
             if (-not (Test-Path -LiteralPath $tsPath)) { throw 'Tailscale не установлен: https://tailscale.com/download (или запустите с -Mode cloudflare).' }
-            $bindHost = (& $tsPath ip -4 | Select-Object -First 1).Trim()
-            if (-not $bindHost) { throw 'Tailscale не подключён. Откройте Tailscale и войдите в аккаунт.' }
+            $tsIp = & $tsPath ip -4 2>$null | Select-Object -First 1
+            $bindHost = if ($tsIp) { "$tsIp".Trim() } else { '' }
+            if (-not $bindHost) { throw 'Tailscale не подключён: нажмите значок Tailscale в трее → Log in (или выполните: tailscale up), затем запустите скрипт снова.' }
             $publicUrl = "http://${bindHost}:$Port"
         }
         'lan' {
