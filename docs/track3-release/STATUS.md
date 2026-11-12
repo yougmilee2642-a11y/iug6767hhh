@@ -20,8 +20,8 @@ FTS5/BM25 с ACL до индексации и статистики ранжир�
   Windows release/runtime install. Прежний Windows startup/provider smoke исправлен;
   исходные неуспешные отчёты сохранены в истории и TEST_REPORT.
 - Объединение с опубликованным45a3f12 сохраняет мульти-file и metadata UI и
-  добавляет hardening источников. Итог:1474 passed/28 skipped/0 failed,216,56s;
-  Node66 passed. Целевые47 passed. HTTP/restart/provider503 passed6,22s.
+  добавляет hardening источников. Итог:1494 passed/28 skipped/0 failed,209,53s;
+  Node66 passed. Целевые47 passed. HTTP/restart/provider503/брифинг passed6,34s.
   Старый QA сохраняет цитаты с предупреждением; новые запросы используют актуальное.
 - Frozen 5 расшифровок/30 задач/36 QA: double pipeline_passed, 17/17 claims с источником,
   0 прав/ложных действий. Это проверка конвейера и метрик, не качество модели.
@@ -29,8 +29,9 @@ FTS5/BM25 с ACL до индексации и статистики ранжир�
   в CI. Новому head нужны собственные CI и clean-install результаты.
 
 Главный оставшийся объём: E3 transport/Bitrix24/Mary, E10 единый чат,
-voice v2, media jobs/calls, брифинг/метрика→действие, retention/web-hardening,
+voice v2, media jobs/calls, метрика→действие, retention/web-hardening,
 экспорт/комментарии/эскалации задач, внешние календари и P2.
+E9 дневной брифинг включён изe5a17b8 (API/UI/voice); объединённые CPU/HTTP проверки прошли; CI нового head ещё требуется.
 Документные противоречия и смысловая сводка ещё не реализованы.
 Лицензии PyMuPDF/Silero, внешние шрифты и независимая установка остаются открыты.
 Микрофон/ASR/TTS/диаризация/LLM v2 агентом не запускались по ТЗ.

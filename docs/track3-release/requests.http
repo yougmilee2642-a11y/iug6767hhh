@@ -104,3 +104,6 @@ POST {{base}}/documents/1/versions/confirm
 Content-Type: application/json
 
 {"confirmation_id":"{{confirmationId}}","idempotency_key":"manual-document-version-001"}
+
+### Дневной брифинг в текущем scope
+GET {{base}}/briefing?date=2026-11-11

@@ -59,6 +59,8 @@ def route(text):
     """Deterministic routing; the model never chooses an action."""
     if WRITE.search(text):
         return 'action'
+    if re.search(r'брифинг|что\s+важного\s+сегодня',text,re.I) and not DOCUMENT_HINT.search(text):
+        return 'briefing'
     if OVERVIEW.search(text) and not DOCUMENT_HINT.search(text):
         return 'overview'
     return 'knowledge'
@@ -179,6 +181,23 @@ def answer_overview(actor_user, text, meeting_id, details):
     return result, phrase, private
 
 
+
+def answer_briefing(actor_user, text, meeting_id, details):
+    from meetings import briefing
+    auth.require(actor_user, 'overview.read', action='voice.ask')
+    generated = utc_now(); day = generated.astimezone(briefing.service.MINSK).date()
+    with store.db() as c:
+        c.execute('BEGIN')
+        if meeting_id is not None and not store.can_read_meeting(c,actor_user['id'],meeting_id):
+            raise MeetError(404,'not_found','Не найдено или нет доступа.')
+        result = briefing.build(c,actor_user['id'],day,generated)
+        phrase = result['spoken']
+        private = any(briefing.build(c,member,day,generated)['spoken'] != phrase
+                      for member in audience(c,actor_user['id'],meeting_id) if member!=actor_user['id'])
+    details['source_ids'] = [s['id'] for s in result['sources']]
+    return result, phrase, private
+
+
 def ask(actor_user, text, meeting_id, speak_private, details):
     from meetings.privacy import prohibited_intent, refusal
     prohibited = prohibited_intent(text)
@@ -192,7 +211,7 @@ def ask(actor_user, text, meeting_id, speak_private, details):
     if kind == 'action':
         details['result'] = 'refused'
         return action_reply(text)
-    handler = answer_overview if kind == 'overview' else answer_knowledge
+    handler = {'overview':answer_overview,'briefing':answer_briefing}.get(kind,answer_knowledge)
     result, phrase, private = handler(actor_user, text, meeting_id, details)
     speak = not private or speak_private
     details['spoken'] = speak

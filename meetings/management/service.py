@@ -219,7 +219,15 @@ def source_timestamp(value):
 def resolve(actor, kind, source_id, audit):
     with store.db() as connection:
         connection.execute('BEGIN')
-        if kind == 'task':
+        if kind == 'meeting':
+            if not re.fullmatch(r'[1-9]\d{0,18}', source_id) or int(source_id) > 2**63 - 1:
+                raise not_found()
+            if not store.can_read_meeting(connection, actor, int(source_id), model=True):
+                raise not_found()
+            row = connection.execute('SELECT * FROM meetings WHERE id=?', (int(source_id),)).fetchone()
+            source = {'kind':'meeting','id':source_id,'title':row['title'],'source_at':source_timestamp(row['created_at'])}
+            data = {'meeting':{'id':row['id'],'title':row['title'],'scheduled_at':row['scheduled_at']}}
+        elif kind == 'task':
             task_key = source_id[1:] if source_id.startswith('T') else source_id
             if not re.fullmatch(r'[1-9]\d{0,18}', task_key) or int(task_key) > 2**63 - 1:
                 raise not_found()

@@ -8,16 +8,16 @@
 
 | Проверка | Результат и границы |
 |---|---|
-| Полный небраузерный Python | 1474 passed, 28 skipped, 0 failed, 216,56 s; `reports/v2-document-integration-python.log`. Шесть deprecation warnings PyMuPDF; skips не считаются passed. |
-| Node | 66 passed, 0 failed; `reports/v2-document-integration-node.log` |
-| Настоящий HTTP, 7 уровней | `reports/v2-document-integration-http.json`: KPI/ACL/CRM/ICS/smart slots, версии/cancel/replay/restart; без инференса |
-| Недоступная модель через настоящий HTTP | `reports/v2-document-integration-http.json`: реальные provider/prepare/protocol/QA → 503 model_*, расшифровка не изменена; наблюдаемые коды сохранены |
+| Полный небраузерный Python | 1494 passed, 28 skipped, 0 failed, 209,53 s; `reports/v2-document-briefing-python.log`. Шесть deprecation warnings PyMuPDF; skips не считаются passed. |
+| Node | 66 passed, 0 failed; `reports/v2-document-briefing-node.log` |
+| Настоящий HTTP, 7 уровней | `reports/v2-document-briefing-http.json`: KPI/ACL/CRM/ICS/smart slots, версии/cancel/replay/restart; без инференса |
+| Недоступная модель через настоящий HTTP | `reports/v2-document-briefing-http.json`: реальные provider/prepare/protocol/QA → 503 model_*, расшифровка не изменена; наблюдаемые коды сохранены |
 | Предыдущий чистый CI | [43166951277](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43166951277) на 574ab18: Linux base/runtime, Windows release/runtime, Python/Node/35 UI, browser→HTTP и evaluator success. Новые версии требуют нового CI. |
 | E13 на дублёре | `reports/v2-document-integration-double.json`: pipeline_passed, 30 задач/36 вопросов; quality NOT MEASURED, не live recall |
 | Первоначальный чистый base | `reports/v2-e14-initial-install.json`: 65,88 s всего; base install 25,28 s прошёл, seed упал без PDF reader; после test-профиля seed/restart прошли |
 | Изолированный runtime | `reports/v2-e14-initial-runtime.json`: 12,68 s, повтор seed/HTTP passed; pytest/Playwright/torch/scipy/av/soundfile отсутствуют. Кэш pip не контролировался. Профиль был незакоммичен, код клона 3dbc30c. |
 | Исправленная установка base/runtime | CI43166951277 Linux base/runtime и Windows runtime success; новые версии проверяются после commit отдельно. Кэш пакетов неконтролируемый. |
-| OpenAPI | `export_api.py` из настоящего app: 72 пути; временная БД, без моделей/рабочей data/ |
+| OpenAPI | `export_api.py` из настоящего app: 73 пути; временная БД, без моделей/рабочей data/ |
 | Secret scan истории | Форматы ключей/private keys/webhooks/credential URLs. Три credential-URL совпадения — один отрицательный fixture `https://u:p@example.com` в повторённой истории теста; реальных ключей этими правилами не обнаружено. Не полноценный DLP-аудит. |
 
 ## Критерии приёмки §7.5
@@ -212,3 +212,33 @@ Merge сохраняет обе поставки и все тесты:1474 passe
 До merge чистый7e18d23: base40,693s/runtime27,094s, оба passed, первичные JSON
 `v2-document-versions-{base,runtime}-install.json`. Запуски параллельны, кэш
 неконтролируемый, без моделей. Совмещённый commit требует отдельной установки.
+
+
+## E9.3 · дневной брифинг / импортированные документы
+
+- ПолныйCPU: **1468 passed,28 skipped,0 failed**,207,05s; Node66/0.
+  Raw reports/v2-briefing-python.log и v2-briefing-node.log. Целевой84/0
+  выполнен до двух дополнительных проверок calendar-attendee/list-bound, которые
+  вошли в полный прогон. Новые20 тестов суммарно после E6, старые не удалялись.
+- Настоящий HTTP с моделью-дублёром и без модели:7 ролей, брифинг/голосовой
+  маршрут/источник встречи/отказы/restart passed. Новые записи во внешние
+  системы не добавлены. 503model_* остаются честными для генерации.
+- Новая версия импортированного документа больше не копирует UNIQUEsource_ref:
+  внешний ID остаётся у оригинала, цепочка supersedes_id сохраняет происхождение.
+  Регрессионный тест на этот случай passed.
+- Чистая runtime-установка E6-кандидата165c561 (дерево идентично45a3f12) прошла
+  за51,505s, кэш неконтролируемый, без моделей; raw v2-documents-clean-runtime.json.
+  Это результат E6, не отдельное измерение нового E9-кандидата.
+- CI43184793897 на45a3f12: Linux CPU/JS/HTTP/eval/browser и обе clean-install
+  прошли. Windows оставался queued. Новый брифинг требует своегоCI.
+- Browser-маршрут кнопка→дата→ответ включён в v2_ui_check.py. Локально повторно
+  не запускался после неизменившейся socket policy. Живые ASR/TTS/микрофон NOT RUN.
+
+## Финальное сведение E6 и опубликованного E9
+
+1494 passed/28 skipped/0 failed,209,53s; Node66/0. HTTP7 ролей/версии/брифинг/
+voice text/restart/provider503 passed6,34s. Первичные v2-document-briefing-*.
+Полный pytest запускался во время исправления синтаксиса HTTP helper; закончил
+без падений. Отдельный HTTP затем запускался только после ast.parse и прошёл.
+Брифинг/voice работают без модели; ASR/TTS/LLM не запускались. Старые raw-отчёты
+сохранены и не объявляются проверкой нового дерева.

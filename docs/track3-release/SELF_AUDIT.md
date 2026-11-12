@@ -21,7 +21,7 @@
 | §7.2.3: протокол/цитаты | Требует живой проверки хостом | core summary/risk/outcome/unknown/edited/quote tests; evaluator v2 | Настоящая модель не измерена |
 | §7.2.4: поручения | Выполнено | `test_track3_task_controls.py`, core confirm/cancel/filter/link tests | Комментарии/эскалация остаются P1 |
 | §7.2.5: QA с источником | Требует живой проверки хостом | knowledge tests; frozen 36 QA, double pipeline | FTS5/BM25 со scoped corpus проверен; единый чат ещё не реализован |
-| §7.2.6: обзор | Выполнено | domain_metrics/management/decision_controls tests | Брифинг и метрика→действие остаются P1 |
+| §7.2.6: обзор | Выполнено | domain_metrics/management/decision_controls tests | Дневной брифинг реализован/read-only (test_track3_briefing.py); метрика→действие остаётся P1 |
 | AI-01: источник/дата | Выполнено | Source resolver, knowledge_hardening, KPI/protocol tests | Цитата подтверждает текст, не истинность источника |
 | AI-02: права до модели | Выполнено | `test_access_matrix.py::test_designer_budget_and_secret_never_reach_model`, SQL predicate | Распространить на будущие коннекторы |
 | AI-03: человек подтверждает | Выполнено | core/task/decision/calendar/CRM confirm/cancel/concurrency | Ручное редактирование отдельно от AI-предложений |
@@ -47,7 +47,7 @@
 | E6 | Форматы/ACL/FTS5, неизменяемые версии, история, valid_until, выдержки и diff реализованы; мульти-file и метаданные при загрузке добавлены; semantic summary/противоречия/обязательства/редактор существующих метаданных остаются; DOCUMENTS.md |
 | E7 | Унаследованы аудио endpoints; jobs/storage/call analytics v2 не выполнены |
 | E8 | P0 подготовка/поручения/протокол выполнены; история/комментарии/эскалация/экспорт P1 |
-| E9 | P0 KPI/решения выполнены; отклонение→действие/брифинг не выполнены |
+| E9 | P0 KPI/решения и E9.3 дневной брифинг выполнены; отклонение→действие и P2 остаются |
 | E10 | Единый чат не выполнен |
 | E11 | P0 privacy/injection/audit выполнены с границами выше; retention/web-hardening остаются |
 | E12 | Центр уведомлений не выполнен |

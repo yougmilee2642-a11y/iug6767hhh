@@ -114,6 +114,8 @@ def install(app):
     app.include_router(crm_router())
     from meetings.document_versions import router as document_versions_router
     app.include_router(document_versions_router())
+    from meetings.briefing import router as briefing_router
+    app.include_router(briefing_router())
     extras = _optional_routers()
     for extra in extras:
         app.include_router(extra)
