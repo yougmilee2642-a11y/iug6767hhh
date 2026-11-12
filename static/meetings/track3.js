@@ -1,4 +1,19 @@
 import { documentLibrary } from './documents.js';
+import { formulaLine } from './formula.js';
+
+// Демо «Фотопринт»: вопросы, на которые в документах роли есть подтверждённый ответ.
+const EXAMPLE_QUESTIONS = {
+  director: ['Каков демо-бюджет акции Premium?', 'Какова доля завершённых в срок заказов по срезу ERP?'],
+  prod_head: ['По скольким контрольным точкам ОТК проверяет переплёт Premium?', 'Когда назначено плановое ТО Kolbus и какова его продолжительность по графику?',
+    'Каков прогноз загрузки переплёта Kolbus на 15–21 декабря?', 'При каком условии подтверждённый брак Premium направляется на бесплатную перепечатку?'],
+  sup_head: ['Какова цель первого ответа по браку и кому передаётся просрочка?', 'Сколько из 400 обращений закрыла Mary и на сколько ответили в SLA?'],
+  mod_lead: ['Какое разрешение проверяет модерация макетов Premium перед производством?'],
+  designer: ['Какие поля обреза нужны для макета обложки Premium по брифу дизайнера?'],
+  picpac_lead: ['Каков срок изготовления Lite, Classic и Premium без доставки в демо?'],
+  mkt_lead: ['Какова скидка демо-акции Premium и до какой даты она действует?'],
+  sales_head: ['Что согласуется для корпоративных выпускных альбомов до запуска печати?'],
+};
+const $ = (selector) => document.querySelector(selector);
 // Track 3 views. API payloads follow the core and knowledge server handoffs.
 // This module has no demo fallback; fixtures live exclusively in tests/ui_track3.
 export function track3UI(h) {
@@ -218,10 +233,8 @@ export function track3UI(h) {
     for (const metric of overview.metrics || []) {
       const card = node('article', 'panel meet-kpi');
       card.append(node('h2', '', metric.label), node('strong', 'meet-kpi-value', metric.value == null ? 'Нет данных' : `${metric.value} ${metric.unit || ''}`));
-      card.append(node('p', 'task-meta', `Формула: ${metric.formula || 'Не предоставлена'}`));
-      if (metric.status) card.append(node('p', metric.status === 'critical' ? 'warning-badge red' : metric.status === 'warning' ? 'warning-badge amber' : 'task-meta', `Демо-порог: ${{ok:'в норме',warning:'внимание',critical:'критично',no_data:'нет данных',informational:'справочно'}[metric.status] || metric.status}`));
-      if (metric.numerator != null && metric.denominator != null) card.append(node('p','task-meta',`Числитель ${metric.numerator} · знаменатель ${metric.denominator}`));
-      if (metric.as_of) card.append(node('p','task-meta',`Источник: ${date(metric.as_of)}`));
+      card.append(formulaLine(node, metric));
+      if (['warning', 'critical'].includes(metric.status)) card.append(node('p', metric.status === 'critical' ? 'warning-badge red' : 'warning-badge amber', `Демо-порог: ${metric.status === 'critical' ? 'критично' : 'внимание'}`));
       if (metric.source) card.append(sourceButton(metric.source));
       grid.append(card);
     }
@@ -344,6 +357,13 @@ export function track3UI(h) {
       if (state.page === 'knowledge') render();
     });
     parent.append(form);
+    const examples = EXAMPLE_QUESTIONS[state.user?.login] || [];
+    if (examples.length && !qaBusy) {
+      const box = node('div', 'question-examples');
+      box.append(node('span', 'question-examples-title', 'Например'));
+      for (const text of examples) box.append(button(text, () => { question = text; answer = null; render(); $('.knowledge-main textarea')?.focus(); }, 'question-example'));
+      parent.append(box);
+    }
     if (qaBusy) parent.append(node('p', 'muted-copy', 'Модель обрабатывает вопрос. Можно перейти в другой раздел.'));
     if (!answer) return;
     const result = node('section', 'panel meet-knowledge');

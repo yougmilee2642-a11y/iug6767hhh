@@ -1,4 +1,5 @@
 // Current, read-only daily briefing; request results never survive a session change.
+import { formulaLine } from './formula.js';
 export function briefingUI(h) {
   const {node,makeButton:button,makeInput:input,request,runAction:run,state,dateLabel:date,openSource,openMeeting} = h;
   function render(parent) {
@@ -37,7 +38,7 @@ export function briefingUI(h) {
         output.append(node('h2','','Главные отклонения KPI'));
         if (!result.deviations.length) output.append(node('p','empty-copy','По настроенным порогам доступных отклонений не найдено.'));
         for (const m of result.deviations) {
-          const row=node('article','claim-item');row.append(node('p','',`${m.label}: ${m.value} ${m.unit}`),node('p','task-meta',`Формула: ${m.formula}`),sourceButton(m.source));output.append(row);
+          const row=node('article','claim-item');row.append(node('p','',`${m.label}: ${m.value} ${m.unit}`),formulaLine(node,m),sourceButton(m.source));output.append(row);
         }
         output.append(node('h2','','Новые документы за 7 дней'));
         if (!result.new_documents.length) output.append(node('p','empty-copy','В доступных источниках новых документов за период нет.'));

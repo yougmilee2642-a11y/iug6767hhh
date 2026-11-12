@@ -176,6 +176,9 @@ body.meetings-page {
 .meetings-page .meet-kpi h2 { color: var(--f-muted); font-size: 18px; font-weight: 400; }
 .meetings-page .meet-kpi-value { margin: 6px 0 8px; color: var(--f-ink-strong); font-size: 52px; font-weight: 600; letter-spacing: -.03em; }
 .meetings-page .meet-kpi .task-meta { font-size: 14px; }
+.kpi-formula { cursor: help; }
+.meetings-page .meet-kpi .citation-chip { margin-top: 6px; border: 0; padding: 0; color: var(--f-muted); text-decoration: underline; text-decoration-color: var(--f-faint); text-underline-offset: 4px; }
+.meetings-page .meet-kpi .citation-chip::before { display: none; }
 
 /* ── Знания: источники слева, вопрос справа ─────────── */
 .knowledge-layout { display: grid; grid-template-columns: minmax(240px, 320px) minmax(0, 1fr); gap: 0 72px; align-items: start; }
@@ -234,6 +237,7 @@ body.meetings-page {
 .login-form input { min-height: 56px; font-size: 19px; }
 .login-form > button { min-height: 58px; margin-top: 10px; font-size: 19px; }
 .login-card > .meeting-field { margin-top: 24px; }
+.demo-role-picker .field-label { color: var(--f-muted); }
 .demo-accounts { gap: 0; margin-top: 44px; padding-top: 28px; border-top: 1px solid var(--f-line-strong); }
 .demo-accounts-title { margin-bottom: 8px; color: var(--f-ink-strong); font-size: 18px; font-weight: 500; }
 .demo-account-button { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 18px; min-height: 76px; padding: 12px 0; border: 0; border-bottom: 1px solid var(--f-line-strong); border-radius: 0; background: transparent; color: var(--f-ink-strong); text-align: left; }
@@ -285,3 +289,9 @@ body.meetings-page {
   .login-card { margin-top: 5vh; }
   .login-copy { font-size: 18px; }
 }
+
+/* Примеры вопросов в «Знаниях» */
+.question-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 4px 0 28px; }
+.question-examples-title { margin-right: 4px; color: var(--f-muted); font-size: 14px; }
+.question-example { min-height: 34px; padding: 6px 14px; border: 1px solid var(--f-line-strong); border-radius: var(--f-radius-sm); background: transparent; color: var(--f-ink); font-size: 15px; text-align: left; }
+.question-example:hover { border-color: var(--f-action); color: var(--f-action-hover); }

@@ -5,6 +5,7 @@ import { voiceAssistant } from './meetings/voice.js';
 import { administrationUI } from './meetings/administration.js';
 import { crmUI } from './meetings/crm.js';
 import { calendarUI } from './meetings/calendar.js';
+import { formulaLine } from './meetings/formula.js';
 
 const API = '/api/meet';
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -495,17 +496,15 @@ function renderLogin(app) {
     });
   });
   shell.append(form);
-  if (state.demoProfiles.length) {
-    const label = node('label', 'meeting-field'); label.append(node('span', 'field-label', 'Войти как…'));
-    const select = node('select', ''); select.setAttribute('aria-label', 'Демо-роль');
-    select.append(node('option', '', 'Выберите демо-профиль'));
-    for (const person of state.demoProfiles) { const option = node('option', '', `${person.name} · ${person.level}`); option.value = person.login; select.append(option); }
-    select.addEventListener('change', () => { if (select.value) { login.input.value = select.value; password.input.value = select.value + '-demo'; } });
-    label.append(select); shell.append(label);
-  }
+  const roleNames = { director: 'Директор', head: 'Руководитель отдела', lead: 'Руководитель группы', employee: 'Сотрудник', contractor: 'Подрядчик', admin: 'Администратор', auditor: 'Аудитор' };
   const demo = node('div', 'demo-accounts');
-  demo.append(node('span', 'demo-accounts-title', 'Демо-доступ'));
-  for (const [user, name, role] of [['irina', 'Ирина Власова', 'Руководитель проекта'], ['petr', 'Пётр Смирнов', 'Подрядчик, только чтение']]) {
+  demo.append(node('span', 'demo-accounts-title', state.demoProfiles.length ? 'Демо-доступ · Фотопринт' : 'Демо-доступ'));
+  // With a seeded company (Фотопринт) offer its key roles; otherwise the classic pair.
+  const featured = ['director', 'prod_head', 'operator', 'designer'];
+  const people = state.demoProfiles.length
+    ? featured.map((key) => state.demoProfiles.find((p) => p.login === key)).filter(Boolean).map((p) => [p.login, p.name, roleNames[p.level] || p.level])
+    : [['irina', 'Ирина Власова', 'Руководитель проекта'], ['petr', 'Пётр Смирнов', 'Подрядчик, только чтение']];
+  for (const [user, name, role] of people) {
     const row = makeButton('', () => {
       login.input.value = user; password.input.value = `${user}-demo`;
       form.requestSubmit();
@@ -518,6 +517,14 @@ function renderLogin(app) {
     demo.append(row);
   }
   shell.append(demo);
+  if (state.demoProfiles.length) {
+    const label = node('label', 'meeting-field demo-role-picker'); label.append(node('span', 'field-label', 'Другие роли'));
+    const select = node('select', ''); select.setAttribute('aria-label', 'Демо-роль');
+    select.append(node('option', '', 'Выберите сотрудника'));
+    for (const person of state.demoProfiles) { const option = node('option', '', `${person.name} · ${roleNames[person.level] || person.level || 'демо'}`); option.value = person.login; select.append(option); }
+    select.addEventListener('change', () => { if (select.value) { login.input.value = select.value; password.input.value = select.value + '-demo'; submit.focus(); } });
+    label.append(select); shell.append(label);
+  }
   app.append(shell);
 }
 
@@ -947,7 +954,7 @@ function renderPreparation(target) {
       prep.append(node('p','task-meta',`Показатели отдела · данные ${dateLabel(context.as_of)}`));
       for (const metric of context.metrics || []) {
         const text = `${metric.label}: ${metric.value ?? 'не рассчитано'} ${metric.unit}`;
-        prep.append(node('p','',text), node('p','task-meta',`${metric.formula}; ${metric.numerator}/${metric.denominator}`));
+        prep.append(node('p','',text), formulaLine(node, metric));
         for (const source of metric.sources || []) prep.append(ui.sourceButton(source));
         prep.append(makeButton('Добавить показатель в проект повестки', () => addDraft(text,metric.sources)));
       }
@@ -1508,7 +1515,7 @@ async function openSource(kind, id, quote, source = {}) {
         content.append(row);
       }
       if (data?.meeting) content.append(node('p','',data.meeting.title),node('p','task-meta',dateLabel(data.meeting.scheduled_at)),makeButton('Открыть встречу-источник',()=>{closeSource();void openMeeting(data.meeting.id);},'secondary-button'));
-      if (data?.metric) content.append(node('p','',`${data.metric.label}: ${data.metric.value ?? 'Нет данных'} ${data.metric.unit || ''}`),node('p','task-meta',`Формула: ${data.metric.formula}`));
+      if (data?.metric) content.append(node('p','',`${data.metric.label}: ${data.metric.value ?? 'Нет данных'} ${data.metric.unit || ''}`),formulaLine(node, data.metric));
       const labels = { numerator: 'Числитель', denominator: 'Знаменатель', completed_orders: 'Завершённые заказы', on_time_orders: 'Заказы в срок', produced_units: 'Произведено единиц', defective_units: 'Бракованных единиц', occupied_capacity: 'Занятая мощность', available_capacity: 'Доступная мощность', order_no:'Заказ', status:'Статус', promised_at:'Обещанный срок', completed_at:'Завершён', first_response_seconds:'Первый ответ, секунд', sla_seconds:'SLA, секунд', closed_by:'Закрыто кем', occupied_hours:'Занятые часы', available_hours:'Доступные часы', section:'Участок', forecast:'Прогноз (0/1)' };
       const snapshots = data?.snapshots || [data];
       for (const snapshot of [data, ...snapshots.filter((item) => item !== data)]) {

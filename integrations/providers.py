@@ -14,10 +14,22 @@ _credentials_cache = {}
 _credentials_lock = threading.Lock()
 
 
+WEBHOOK = re.compile(r'(/rest/\d+/)[^/\s\"]+')
+
+
 class WebhookRedaction(logging.Filter):
     def filter(self, record):
-        record.msg = re.sub(r'(/rest/\d+/)[^/\s\"]+', r'\1[REDACTED]', record.getMessage())
-        record.args = ()
+        def redact(value):
+            if isinstance(value, (int, float)) or value is None:
+                return value
+            text = str(value)  # httpx passes URL objects
+            return WEBHOOK.sub(r'\1[REDACTED]', text) if WEBHOOK.search(text) else value
+        # Keep record.args intact in shape so formatters that unpack it still work.
+        if isinstance(record.args, tuple):
+            record.args = tuple(redact(arg) for arg in record.args)
+        elif isinstance(record.args, dict):
+            record.args = {key: redact(arg) for key, arg in record.args.items()}
+        record.msg = redact(record.msg)
         return True
 
 
