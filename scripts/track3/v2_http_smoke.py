@@ -178,6 +178,22 @@ def run(unavailable=False):
             request('operator', 'POST', route + '/confirm', json=payload)
             assert request('operator', 'POST', route + '/confirm', json=payload)['already_confirmed']
             assert any(e['result']=='denied' for e in request('auditor','GET','/audit')['events'])
+            doc = request('director','POST','/documents',files={'file':('editions.txt','Учебный график версий: поставка картона 20 ноября.'.encode())},
+                          data={'title':'HTTP проверка истории версий'})['document']
+            version_route = f"/documents/{doc['id']}"
+            upload = {'file':('edition2.txt','Учебный график версий: поставка картона 25 ноября.'.encode())}
+            draft = request('director','POST',version_route+'/versions/preview',files=upload)
+            request('director','POST',f"/confirmations/{draft['confirmation_id']}/cancel")
+            request('director','POST',version_route+'/versions/confirm',expected=409,
+                    json={'confirmation_id':draft['confirmation_id'],'idempotency_key':'http-version-cancel'})
+            draft = request('director','POST',version_route+'/versions/preview',files=upload)
+            version_token = {'confirmation_id':draft['confirmation_id'],'idempotency_key':'http-version-confirm'}
+            edition = request('director','POST',version_route+'/versions/confirm',json=version_token)['document']
+            assert request('director','POST',version_route+'/versions/confirm',json=version_token)['already_confirmed']
+            assert request('director','GET',f"/documents/{edition['id']}/summary")['claims'][0]['text'].endswith('25 ноября.')
+            assert request('director','GET',version_route+f"/compare/{edition['id']}")['changes']
+            assert {row['document_id'] for row in request('director','GET','/search',params={'q':'Учебный график версий'})['results']}=={edition['id']}
+            request('admin','GET',version_route+'/summary',expected=404)
             stop(); proc = start()
             assert request('operator', 'GET', '/me')['user']['login'] == 'operator'
             assert request('prod_head','GET',f"/crm/tasks/{task['id']}")['outbox']['external_ref']==crm_result['external_ref']
@@ -186,11 +202,14 @@ def run(unavailable=False):
             assert clients['designer'].get(subscription['path']).status_code==404
             assert next(t for t in request('operator', 'GET', '/tasks')['tasks'] if t['id']==task['id'])['status']=='in_progress'
             request('designer', 'GET', f'/meetings/{mid}', expected=404)
+            assert len(request('director','GET',version_route+'/versions')['versions'])==2
+            assert request('director','POST',version_route+'/versions/confirm',json=version_token)['document']['id']==edition['id']
             return {'status':'passed', 'model':('unavailable loopback; no live inference' if unavailable else
                                                'scripted double; live quality not measured'), 'roles':len(clients),
                     'model_failure_path': 'passed' if unavailable else 'not_run',
                     'observed_model_errors':observed_model_errors,
                     'requests':events, 'kpi_before_mutation':metrics, 'restart':'passed', 'calendar_interchange':'passed',
+                    'document_versions':'passed',
                     'smart_calendar':{'slot_count':len(smart['slots']),'warnings':smart['warnings']}}
         finally:
             stop()

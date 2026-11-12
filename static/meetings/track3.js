@@ -7,6 +7,7 @@ export function track3UI(h) {
   let overviewStatus = 'idle';
   let answer = null;
   let question = '';
+  let includeHistory = false;
   let context = '';
   let qaBusy = false;
   let qaSequence = 0;
@@ -41,6 +42,7 @@ export function track3UI(h) {
     overview = answer = null;
     overviewStatus = 'idle';
     question = context = answerContext = answerQuestion = '';
+    includeHistory = false;
     qaSequence++;
     qaBusy = false;
     if (!keepDrafts) { calendarDrafts = new Map(); taskDrafts = new Map(); }
@@ -251,7 +253,10 @@ export function track3UI(h) {
     const submit = button(qaBusy ? 'Формируется ответ…' : 'Задать вопрос', null, 'primary-button', 'submit');
     submit.disabled = qaBusy || !can('qa.ask');
     scope.disabled = qaBusy;
-    form.append(field('Контекст', scope), q.wrap, submit);
+    const history=input({label:'Искать также в прошлых версиях',type:'checkbox'});
+    history.input.checked=includeHistory;history.input.disabled=qaBusy;
+    history.input.addEventListener('change',()=>{includeHistory=history.input.checked;answer=null;qaSequence++;render();});
+    form.append(field('Контекст', scope), q.wrap, history.wrap, submit);
     form.addEventListener('submit', async (event) => {
       event.preventDefault(); if (qaBusy || !q.input.value.trim()) return;
       question = q.input.value;
@@ -261,7 +266,7 @@ export function track3UI(h) {
       const sequence = ++qaSequence;
       qaBusy = true; answer = null; submit.disabled = true;
       await run(submit, async () => {
-        const result = await request('/qa', { method: 'POST', body: { question: askedQuestion, ...(askedContext ? { meeting_id: Number(askedContext) } : {}) } });
+        const result = await request('/qa', { method: 'POST', body: { question: askedQuestion, include_history: includeHistory, ...(askedContext ? { meeting_id: Number(askedContext) } : {}) } });
         if (current === generation && sequence === qaSequence) { answer = result; answerContext = askedContext; answerQuestion = askedQuestion; qaBusy = false; if (state.page === 'knowledge') render(); }
       }, { model: true, label: 'Формируется ответ…' });
       if (current !== generation || sequence !== qaSequence) return;
@@ -275,6 +280,7 @@ export function track3UI(h) {
     result.setAttribute('aria-label', 'Ответ');
     const groundedClaims = (answer.claims || []).filter((claim) => claim.sources?.length);
     result.append(node('p', 'task-meta', `Вопрос: ${answerQuestion}`));
+    for(const warning of answer.warnings || [])result.append(node('p','gap-state',warning.message));
     if (answer.status !== 'grounded' || !groundedClaims.length) {
       result.append(node('h2', '', 'Оснований не найдено'), node('p', '', 'В доступных материалах недостаточно проверяемых данных. Уточните вопрос или добавьте материалы.'));
     } else {

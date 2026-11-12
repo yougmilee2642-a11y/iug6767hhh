@@ -79,6 +79,8 @@ def cancel(connection, user, confirmation_id: str) -> dict:
     if row['status'] == 'pending':
         connection.execute("UPDATE confirmations SET status='cancelled', finished_at=? WHERE id=?",
                            (store.now(), confirmation_id))
+        if row['action'] == 'document.version':
+            connection.execute('DELETE FROM document_version_drafts WHERE confirmation_id=?', (confirmation_id,))
         store.audit(connection, user['id'], 'confirmation_cancelled', object_type=row['object_type'],
                     object_id=row['object_id'], confirmation_id=confirmation_id, result='cancelled',
                     action_kind=row['action'], stage='cancel')

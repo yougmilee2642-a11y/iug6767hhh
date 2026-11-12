@@ -69,6 +69,7 @@ jobs:
           node --check static/meetings/administration.js
           node --check static/meetings/crm.js
           node --check static/meetings/calendar.js
+          node --check static/meetings/documents.js
           node --test tests/*.cjs static/mts-shell/tests/*.mjs
       - name: Product HTTP, persistence and two roles (no model quality claim)
         if: always() && steps.dependencies.outcome == 'success'

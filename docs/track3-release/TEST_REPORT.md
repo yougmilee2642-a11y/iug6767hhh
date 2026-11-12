@@ -8,16 +8,16 @@
 
 | Проверка | Результат и границы |
 |---|---|
-| Полный небраузерный Python | 1374 passed, 28 skipped, 0 failed, 92,08 s; `reports/v2-e14-python.log`. Шесть deprecation warnings PyMuPDF; skips не считаются passed. |
-| Node | 66 passed, 0 failed; `reports/v2-e14-node.log` |
-| Настоящий HTTP, 7 уровней | `reports/v2-e14-http.json`: KPI, ACL, cancel/confirm, CRM/idempotence/restart; явный QA double, не качество модели |
-| Недоступная модель через настоящий HTTP | `reports/v2-e14-unavailable-http.json`: реальные provider/prepare/protocol/QA → 503 model_unavailable, расшифровка не изменена, 7 уровней/restart |
-| Предыдущий чистый CI | [43157518742](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43157518742) на 3dbc30c: Linux/Windows, Python/Node/35 UI, оба browser→HTTP и evaluator passed. Не переносится на новый head. |
-| E13 на дублёре | `reports/v2-evaluator-double.json`: pipeline_passed, 30 задач/36 вопросов; quality NOT MEASURED, не live recall |
+| Полный небраузерный Python | 1453 passed, 28 skipped, 0 failed, 155,76 s; `reports/v2-document-versions-python.log`. Шесть deprecation warnings PyMuPDF; skips не считаются passed. |
+| Node | 66 passed, 0 failed; `reports/v2-document-versions-node.log` |
+| Настоящий HTTP, 7 уровней | `reports/v2-document-versions-http.json`: KPI/ACL/CRM/ICS/smart slots, версии/cancel/replay/restart; без инференса |
+| Недоступная модель через настоящий HTTP | `reports/v2-document-versions-http.json`: реальные provider/prepare/protocol/QA → 503 model_*, расшифровка не изменена; наблюдаемые коды сохранены |
+| Предыдущий чистый CI | [43166951277](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43166951277) на 574ab18: Linux base/runtime, Windows release/runtime, Python/Node/35 UI, browser→HTTP и evaluator success. Новые версии требуют нового CI. |
+| E13 на дублёре | `reports/v2-document-versions-double.json`: pipeline_passed, 30 задач/36 вопросов; quality NOT MEASURED, не live recall |
 | Первоначальный чистый base | `reports/v2-e14-initial-install.json`: 65,88 s всего; base install 25,28 s прошёл, seed упал без PDF reader; после test-профиля seed/restart прошли |
 | Изолированный runtime | `reports/v2-e14-initial-runtime.json`: 12,68 s, повтор seed/HTTP passed; pytest/Playwright/torch/scipy/av/soundfile отсутствуют. Кэш pip не контролировался. Профиль был незакоммичен, код клона 3dbc30c. |
-| Исправленная установка base/runtime | Новый `clean_install.py` запускается после commit; отчёты и Windows CI должны быть проверены отдельно. Нельзя считать passed по первоначальному замеру. |
-| OpenAPI | `export_api.py` из настоящего app: 67 путей; временная БД, без моделей/рабочей data/ |
+| Исправленная установка base/runtime | CI43166951277 Linux base/runtime и Windows runtime success; новые версии проверяются после commit отдельно. Кэш пакетов неконтролируемый. |
+| OpenAPI | `export_api.py` из настоящего app: 72 пути; временная БД, без моделей/рабочей data/ |
 | Secret scan истории | Форматы ключей/private keys/webhooks/credential URLs. Три credential-URL совпадения — один отрицательный fixture `https://u:p@example.com` в повторённой истории теста; реальных ключей этими правилами не обнаружено. Не полноценный DLP-аудит. |
 
 ## Критерии приёмки §7.5
@@ -34,7 +34,7 @@
 
 | ID | Тест/доказательство | Результат |
 |---|---|---|
-| ОТ-01 | clean_install base/runtime Linux/Windows | Исправленный профиль ожидает новый прогон; первоначальная ошибка сохранена |
+| ОТ-01 | clean_install base/runtime Linux/Windows | CI43166951277 success для Linux base/runtime и Windows runtime; новый head проверяется отдельно, первоначальные ошибки сохранены |
 | ОТ-02 | `test_access_matrix.py`, HTTP семи уровней, отозванные права/истёкшее делегирование | Passed |
 | ОТ-03 | `test_fotoprint_seed.py`, генератор и хеши v1/v2 | Passed |
 | ОТ-04 | core/privacy audit/filter/CSV/logout; auditor/director/head-scope | Passed |
@@ -149,3 +149,27 @@ CI43164400635: Windows сервер запустился, но smoke упал н
 - Secret отсутствует в snippets и model index. Открытие файла владельцем сохранено.
   Дата загрузки source_at возвращается поиском. Версии/valid_until не закрываются
   этими тестами и остаются E6.2/E6.4.
+
+## E6.2/E6.4: редакции, актуальность и выдержки (12.11.2026)
+
+- 26 новых случаев в `test_document_versions.py`: нет записи до confirm, cancel
+  удаляет временный BLOB, concurrent/replay создают одну редакцию, stale ACL/metadata/
+  content/fragments/file отвергаются, не возникает ветка из двух preview.
+- Owner-only запись, server ACL на каждой редакции, admin/auditor deny с аудитом,
+  secret исключён из summary/diff/model. Скрытый потомок или промежуточная версия
+  не влияют на выдачу и не раскрываются ссылкой. Цитаты разрешаются в исходный F-id.
+- SQL выбирает актуальную доступную редакцию до FTS; явная история, сохранённые
+  ответы/отзыв прав, expiry warnings, подготовка встречи и добавление новой редакции
+  во время генерации проверены. Привязки встреч не меняются автоматически.
+- Шесть веток: обычный confirm/summary/diff; foreign/admin denial; replay/concurrent;
+  пустой/неподходящий источник; отсутствующий/изменённый BLOB409; expired/superseded
+  и источник, заменённый в процессе запроса. Это локальные источники, не внешний API.
+- Full1453/28/0 и Node66/0. Миграция13 на пустой/заполненной БД и повторный seed
+  входят в полный набор; старые тесты не удалены. Прежняя полная база CI1427: +26.
+- `v2_http_smoke.py` расширен версиями/cancel/confirm/replay/summary/diff/restart.
+  Новый сценарий UI добавлен в `v2_ui_check.py`; локально Chromium не запускался
+  повторно после установленного запрета Unix socket. Нужен CI нового head.
+- Frozen double повторён:30/30 задач,36/36 QA,17/17 claims,0 прав/ложных действий.
+  Gold не изменён, live модели не запускались. Новых зависимостей нет.
+- Границы: DOCUMENTS.md. Смысловая сводка/противоречия/обязательства и фоновая
+  очистка временных файлов остаются. Формат ошибок и дата Source сохранены.

@@ -115,7 +115,7 @@ def check_meeting(connection, actor, meeting_id):
         raise not_found()
 
 
-def check_fragment(connection, actor, fragment_id, meeting_id):
+def check_fragment(connection, actor, fragment_id, meeting_id,include_history=False):
     check_meeting(connection, actor, meeting_id)
     row = connection.execute('SELECT f.*,d.title,d.created_at,d.filename FROM fragments f JOIN documents d '
                              'ON d.id=f.document_id WHERE f.id=?', (fragment_id,)).fetchone()
@@ -125,10 +125,14 @@ def check_fragment(connection, actor, fragment_id, meeting_id):
             'SELECT 1 FROM meeting_documents WHERE meeting_id=? AND document_id=?',
             (meeting_id, row['document_id'])).fetchone():
         raise not_found()
+    if not include_history:
+        clause,args=index.current_clause(connection,actor,meeting_id=meeting_id)
+        if not connection.execute('SELECT 1 FROM documents d WHERE d.id=? AND '+clause,[row['document_id'],*args]).fetchone():
+            raise stale_saved()
     return dict(row)
 
 
-def retrieve(connection, actor, question, meeting_id):
+def retrieve(connection, actor, question, meeting_id,include_history=False):
     check_meeting(connection, actor, meeting_id)
     query = terms(question)
     scopes = named_scopes(question)
@@ -136,7 +140,7 @@ def retrieve(connection, actor, question, meeting_id):
         return []
     # ACL is part of SQL selection, before ranking, limiting and model context.
     eligible, costs = [], {}
-    for row in index.visible_fragments(connection, actor, meeting_id=meeting_id, model=True):
+    for row in index.visible_fragments(connection, actor, meeting_id=meeting_id, model=True,include_history=include_history):
         if any(source_is_injection(row[key]) for key in ('title','filename')):
             continue
         try:
@@ -266,7 +270,7 @@ def validated_claims(raw, selected, question):
     return claims
 
 
-def answer(actor, question, meeting_id, audit):
+def answer(actor, question, meeting_id, audit,include_history=False):
     from meetings.privacy import private_json, prohibited_intent, refusal, Masker, customer_names
     try:
         question_masked = store.safe_text(Masker(customer_names()).text(question))
@@ -282,7 +286,7 @@ def answer(actor, question, meeting_id, audit):
         return {'answer_id': None, 'status': 'refused', 'answer': refusal(reason), 'claims': [], 'sources': [],
                 'generated_at': iso(utc_now()), 'model': None, 'reason_code': reason}
     with store.db() as connection:
-        selected = retrieve(connection, actor, question, meeting_id)
+        selected = retrieve(connection, actor, question, meeting_id,include_history)
         secret_notice = False
         from meetings.access import predicate
         visible, parameters = predicate(connection, actor, 'document', 'd')
@@ -325,14 +329,17 @@ def answer(actor, question, meeting_id, audit):
         connection.execute('BEGIN IMMEDIATE')
         check_meeting(connection, actor, meeting_id)
         for previous in selected:
-            current = check_fragment(connection, actor, previous['id'], meeting_id)
+            current = check_fragment(connection, actor, previous['id'], meeting_id,include_history)
             if current != previous:
                 raise MeetError(409, 'stale_sources', 'Источники изменились. Повторите вопрос.')
+        from meetings.document_versions import warnings
+        result['warnings'] = warnings(connection, actor, selected)
         stored_claims = [dict(claim) for claim in claims]
         if stored_claims:
             # Storage-only proof binds the entire context, including surrounding
             # negations and fragments that did not become claims. Never sent to UI.
             stored_claims[0]['_context_sha256'] = {f"F{row['id']}": fingerprint(row) for row in selected}
+            if include_history:stored_claims[0]['_include_history']=True
         cursor = connection.execute(
             'INSERT INTO qa_answers(user_id,meeting_id,question_masked,question_sha256,status,answer,claims,source_ids,'
             'model,request_id,generated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
@@ -359,11 +366,12 @@ def load_answer(connection, actor, answer_id):
             or not isinstance(stored_claims, list) or len(stored_claims) > MAX_CLAIMS
             or saved['status'] != ('grounded' if stored_claims else 'insufficient_data')):
         raise stale_saved()
+    include_history=bool(stored_claims and isinstance(stored_claims[0],dict) and stored_claims[0].get('_include_history') is True)
     for fid in ids:
         if (not isinstance(fid, str) or not re.fullmatch(r'F[1-9]\d{0,18}', fid)
                 or int(fid[1:]) > 2**63 - 1 or fid in rows):
             raise stale_saved()
-        row = check_fragment(connection, actor, int(fid[1:]), saved['meeting_id'])
+        row = check_fragment(connection, actor, int(fid[1:]), saved['meeting_id'],include_history)
         rows[f"F{row['id']}"] = row
     claims = []
     if stored_claims:
@@ -389,6 +397,8 @@ def load_answer(connection, actor, answer_id):
                         'Недостаточно доступных данных для ответа с проверяемым источником.',
               'claims': claims, 'sources': [source for claim in claims for source in claim['sources']],
               'generated_at': saved['generated_at'], 'model': saved['model']}
+    from meetings.document_versions import warnings
+    result['warnings'] = warnings(connection, actor, rows.values())
     return result
 
 

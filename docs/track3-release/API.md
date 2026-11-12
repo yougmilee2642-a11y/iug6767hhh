@@ -6,7 +6,7 @@ ACL/конфиденциальность на чтении, до контекс�
 Admin/auditor не получают бизнес-содержимое. Чужой объект → 404 без его названия;
 запрещённая операция → 403. В ответе есть `X-Request-ID` для журнала.
 
-Полный срез 67 путей: [openapi.json](openapi.json). Он получен из настоящего
+Полный срез 72 путей: [openapi.json](openapi.json). Он получен из настоящего
 `app.app`, а не написан вручную. Обновление без моделей/рабочей БД:
 
 ```bash
@@ -22,6 +22,7 @@ python scripts/track3/export_api.py --output docs/track3-release/openapi.json
 |---|---|
 | Сессия/роль | `POST /login`, `POST /logout`, `GET /me`, `GET /demo-profiles` |
 | Документы | `GET/POST /documents`, `GET /documents/{id}/download`, поиск и fragments |
+| Версии/выдержки | `POST /documents/{id}/versions/preview`, `/versions/confirm`, `GET /versions`, `/summary`, `/compare/{other_id}`; [правила](DOCUMENTS.md) |
 | Подготовка/протокол | `POST /meetings/{id}/prepare`, `POST /meetings/{id}/protocol/draft`, ручной `PUT /meetings/{id}/protocol` |
 | Задачи | `GET /tasks`, `POST /tasks/{id}/preview`, `POST /tasks/{id}/confirm` |
 | Решения | `GET /decisions`, `POST /decisions/{item_id}/preview`, `POST /decisions/{item_id}/confirm` |
@@ -51,3 +52,9 @@ ICS/EML реализованы локально; единого `/assistant`, li
 проверяется SQL до индексации/ранжирования. Secret исключён из snippets.
 Источники ответов QA остаются проверенными цитатами. [SEARCH.md](SEARCH.md)
 описывает алгоритм, ограничения корпуса и503search_unavailable.
+
+По умолчанию используются актуальные доступные версии. Для истории:
+`GET /search?...&include_history=true` и `POST /qa` с JSON `include_history:true`.
+QA/summary/compare возвращают предупреждения по `valid_until`/замене редакции.
+Сохранённый обычный ответ на заменённом источнике требует нового запроса409;
+явный исторический ответ перепроверяет доступ и цитаты при повторном чтении.

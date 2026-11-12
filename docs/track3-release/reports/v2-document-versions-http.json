@@ -1,0 +1,490 @@
+{
+  "status": "passed",
+  "model": "unavailable loopback; no live inference",
+  "roles": 7,
+  "model_failure_path": "passed",
+  "observed_model_errors": {
+    "/meetings/1/prepare": "model_unavailable",
+    "/meetings/1/protocol/draft": "model_unavailable",
+    "/qa": "model_unavailable"
+  },
+  "requests": [
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "prod_head",
+      "method": "POST",
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "role": "prod_head",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "mod_lead",
+      "method": "POST",
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "role": "mod_lead",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "designer",
+      "method": "POST",
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "role": "designer",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "admin",
+      "method": "POST",
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "role": "admin",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "auditor",
+      "method": "POST",
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "role": "auditor",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "GET",
+      "route": "/demo-profiles",
+      "status": 200
+    },
+    {
+      "role": "designer",
+      "method": "GET",
+      "route": "/documents/41/download",
+      "status": 404
+    },
+    {
+      "role": "admin",
+      "method": "GET",
+      "route": "/documents/41/download",
+      "status": 404
+    },
+    {
+      "role": "auditor",
+      "method": "GET",
+      "route": "/documents/41/download",
+      "status": 404
+    },
+    {
+      "role": "prod_head",
+      "method": "GET",
+      "route": "/documents/41/download",
+      "status": 404
+    },
+    {
+      "role": "admin",
+      "method": "GET",
+      "route": "/meetings/1",
+      "status": 404
+    },
+    {
+      "role": "auditor",
+      "method": "GET",
+      "route": "/meetings/1",
+      "status": 404
+    },
+    {
+      "role": "designer",
+      "method": "GET",
+      "route": "/meetings/1",
+      "status": 404
+    },
+    {
+      "role": "admin",
+      "method": "GET",
+      "route": "/admin/users",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "GET",
+      "route": "/overview?as_of=2026-11-11T12:00:00%2B00:00",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "GET",
+      "route": "/search?q=%D0%BA%D0%B0%D1%80%D1%82%D0%BE%D0%BD",
+      "status": 200
+    },
+    {
+      "role": "designer",
+      "method": "GET",
+      "route": "/search?q=%D0%B1%D1%8E%D0%B4%D0%B6%D0%B5%D1%82",
+      "status": 200
+    },
+    {
+      "role": "designer",
+      "method": "POST",
+      "route": "/qa",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/qa",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/calendar/preview",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/calendar/confirm",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/calendar/import/preview",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/calendar/import/confirm",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/calendar/subscriptions",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/calendar/slots",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/calendar/preview",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/confirmations/cf_-5Rzpw9zFAPboQb2XiUPC-D9/cancel",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "GET",
+      "route": "/meetings/1",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/meetings/1/prepare",
+      "status": 503
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/meetings/1/protocol/draft",
+      "status": 503
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/qa",
+      "status": 503
+    },
+    {
+      "role": "director",
+      "method": "GET",
+      "route": "/meetings/1",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "GET",
+      "route": "/tasks",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/crm/preview",
+      "status": 403
+    },
+    {
+      "role": "prod_head",
+      "method": "POST",
+      "route": "/crm/preview",
+      "status": 200
+    },
+    {
+      "role": "prod_head",
+      "method": "POST",
+      "route": "/confirmations/cf_vANAjHY28pcJGC9dUrrIAhqi/cancel",
+      "status": 200
+    },
+    {
+      "role": "prod_head",
+      "method": "POST",
+      "route": "/crm/confirm",
+      "status": 409
+    },
+    {
+      "role": "prod_head",
+      "method": "POST",
+      "route": "/crm/preview",
+      "status": 200
+    },
+    {
+      "role": "prod_head",
+      "method": "POST",
+      "route": "/crm/confirm",
+      "status": 200
+    },
+    {
+      "role": "prod_head",
+      "method": "POST",
+      "route": "/crm/confirm",
+      "status": 200
+    },
+    {
+      "role": "admin",
+      "method": "POST",
+      "route": "/integrations/check",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/tasks/1/preview",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/confirmations/cf_hpHAwV_OPVyTu6ygqqkXupXp/cancel",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/tasks/1/confirm",
+      "status": 409
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/tasks/1/preview",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/tasks/1/confirm",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/tasks/1/confirm",
+      "status": 200
+    },
+    {
+      "role": "auditor",
+      "method": "GET",
+      "route": "/audit",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/documents",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/documents/55/versions/preview",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/confirmations/cf_N0oPRxszFAZbn4khecrfGDcV/cancel",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/documents/55/versions/confirm",
+      "status": 409
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/documents/55/versions/preview",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/documents/55/versions/confirm",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/documents/55/versions/confirm",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "GET",
+      "route": "/documents/56/summary",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "GET",
+      "route": "/documents/55/compare/56",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "GET",
+      "route": "/search",
+      "status": 200
+    },
+    {
+      "role": "admin",
+      "method": "GET",
+      "route": "/documents/55/summary",
+      "status": 404
+    },
+    {
+      "role": "operator",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "prod_head",
+      "method": "GET",
+      "route": "/crm/tasks/1",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "DELETE",
+      "route": "/calendar/subscriptions/1",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "GET",
+      "route": "/tasks",
+      "status": 200
+    },
+    {
+      "role": "designer",
+      "method": "GET",
+      "route": "/meetings/1",
+      "status": 404
+    },
+    {
+      "role": "director",
+      "method": "GET",
+      "route": "/documents/55/versions",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/documents/55/versions/confirm",
+      "status": 200
+    }
+  ],
+  "kpi_before_mutation": {
+    "open_tasks": 4,
+    "overdue_tasks": 3,
+    "on_time_orders": 97.6,
+    "defect_rate": 1.8,
+    "capacity_utilization": 75.0,
+    "missing_assignee": 0,
+    "missing_due": 1,
+    "open_decisions": 0,
+    "overdue_decisions": 0,
+    "support_sla": 92.0,
+    "mary_resolution": 68.0,
+    "moderation_queue": 18,
+    "unclaimed_pickup": 31,
+    "late_order_causes": 12,
+    "capacity_forecast_peak": 111.0
+  },
+  "restart": "passed",
+  "calendar_interchange": "passed",
+  "document_versions": "passed",
+  "smart_calendar": {
+    "slot_count": 3,
+    "warnings": []
+  },
+  "elapsed_seconds": 5.46857557400017,
+  "working_tree_dirty": true,
+  "commit": "574ab181d225b8f246117e47e3c5c92bc34ba986"
+}

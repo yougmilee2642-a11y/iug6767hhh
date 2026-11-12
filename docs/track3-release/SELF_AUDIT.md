@@ -8,7 +8,7 @@
 
 | Требование | Статус | Доказательство | Риск/оставшаяся проверка |
 |---|---|---|---|
-| ОТ-01: запуск ≤15 минут | Частично | `clean_install.py`, V2_QUICKSTART; исходный чистый клон 65,88 s выявил пропуск PDF reader; runtime 12,68 s прошёл | Base/runtime Linux CI43162911735 passed; Windows startup failed, canonical-path candidate требует CI; кэш тёплый, модели не включены |
+| ОТ-01: запуск ≤15 минут | Частично | `clean_install.py`, V2_QUICKSTART; Linux base/runtime и Windows runtime CI43166951277 success на574ab18 | Новый head проверяется отдельно; кэш неконтролируемый, модели не включены; независимый человек не запускал |
 | ОТ-02: серверные роли | Выполнено | `test_access_matrix.py`, SQL/classification matrix, HTTP семи уровней | Production identity/SSO отсутствует |
 | ОТ-03: синтетика | Выполнено | `test_fotoprint_seed.py`: генератор, хеши, 18 пользователей, 54 документа, 600 заказов/250 клиентов/400 обращений | Не представляет реальные данные/нагрузку |
 | ОТ-04: журнал | Выполнено | core denial-survives-rollback; privacy audit/logout/filters/CSV tests | Нет внешнего неизменяемого журнала/авторотации |
@@ -28,7 +28,7 @@
 | AI-04: статусы решений | Выполнено | core accepted-outcome-contradicted→discussed, extract status tests | Реальные неоднозначные формулировки не измерены |
 | AI-05: не выдумывать | Требует живой проверки хостом | Цитаты/имена/сроки, no_data/refusal, scorer v3 | Правила не доказывают полноту/семантику |
 | AI-06: аудит AI | Выполнено | core/knowledge/privacy: masked question, source/model/stage/request ID | Автоматическое хранение/очистка ещё не реализованы |
-| AI-07: правка/feedback | Выполнено | core edit/recheck/feedback tests | Полного UI version diff нет |
+| AI-07: правка/feedback | Выполнено | core edit/recheck/feedback tests | История редакций протокола ещё не реализована |
 | §7.4: ограничения/защита | Частично | privacy/injection corpus≥15, intent refusals, secret exclusion, DATA_POLICY | Шаблонный PII-фильтр, свободные адреса, retention/CSRF/rate limits не закрыты целиком |
 | §7.5: recall≥80%/sources/ACL/cancel/links | Требует живой проверки хостом | Frozen 5 текстов/30 задач/36 QA, double pipeline; CPU/HTTP остальные условия | Live v2 NOT RUN; v1 18/18 и 16/16 — только старое сообщение хоста |
 | §8: набор данных | Выполнено | seed/generator/hash tests, календарь/задачи/классификации | Только синтетика |
@@ -44,7 +44,7 @@
 | E3 | P0 mock CRM выполнен; Bitrix24 transport/Mary-адаптер/импорт-сверка не выполнены |
 | E4 | Mock, ICS export/import/subscriptions и EML download выполнены; смены/буферы/optional выполнены; внешние провайдеры и автоматические .eml-файлы не выполнены |
 | E5 | Унаследован voice MVP; v2-команды частично, микрофон/модели NOT RUN |
-| E6 | Форматы/цитаты/ACL и scoped FTS5/BM25 есть; версии/сводка/сравнение не выполнены |
+| E6 | Форматы/ACL/FTS5, неизменяемые версии, история, valid_until, выдержки и diff реализованы; semantic summary/противоречия/обязательства/полный редактор метаданных остаются; DOCUMENTS.md |
 | E7 | Унаследованы аудио endpoints; jobs/storage/call analytics v2 не выполнены |
 | E8 | P0 подготовка/поручения/протокол выполнены; история/комментарии/эскалация/экспорт P1 |
 | E9 | P0 KPI/решения выполнены; отклонение→действие/брифинг не выполнены |

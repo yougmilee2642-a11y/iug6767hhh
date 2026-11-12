@@ -112,6 +112,8 @@ def install(app):
     app.include_router(decisions_router())
     from meetings.connectors.api import router as crm_router
     app.include_router(crm_router())
+    from meetings.document_versions import router as document_versions_router
+    app.include_router(document_versions_router())
     extras = _optional_routers()
     for extra in extras:
         app.include_router(extra)
@@ -279,6 +281,11 @@ def _meeting_documents(connection, user, meeting_id, *, model=False):
     rows = connection.execute('SELECT d.* FROM documents d JOIN meeting_documents md ON md.document_id=d.id '
                               'WHERE md.meeting_id=? ORDER BY d.id', (meeting_id,)).fetchall()
     visible = [r for r in rows if store.can_read_document(connection, user['id'], r['id'], model=model)]
+    if model:
+        from meetings.knowledge.index import current_clause
+        clause, args = current_clause(connection, user['id'], meeting_id=meeting_id)
+        current_ids = {r[0] for r in connection.execute('SELECT d.id FROM documents d WHERE ' + clause, args)}
+        visible = [r for r in visible if r['id'] in current_ids]
     return visible, len(rows) - len(visible)
 
 
@@ -290,7 +297,7 @@ def _full_meeting(connection, user, row):
     if prep:
         prep['meeting_id'] = row['id']
     return {'meeting': store.meeting_out(connection, row),
-            'documents': [store.document_out(connection, d) for d in visible], 'hidden_documents': hidden,
+            'documents': [store.document_out(connection, d, user['id']) for d in visible], 'hidden_documents': hidden,
             'utterances': store.utterances(connection, row['id']), 'prep': _visible_prep(connection, user, prep),
             'protocol': store.protocol(connection, row['id']), 'tasks': tasks,
             # §7.2.1: open tasks of accessible previous meetings, live for this viewer, even before any briefing
@@ -318,18 +325,28 @@ def _visible_prep(connection, user, prep):
                 return False
             if document_id not in readable:
                 readable[document_id] = store.can_read_document(connection, user['id'], document_id, model=True)
+                if readable[document_id]:
+                    from meetings.knowledge.index import current_clause
+                    clause, args = current_clause(connection, user['id'], meeting_id=prep.get('meeting_id'))
+                    readable[document_id] = bool(connection.execute('SELECT d.id FROM documents d WHERE d.id=? AND ' + clause,
+                                                                    [document_id, *args]).fetchone())
             if not readable[document_id]:
                 return False
         return True
 
     result = dict(prep)
+    from meetings.document_versions import warnings as document_warnings
+    result['warnings'] = document_warnings(connection, user['id'], [
+        {'document_id': c['document_id']} for key in ('brief', 'agenda', 'questions')
+        for claim in prep.get(key) or [] for c in claim.get('citations') or []
+        if c.get('document_id') and store.can_read_document(connection, user['id'], c['document_id'], model=True)])
     hidden = 0
     for key in ('brief', 'agenda', 'questions'):
         kept = [c for c in prep.get(key) or [] if allowed(c)]
         hidden += len(prep.get(key) or []) - len(kept)
         result[key] = kept
     if hidden:
-        result['gaps'] = [f'Скрыто пунктов справки: {hidden} — они опираются на документы, к которым у вас нет доступа.']
+        result['gaps'] = [f'Скрыто пунктов справки: {hidden} — нет доступа к документам или появилась актуальная версия.']
         result['restricted'] = True
     # Open tasks are never taken from the stored copy: recomputed for THIS viewer from live data.
     row = connection.execute('SELECT * FROM meetings WHERE id=?', (prep.get('meeting_id') or 0,)).fetchone() \
@@ -588,7 +605,7 @@ def router():
             store.audit(connection, user['id'], 'document_upload', document_id=document_id, filename=filename,
                         object_type='document', object_id=document_id)
             row = connection.execute('SELECT * FROM documents WHERE id=?', (document_id,)).fetchone()
-            return {'document': store.document_out(connection, row)}
+            return {'document': store.document_out(connection, row, user['id'])}
 
     @api.get('/api/meet/documents')
     def list_documents(request: Request):
@@ -596,7 +613,7 @@ def router():
         with store.db() as connection:
             ids = store.accessible_document_ids(connection, user['id'])
             rows = [connection.execute('SELECT * FROM documents WHERE id=?', (i,)).fetchone() for i in ids]
-            return {'documents': [store.document_out(connection, r) for r in rows]}
+            return {'documents': [store.document_out(connection, r, user['id']) for r in rows]}
 
     @api.get('/api/meet/documents/{document_id}')
     def get_document(document_id: int, request: Request):
@@ -606,7 +623,7 @@ def router():
             row = connection.execute('SELECT * FROM documents WHERE id=?', (document_id,)).fetchone()
             fragments = [store.fragment_out(f, row['title']) for f in connection.execute(
                 'SELECT * FROM fragments WHERE document_id=? ORDER BY idx', (document_id,))]
-            return {'document': store.document_out(connection, row), 'fragments': fragments}
+            return {'document': store.document_out(connection, row, user['id']), 'fragments': fragments}
 
     @api.get('/api/meet/documents/{document_id}/download')
     def download(document_id: int, request: Request):
@@ -636,14 +653,16 @@ def router():
             return {'fragment': store.fragment_out(row)}
 
     @api.get('/api/meet/search')
-    def search(request: Request, q: str = Query(default='', max_length=2000)):
+    def search(request: Request, q: str = Query(default='', max_length=2000),include_history:bool=False):
         user = current_user(request)
         require(user,'meetings.read',action='search')
         from meetings.knowledge import index
+        from meetings.document_versions import freshness
         with store.db() as connection:
             results = []
-            for row in index.search(connection, user['id'], q):
-                results.append({**store.fragment_out(row), 'snippet': row['text'][:240], 'source_at':row['created_at']})
+            for row in index.search(connection, user['id'], q,include_history=include_history):
+                results.append({**store.fragment_out(row), 'snippet': row['text'][:240], 'source_at':row['created_at'],
+                                'warnings':freshness(connection,user['id'],row['document_id'])})
             store.audit(connection, user['id'], 'search', query=store.safe_text(q, 100), results=len(results),
                         source_ids=[r['id'] for r in results[:50]])
             return {'results': results[:50]}
@@ -770,10 +789,16 @@ def router():
         result['generated_for'] = user['name']
         cited = sorted({c['fragment_id'] for key in ('brief', 'agenda', 'questions')
                         for claim in result.get(key) or [] for c in claim.get('citations') or []})
-        with store.db() as connection:
+        with store.write_tx() as connection:
             # Generation takes minutes: access may have been revoked meanwhile. Re-check the meeting, and show
             # only claims whose documents are still readable.
             row = _meeting(connection, user, meeting_id, 'prep.generate', 'meeting.prepare')
+            from meetings.knowledge.index import current_clause
+            clause, args = current_clause(connection, user['id'], meeting_id=meeting_id)
+            if any(store.can_read_document(connection, user['id'], d['id'], model=True) and
+                   not connection.execute('SELECT d.id FROM documents d WHERE d.id=? AND ' + clause,
+                                          [d['id'], *args]).fetchone() for d in visible):
+                raise MeetError(409, 'stale_sources', 'Появилась новая версия материала. Сформируйте справку заново.')
             visible = _visible_prep(connection, user, {**result, 'meeting_id': meeting_id})
             # The saved briefing is shared by everyone with access: only an editing role may replace it.
             # A reader gets a personal, unsaved briefing and never overwrites the manager's one.

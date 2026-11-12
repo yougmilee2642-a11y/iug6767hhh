@@ -69,3 +69,38 @@ GET {{base}}/calendar/subscriptions
 
 ### Отозвать свою ссылку: подставить её ID
 DELETE {{base}}/calendar/subscriptions/1
+
+### После входа владельцем: история, ID подставить из /documents
+GET {{base}}/documents/1/versions
+
+### Работает без модели, только точные выдержки с источником
+GET {{base}}/documents/1/summary
+
+### Две доступные редакции одной цепочки
+GET {{base}}/documents/1/compare/2
+
+### Исторический поиск, без модели
+GET {{base}}/search?q=картон&include_history=true
+
+### Исторический QA требует модели и сохраняет предупреждения по версиям
+POST {{base}}/qa
+Content-Type: application/json
+
+{"question":"Когда поставка картона?","include_history":true}
+
+### Файл версии: сначала preview, затем проверить его на экране; заменить ID/путь
+POST {{base}}/documents/1/versions/preview
+Content-Type: multipart/form-data; boundary=version-demo
+
+--version-demo
+Content-Disposition: form-data; name="file"; filename="new-version.txt"
+Content-Type: text/plain
+
+Учебный график: поставка картона состоится 25 ноября.
+--version-demo--
+
+### Только после проверки человеком; confirmationId из versions/preview
+POST {{base}}/documents/1/versions/confirm
+Content-Type: application/json
+
+{"confirmation_id":"{{confirmationId}}","idempotency_key":"manual-document-version-001"}
