@@ -112,6 +112,17 @@ def run(unavailable=False):
             assert request('director','GET',f"/documents/{edition2['id']}/summary")['claims']
             assert request('director','GET',f"/documents/{edition_id}/compare/{edition2['id']}")['changes']
             request('designer','GET',route,expected=404)
+            briefing_meeting = request('director','POST','/meetings',json={'title':'HTTP briefing source','scheduled_at':'2026-11-11T09:00:00+03:00'})['meeting']
+            assert request('director','GET',f"/sources/meeting/{briefing_meeting['id']}")['data']['meeting']['id']==briefing_meeting['id']
+            request('operator','GET',f"/sources/meeting/{briefing_meeting['id']}",expected=404)
+            for login in ['director','prod_head','operator','designer']:
+                briefing = request(login,'GET','/briefing?date=2026-11-11')
+                assert briefing['timezone']=='Europe/Minsk' and briefing['model'] is None
+                assert all(c['sources'] for c in briefing['claims'])
+            for login in ['admin','auditor']:
+                request(login,'GET','/briefing',expected=403)
+            voice_briefing = request('operator','POST','/voice/ask',json={'text':'Брифинг дня'})
+            assert voice_briefing['route']=='briefing' and voice_briefing['answer']['model'] is None
             roles = request('director', 'GET', '/demo-profiles')['users']; assert len(roles) == 16
             did = ids['documents']['v2_budget']; mid = ids['meetings']['delay']
             for login in ['designer','admin','auditor','prod_head']:
@@ -212,7 +223,7 @@ def run(unavailable=False):
                     'model_failure_path': 'passed' if unavailable else 'not_run',
                     'observed_model_errors':observed_model_errors,
                     'requests':events, 'kpi_before_mutation':metrics, 'restart':'passed', 'calendar_interchange':'passed',
-                    'document_editions':'passed', 'smart_calendar':{'slot_count':len(smart['slots']),'warnings':smart['warnings']}}
+                    'document_editions':'passed', 'daily_briefing':'passed', 'smart_calendar':{'slot_count':len(smart['slots']),'warnings':smart['warnings']}}
         finally:
             stop()
             for client in clients.values(): client.close()

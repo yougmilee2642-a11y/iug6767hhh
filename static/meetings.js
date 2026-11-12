@@ -1,3 +1,4 @@
+import { briefingUI } from './meetings/briefing.js';
 import { track3UI } from './meetings/track3.js';
 import { protocolPayload } from './meetings/protocol.js';
 import { voiceAssistant } from './meetings/voice.js';
@@ -55,6 +56,9 @@ const calendarTools = calendarUI({ node, makeButton, makeInput, request, runActi
 const assistant = voiceAssistant({ node, makeButton, request, state, openSource, dateLabel, navigate: (page) => {
   if (page === 'tasks') void openTasks(); else setPage(page);
 } });
+
+const briefing = briefingUI({node,makeButton,makeInput,request,runAction,state,dateLabel,openSource,openMeeting,
+  speak:()=>assistant.ask('Брифинг дня')});
 
 function operation(button, key) {
   key = `${state.epoch}:${key}`;
@@ -363,6 +367,7 @@ function updateAccount() {
   for (const [capability, label, page] of [['users.manage','Пользователи','administration'], ['integrations.manage','Интеграции','integrations'], ['audit.read','Журнал','audit'], ['delegation.grant','Делегировать','delegation']]) {
     if (state.capabilities.includes(capability)) account.append(makeButton(label, () => setPage(page)));
   }
+  if (state.capabilities.includes('overview.read')) account.append(makeButton('Брифинг',()=>setPage('briefing')));
   account.append(makeButton('Выйти', () => void logout(), 'logout-button'));
 }
 
@@ -403,6 +408,7 @@ function render() {
   else if (state.page === 'audit') void administration.renderAudit(app);
   else if (state.page === 'meeting' && state.meetingData) renderMeeting(app);
   else if (state.page === 'overview') ui.renderOverview(app);
+  else if (state.page === 'briefing') briefing.render(app);
   else if (state.page === 'knowledge') ui.renderKnowledge(app);
   else if (state.page === 'tasks') renderTaskBoard(app, state.tasks, false);
   else if (state.page === 'search') renderSearchResults(app);
@@ -1392,6 +1398,7 @@ async function openSource(kind, id, quote, source = {}) {
         row.append(makeButton('Открыть решение в протоколе',()=>{ closeSource(); void openMeeting(decision.meeting_id,'protocol'); },'task-meeting-link'));
         content.append(row);
       }
+      if (data?.meeting) content.append(node('p','',data.meeting.title),node('p','task-meta',dateLabel(data.meeting.scheduled_at)),makeButton('Открыть встречу-источник',()=>{closeSource();void openMeeting(data.meeting.id);},'secondary-button'));
       if (data?.metric) content.append(node('p','',`${data.metric.label}: ${data.metric.value ?? 'Нет данных'} ${data.metric.unit || ''}`),node('p','task-meta',`Формула: ${data.metric.formula}`));
       const labels = { numerator: 'Числитель', denominator: 'Знаменатель', completed_orders: 'Завершённые заказы', on_time_orders: 'Заказы в срок', produced_units: 'Произведено единиц', defective_units: 'Бракованных единиц', occupied_capacity: 'Занятая мощность', available_capacity: 'Доступная мощность', order_no:'Заказ', status:'Статус', promised_at:'Обещанный срок', completed_at:'Завершён', first_response_seconds:'Первый ответ, секунд', sla_seconds:'SLA, секунд', closed_by:'Закрыто кем', occupied_hours:'Занятые часы', available_hours:'Доступные часы', section:'Участок', forecast:'Прогноз (0/1)' };
       const snapshots = data?.snapshots || [data];

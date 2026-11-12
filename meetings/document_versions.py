@@ -155,7 +155,7 @@ def router():
                 'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
                 (row['owner_id'], row['title'], p['filename'], kind, draft['content'], p['sha256'], store.now(),
                  row['department_id'], row['confidentiality'], row['doc_type'], p['authored_at'], p['valid_until'],
-                 row['version'] + 1, document_id, row['source_ref'])).lastrowid
+                 row['version'] + 1, document_id, None)).lastrowid
             c.executemany('INSERT INTO fragments(document_id,idx,location,text) VALUES (?,?,?,?)',
                           [(did, f['idx'], f['location'], f['text']) for f in fragments])
             c.execute('INSERT INTO document_access SELECT ?,user_id FROM document_access WHERE document_id=?', (did, document_id))

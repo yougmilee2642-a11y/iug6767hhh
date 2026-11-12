@@ -85,3 +85,7 @@ POST {{base}}/qa
 Content-Type: application/json
 
 {"question":"Когда поставка картона?","include_history":true}
+
+
+### Дневной брифинг (данные и задачи в текущем scope)
+GET {{base}}/briefing?date=2026-11-11

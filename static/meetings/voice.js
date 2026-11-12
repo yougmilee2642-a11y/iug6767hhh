@@ -369,6 +369,12 @@ export function voiceAssistant(h) {
       return;
     }
     const answer = reply.answer || {};
+    if (reply.route === 'briefing') {
+      result.append(node('p','',answer.spoken || reply.display));
+      for (const warning of answer.warnings || []) result.append(node('p','voice-warning',warning));
+      result.append(makeButton('Открыть брифинг',()=>h.navigate('briefing'),'secondary-button'));
+      return;
+    }
     if (reply.route === 'knowledge') {
       for (const claim of answer.claims || []) {
         const card = node('article', 'voice-claim');

@@ -111,6 +111,13 @@ def run(artifacts):
                                 assert not errors, {'login':login,'page_errors':errors}
                                 if login == 'director':
                                     document_editions(page)
+                                    page.get_by_role('button',name='Брифинг',exact=True).click()
+                                    page.get_by_role('heading',name='Брифинг дня',exact=True).wait_for()
+                                    page.get_by_role('heading',name='Главные отклонения KPI',exact=True).wait_for()
+                                    page.get_by_label('Дата брифинга',exact=True).fill('2026-11-11')
+                                    page.get_by_role('button',name='Обновить брифинг',exact=True).click()
+                                    page.get_by_role('heading',name='Новые документы за 7 дней',exact=True).wait_for()
+                                    page.get_by_role('button',name='Обзор',exact=True).click()
                                     page.get_by_label('Поиск по документам',exact=True).fill('картон')
                                     page.get_by_role('button',name='Найти',exact=True).click()
                                     page.get_by_role('heading',name='Результаты: картон',exact=True).wait_for()

@@ -6,7 +6,7 @@ ACL/конфиденциальность на чтении, до контекс�
 Admin/auditor не получают бизнес-содержимое. Чужой объект → 404 без его названия;
 запрещённая операция → 403. В ответе есть `X-Request-ID` для журнала.
 
-Полный срез 72 путей: [openapi.json](openapi.json). Он получен из настоящего
+Полный срез 73 путей: [openapi.json](openapi.json). Он получен из настоящего
 `app.app`, а не написан вручную. Обновление без моделей/рабочей БД:
 
 ```bash
@@ -26,6 +26,7 @@ python scripts/track3/export_api.py --output docs/track3-release/openapi.json
 | Задачи | `GET /tasks`, `POST /tasks/{id}/preview`, `POST /tasks/{id}/confirm` |
 | Решения | `GET /decisions`, `POST /decisions/{item_id}/preview`, `POST /decisions/{item_id}/confirm` |
 | QA/источник | `POST /qa`, `GET /qa/{id}`, `GET /sources/{kind}/{id}` |
+| Брифинг дня | `GET /briefing?date=YYYY-MM-DD`, без модели; [границы](BRIEFING.md) |
 | Обзор | `GET /overview?as_of=…` — KPI, формула, числитель/знаменатель, as_of, источник |
 | Mock CRM | `POST /crm/preview`, `POST /crm/confirm`, `GET /crm/tasks/{id}`, `GET /crm/orders/{order_no}` |
 | Календарь ICS/EML | `GET /calendar/export.ics`, `/calendar/feed/{token}.ics`, `POST/GET /calendar/subscriptions`, import preview/confirm; [границы](CALENDAR.md) |
@@ -55,3 +56,5 @@ ICS/EML реализованы локально; единого `/assistant`, li
 Версии, immutable цитаты, summary/diff и include_history: [DOCUMENTS.md](DOCUMENTS.md).
 Мультизагрузка в UI выполняет отдельный POST на файл; отредактировать прежний
 документ можно только созданием новой редакции через preview/confirm.
+
+Первоисточник встречи: GET /sources/meeting/{id}; права проверяются при открытии.

@@ -256,3 +256,13 @@ def test_saved_preparation_warns_about_superseded_attached_document(env):
     version(client, did)
     result = client.get(f'/api/meet/meetings/{mid}').json()['prep']
     assert result['brief'][0]['text'] == OLD and result['warnings'][0]['superseded']
+
+
+
+def test_imported_document_keeps_unique_external_reference_on_original(env):
+    client = env['irina']; did, _ = document(client, OLD)
+    with store.db() as c: c.execute("UPDATE documents SET source_ref='synthetic-import:versioned' WHERE id=?", (did,))
+    new = version(client, did)
+    with store.db() as c:
+        assert c.execute('SELECT source_ref FROM documents WHERE id=?',(did,)).fetchone()[0] == 'synthetic-import:versioned'
+        assert c.execute('SELECT source_ref FROM documents WHERE id=?',(new,)).fetchone()[0] is None
