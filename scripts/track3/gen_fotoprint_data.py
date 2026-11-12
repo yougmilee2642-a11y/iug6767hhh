@@ -66,7 +66,7 @@ def document_bytes(kind,title,text):
         writer.writerows([['Документ','Факт'],[title,text]])
         return output.getvalue().encode('utf-8')
     if kind=='eml':
-        message=EmailMessage(policy=SMTP);message['From']='supplier@demo.invalid';message['To']='director@demo.invalid'
+        message=EmailMessage(policy=SMTP.clone(linesep='\n'));message['From']='supplier@demo.invalid';message['To']='director@demo.invalid'
         message['Subject']=title;message['Date']='Wed, 11 Nov 2026 12:00:00 +0300';message.set_content(text)
         return message.as_bytes()
     if kind=='docx':

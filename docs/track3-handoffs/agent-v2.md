@@ -88,7 +88,9 @@
   Только существующие классы; дополнительный CSS ограничен layout TODO(design).
 - Проверки: полный небраузерный прогон1284 passed/28 skipped,97.26s до пяти
   добавленных тестов; затем расширенные новые тесты309 passed,9.33s.
-  Node66 passed; syntax/diff checks passed. Перед финальным выпуском — снова
+  Node66 passed; syntax passed. Diff-check выявил пробелы PDF xref;
+  PDF явно отмечен binary в .gitattributes, формат файла сохранён. EML
+  генерируется с LF для совпадения байтов checkout/генератора на Windows/Linux. Перед финальным выпуском — снова
   полный набор на конечном head, а не перенос этих чисел на будущий код.
 - HTTP существующего app.py:6 ролей, KPI97.6%/1.8%/3 overdue,
   cancel/confirm/idempotence/restart passed,4.95s. Report честно содержит
