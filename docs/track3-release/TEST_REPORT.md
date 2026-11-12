@@ -133,3 +133,19 @@ CI43164400635: Windows сервер запустился, но smoke упал н
 
 Чистый runtime b294178 локально passed22,898s: v2-calendar-candidate-runtime.json;
 кэш неконтролируемый. Финальный Windows результат требует нового CI.
+
+## E6.3: FTS5/BM25
+
+- `v2-fts-python.log`:1426 passed/28 skipped/0 failed,108,70s. Затем добавлен
+  role-denial/audit case; targeted52 passed11,29s (`v2-fts-target.log`).
+- `v2-fts-node.log`:66 passed. HTTP7 ролей/поиск/QA/provider failures/CRM/календарь/
+  restart passed3,99s (`v2-fts-http.json`). Новая browser search ветка в v2_ui_check.
+- `v2-fts-double.json`: frozen pipeline passed30 задач/36QA,17/17claims,0rights/
+  false_actions. Gold не изменён. Live качество после смены ранжирования неизвестно.
+- Приватные документы исключаются SQL до TEMP-индекса; добавление15 закрытых
+  документов не меняет порядок доступных результатов. Проверены немедленный отзыв
+  ACL, обновление/удаление фрагмента, контекст встречи, ё/е/окончания, BM25,
+  отсутствие данных, FTS/SQL операторы как текст, безопасный сбой/аудит/повтор.
+- Secret отсутствует в snippets и model index. Открытие файла владельцем сохранено.
+  Дата загрузки source_at возвращается поиском. Версии/valid_until не закрываются
+  этими тестами и остаются E6.2/E6.4.

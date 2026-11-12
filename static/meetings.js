@@ -432,6 +432,7 @@ function renderGlobalSearch() {
     });
   }
   const field = $('input[name="q"]', form);
+  form.hidden = !ui.can('meetings.read');
   if (field && document.activeElement !== field) field.value = state.searchQuery;
 }
 

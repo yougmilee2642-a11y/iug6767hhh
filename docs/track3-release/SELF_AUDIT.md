@@ -20,7 +20,7 @@
 | §7.2.2: календарь | Выполнено | `test_track3_calendar.py`: занятость/cancel/гонки/replay/ACL | Mock/local outbox, ICS/EML и отзыв подписок: test_track3_calendar_interchange.py; смены/буферы/optional реализованы; внешние провайдеры остаются P1 |
 | §7.2.3: протокол/цитаты | Требует живой проверки хостом | core summary/risk/outcome/unknown/edited/quote tests; evaluator v2 | Настоящая модель не измерена |
 | §7.2.4: поручения | Выполнено | `test_track3_task_controls.py`, core confirm/cancel/filter/link tests | Комментарии/эскалация остаются P1 |
-| §7.2.5: QA с источником | Требует живой проверки хостом | knowledge tests; frozen 36 QA, double pipeline | Единый чат/FTS5 ещё не реализованы |
+| §7.2.5: QA с источником | Требует живой проверки хостом | knowledge tests; frozen 36 QA, double pipeline | FTS5/BM25 со scoped corpus проверен; единый чат ещё не реализован |
 | §7.2.6: обзор | Выполнено | domain_metrics/management/decision_controls tests | Брифинг и метрика→действие остаются P1 |
 | AI-01: источник/дата | Выполнено | Source resolver, knowledge_hardening, KPI/protocol tests | Цитата подтверждает текст, не истинность источника |
 | AI-02: права до модели | Выполнено | `test_access_matrix.py::test_designer_budget_and_secret_never_reach_model`, SQL predicate | Распространить на будущие коннекторы |
@@ -44,7 +44,7 @@
 | E3 | P0 mock CRM выполнен; Bitrix24 transport/Mary-адаптер/импорт-сверка не выполнены |
 | E4 | Mock, ICS export/import/subscriptions и EML download выполнены; смены/буферы/optional выполнены; внешние провайдеры и автоматические .eml-файлы не выполнены |
 | E5 | Унаследован voice MVP; v2-команды частично, микрофон/модели NOT RUN |
-| E6 | Форматы/цитаты/ACL/устаревание есть; FTS5/сводка/сравнение не выполнены |
+| E6 | Форматы/цитаты/ACL и scoped FTS5/BM25 есть; версии/сводка/сравнение не выполнены |
 | E7 | Унаследованы аудио endpoints; jobs/storage/call analytics v2 не выполнены |
 | E8 | P0 подготовка/поручения/протокол выполнены; история/комментарии/эскалация/экспорт P1 |
 | E9 | P0 KPI/решения выполнены; отклонение→действие/брифинг не выполнены |

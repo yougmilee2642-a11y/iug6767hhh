@@ -361,3 +361,24 @@
 - Scan добавленных строк от3dbc30c доb294178:9484 строки,0 совпадений форматов
   private/GitHub/Slack/Bitrix/Telegram ключей; ограниченный scan, не DLP.
   Защищённые пути отсутствуют в новых изменениях.
+
+## E6.3 · FTS5/BM25 и изоляция статистики
+
+- Новый knowledge/index.py: SQL отбирает доступные документы до TEMP FTS5,
+  поэтому BM25 corpus statistics тоже не содержат чужих документов. Индекс
+  удаляется в finally. Для54 документов принят пересчёт на запрос; большая
+  коллекция потребует оптимизации, performance улучшение не заявляется.
+- Ручной поиск: русский lexeme/ё-е, все термины через безопасный MATCH, limit50,
+  source_at, q до2000. Secret исключён; admin/auditor403 с аудитом. Файл владельцу
+  по-прежнему доступен отдельно. UI скрывает контентный поиск этим двум ролям.
+- QA сохраняет scope/числовые anchors/eligibility/цитаты/бюджет до top-k и повторную
+  проверку источников; BM25 ранжирует только допустимые фрагменты. Backend failure
+  возвращает503search_unavailable, без скрытого fallback. Зависимости не добавлены.
+- Первые375 существующих проверок passed. Полный1426/28/0,108,70s; затем дополнительный
+  role-denial case и targeted52/0,11,29s. Node66/0. Real HTTP7 ролей/search/QA/
+  provider failures/CRM/ICS/smart/restartpassed3,99s. Browser-ветка поиска добавлена
+  в v2_ui_check, локальный Chromium не повторялся после socket refusal.
+- Frozen double pipeline passed30/30 задач,36/36QA,17/17claims,0rights/false_actions.
+  Gold и live модели не менялись; host должен повторить QA после смены ranking.
+- Версии/valid_until/сводка/diff/противоречия остаются. Main/start-gateway не меняются.
+  Прежний Windows smoke cc00745 ещё ждёт runner; его успех не заявлен.

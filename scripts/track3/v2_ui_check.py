@@ -62,6 +62,14 @@ def run(artifacts):
                                 page.get_by_role('button', name='Войти', exact=True).click()
                                 page.get_by_role('heading', name=heading, exact=True).wait_for()
                                 assert not errors, {'login':login,'page_errors':errors}
+                                if login == 'director':
+                                    page.get_by_label('Поиск по документам',exact=True).fill('картон')
+                                    page.get_by_role('button',name='Найти',exact=True).click()
+                                    page.get_by_role('heading',name='Результаты: картон',exact=True).wait_for()
+                                    page.locator('.search-result').first.wait_for()
+                                    assert page.locator('.search-result').count()>0
+                                    page.get_by_role('button',name='Обзор',exact=True).click()
+                                    page.get_by_role('heading',name='Обзор',exact=True).wait_for()
                                 if login == 'prod_head':
                                     page.get_by_role('button',name='Встречи',exact=True).click()
                                     calendar=page.locator('details').filter(has=page.get_by_text('Мой календарь · ICS и приглашения',exact=True))

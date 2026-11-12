@@ -105,6 +105,9 @@ def run(unavailable=False):
             metrics = {m['key']:m['value'] for m in overview['metrics']}
             assert metrics['on_time_orders'] == 97.6 and metrics['defect_rate'] == 1.8
             assert metrics['overdue_tasks'] == 3
+            found = request('director','GET','/search?q=%D0%BA%D0%B0%D1%80%D1%82%D0%BE%D0%BD')['results']
+            assert found and all(row.get('source_at') for row in found)
+            assert all(row['document_id'] != did for row in request('designer','GET','/search?q=%D0%B1%D1%8E%D0%B4%D0%B6%D0%B5%D1%82')['results'])
             assert request('designer', 'POST', '/qa', json={'question':'Какой бюджет акции Premium?'})['status'] == 'insufficient_data'
             secret = request('director', 'POST', '/qa', json={'question':'Каков фонд оплаты труда?'})
             assert secret['status'] == 'insufficient_data' and 'закрыт для ассистента' in secret['answer']

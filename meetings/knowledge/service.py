@@ -6,6 +6,7 @@ an arbitrary paraphrase. Only complete stored excerpts may become claims.
 import json
 import hashlib
 import re
+import sqlite3
 from copy import deepcopy
 
 from meetings import store, textutil as tu
@@ -15,6 +16,7 @@ from meetings.privacy import source_is_injection
 from providers.local_settings import LocalAIError
 from .common import aware, iso, not_found, utc_now
 from .language import relevance, sentences, terms
+from . import index
 
 MAX_CANDIDATES = 24
 MAX_FRAGMENTS = 8
@@ -133,15 +135,8 @@ def retrieve(connection, actor, question, meeting_id):
     if not query:
         return []
     # ACL is part of SQL selection, before ranking, limiting and model context.
-    from meetings.access import predicate
-    visible, params = predicate(connection, actor, 'document', 'd', model=True)
-    sql = ('SELECT f.*,d.title,d.created_at,d.filename FROM fragments f JOIN documents d ON d.id=f.document_id WHERE ' + visible)
-    if meeting_id is not None:
-        sql += ' AND EXISTS (SELECT 1 FROM meeting_documents md WHERE md.document_id=d.id AND md.meeting_id=?)'
-        params.append(meeting_id)
-    best = []
-    for raw in connection.execute(sql, params):
-        row = dict(raw)
+    eligible, costs = [], {}
+    for row in index.visible_fragments(connection, actor, meeting_id=meeting_id, model=True):
         if any(source_is_injection(row[key]) for key in ('title','filename')):
             continue
         try:
@@ -159,11 +154,15 @@ def retrieve(connection, actor, question, meeting_id):
         # must not crowd valid evidence out of the candidate pool.
         if cost > MAX_CONTEXT_CHARS or not context['excerpts']:
             continue
-        best.append((score, row, cost))
-        best.sort(key=lambda pair: (-pair[0], pair[1]['id']))
-        del best[MAX_CANDIDATES:]
+        eligible.append(row)
+        costs[row['id']] = cost
+    try:
+        best = index.ranked(connection, eligible, question)[:MAX_CANDIDATES]
+    except sqlite3.Error:
+        raise index.unavailable(actor) from None
     selected, size = [], 0
-    for _, row, cost in best:
+    for row in best:
+        cost = costs[row['id']]
         # JSON overhead counts toward the context budget. Never cut a sentence.
         if size + cost <= MAX_CONTEXT_CHARS:
             selected.append(row)

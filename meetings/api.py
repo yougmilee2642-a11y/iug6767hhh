@@ -14,7 +14,7 @@ from datetime import date
 from pathlib import Path
 from urllib.parse import quote as urlquote
 
-from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi import APIRouter, File, Form, Request, UploadFile, Query
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
@@ -636,23 +636,14 @@ def router():
             return {'fragment': store.fragment_out(row)}
 
     @api.get('/api/meet/search')
-    def search(request: Request, q: str = ''):
+    def search(request: Request, q: str = Query(default='', max_length=2000)):
         user = current_user(request)
-        terms = [t for t in extract.tu.norm(q).split() if len(t) > 1]
-        if not terms:
-            return {'results': []}
+        require(user,'meetings.read',action='search')
+        from meetings.knowledge import index
         with store.db() as connection:
-            ids = store.accessible_document_ids(connection, user['id'])
             results = []
-            for doc_id in ids:
-                for row in connection.execute('SELECT f.*, d.title FROM fragments f JOIN documents d ON d.id=f.document_id '
-                                              'WHERE f.document_id=? ORDER BY f.idx', (doc_id,)):
-                    text = extract.tu.norm(row['text'])
-                    stems = [extract.tu.stem(t) for t in terms]
-                    if all(s in text for s in stems):
-                        position = row['text'].lower().find(stems[0])
-                        start = max(0, position - 80)
-                        results.append({**store.fragment_out(row), 'snippet': row['text'][start:start + 240]})
+            for row in index.search(connection, user['id'], q):
+                results.append({**store.fragment_out(row), 'snippet': row['text'][:240], 'source_at':row['created_at']})
             store.audit(connection, user['id'], 'search', query=store.safe_text(q, 100), results=len(results),
                         source_ids=[r['id'] for r in results[:50]])
             return {'results': results[:50]}
