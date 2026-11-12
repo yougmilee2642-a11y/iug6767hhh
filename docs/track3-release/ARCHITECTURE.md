@@ -15,7 +15,7 @@ flowchart TD
   Draft --> Human["Просмотр человеком"]
   Human --> Confirm["Confirm / cancel"]
   Confirm --> DB["SQLite: задачи, решения, аудит"]
-  Confirm --> Outbox["Mock CRM / календарь / local outbox"]
+  Confirm --> Outbox["Mock CRM / календарь / outbox"]
   Policy --> KPIs["KPI: формула, дата, источник"]
   KPIs --> Draft
 ```
@@ -27,7 +27,8 @@ flowchart TD
 после долгой генерации и при открытии источника. Отказы журналируются отдельной
 транзакцией; ошибки не раскрывают названия чужих объектов.
 
-LLM не имеет инструментов, не подтверждает задачи и не отправляет приглашения.
+LLM может выбрать только read-tool и серверный candidate ID из allowlist.
+Подтверждение задач и отправка приглашений выполняются отдельным human-confirmed API.
 Один gateway-policy владеет выбором адреса, Bearer и допустимым transport.
 Тексты модели проходят серверную проверку цитат/имён/сроков. Это не доказывает
 семантическую правильность или полноту: их измеряет отдельный frozen evaluator.
@@ -35,7 +36,7 @@ LLM не имеет инструментов, не подтверждает за
 Task preview связан с пользователем, объектом и version. Confirm в write_tx
 повторяет ACL/проверки и использует idempotency_key. Cancel не меняет объект,
 но запись preview может храниться до очистки. Calendar provider=mock:
-события/приглашения только SQLite local_outbox, SMTP не вызывается.
+события/приглашения по умолчанию SQLite local_outbox. SMTP — отдельный preview/confirm и durable smtp_outbox, только за флагами.
 
 Обзор использует доступные строки производственного среза; KPI — отношение сумм
 числителей/знаменателей. Нулевой знаменатель=null, дата источника консервативная.
@@ -50,3 +51,27 @@ Task preview связан с пользователем, объектом и ver
 через существующую ленивую загрузку, не меняет ASR или app.py и не скрывает
 недоступность голосовых функций. Речевой tract и реальные клиентские встречи
 не являются измерением этого выпуска.
+
+## Продолжение E3–E12
+
+Миграции12–19: ICS, версии, assistant/evidence, operations, protocol mail,
+calendar-provider outbox, media/calls и action_basis. Backend аудио загружается
+только при явном pipeline flag; по умолчанию файл сохраняется с503. Диаризация
+даёт метки, человек сопоставляет участников; импорт append preview/confirm.
+Аналитика звонков детерминирована и цитатна, фактическое качество модели отдельно.
+
+Внешний календарь: freeze provider/mapping → confirm/current busy → commit
+reservation+pending token result → commit sending → HTTP → sent либо uncertain.
+При аварии повтор sending становится uncertain, без повторного HTTP; слот
+сохраняется. Локальные приглашения возникают только после известного успеха.
+
+Retained sources и audit связывают действие с подтверждающим. Метрика/звонок
+могут стать basis новой встречи/поручения: source hash и права перепроверяются
+перед записью, ссылку хранит action_basis. Default CRM/ERP/Mary — scoped mocks;
+Bitrix REST и calendar gated, всё тестировалось на транспортных дублёрах.
+
+
+Миграции21–22: seasonality/pickup projection, weekly digest/effect checks и
+reviewed delivery. Worker: retention+internal notifications+effect checks в
+транзакции; внешняя доставка claim→commit→HTTP/SMTP→status, вне write-lock.
+Отключённые каналы не вызывают сеть. Источники расчётов HMAC с текущим ACL.

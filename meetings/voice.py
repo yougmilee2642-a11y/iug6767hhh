@@ -1,8 +1,7 @@
 """«Фокус», the manager's voice assistant: push-to-talk question -> existing read APIs -> short spoken phrase.
 
-No new model path: questions go only to the knowledge QA (`knowledge.service.answer`) or the
-management overview (`management.service.build`). Nothing is written by voice: a command to
-create or change something gets a refusal and a pointer to the on-screen preview/confirm flow.
+Questions use scoped read services; action requests prepare editable fields and
+point to the on-screen preview/confirm flow. Voice never confirms business writes.
 
 Speaker privacy: a loudspeaker is heard by everyone in the room, while access rights belong to
 one user. By default a phrase is spoken only when every member of the audience (the meeting's
@@ -59,6 +58,10 @@ def route(text):
     """Deterministic routing; the model never chooses an action."""
     if WRITE.search(text):
         return 'action'
+    if re.search(r'подготовь\w*\s+меня\s+к\s+встреч|(?:брифинг|к\s+встрече).*30\s*секунд|встреч\w*\s+за\s+тридцать\s+секунд',text,re.I):
+        return 'corridor'
+    if re.search(r'PP-\d{4}-\d{5}|обращен|следующ.*встреч|кто.*план|кто.*встреч|(?:мои|у меня).*задач|задач.*(?:сегодня|недел)|просроч.*производ',text,re.I) and not DOCUMENT_HINT.search(text):
+        return 'assistant_read'
     if re.search(r'брифинг|что\s+важного\s+сегодня',text,re.I) and not DOCUMENT_HINT.search(text):
         return 'briefing'
     if OVERVIEW.search(text) and not DOCUMENT_HINT.search(text):
@@ -87,6 +90,8 @@ def audience(connection, actor, meeting_id):
     members = {owner['owner_id']} if owner else set()
     members.update(row['user_id'] for row in connection.execute(
         'SELECT user_id FROM meeting_access WHERE meeting_id=?', (meeting_id,)))
+    members.update(row['user_id'] for row in connection.execute(
+        "SELECT p.user_id FROM calendar_event_participants p JOIN calendar_events e ON e.id=p.event_id WHERE e.meeting_id=? AND e.status='confirmed'",(meeting_id,)))
     members.add(actor)
     return sorted(members)
 
@@ -198,6 +203,59 @@ def answer_briefing(actor_user, text, meeting_id, details):
     return result, phrase, private
 
 
+
+def answer_context(actor_user,text,meeting_id,details):
+    import json,uuid
+    from meetings.assistant import service
+    from meetings.privacy import Masker,customer_names
+    from meetings.connectors.mock import digest
+    from meetings.connectors.contracts import IntegrationError
+    auth.require(actor_user,'qa.ask',action='voice.ask')
+    at=utc_now();masked=Masker(customer_names()).text(text)
+    with store.write_tx() as c:
+        try:
+            plan=service.choose(service.candidates(c,actor_user,masked,meeting_id,at),masked,use_model=False)
+            data=service.read_tool(c,actor_user,plan['tool'],plan['args'])
+        except IntegrationError as error:raise MeetError(503,error.code,str(error)) from None
+        ident='ae_'+uuid.uuid4().hex;stamp=store.iso_utc(at)
+        c.execute('INSERT INTO assistant_evidence VALUES (?,?,?,?,?,?)',(ident,actor_user['id'],plan['tool'],json.dumps(plan['args'],ensure_ascii=False),digest(data),stamp))
+        source={'kind':'assistant','id':ident,'title':service.LABELS[plan['tool']],'source_at':stamp}
+        claims=[{'text':r['text'],'sources':[source]} for r in data['claims']]
+        phrase=' '.join(r['text'] for r in data['claims'][:2]) or 'В доступных источниках данных не найдено.'
+        if len(phrase)>MAX_SPOKEN:phrase='Подробный ответ и источники показаны на экране.'
+        private=False
+        for listener in audience(c,actor_user['id'],meeting_id):
+            if listener==actor_user['id']:continue
+            try:other=service.read_tool(c,access_user(c,listener),plan['tool'],plan['args'])
+            except MeetError:private=True;break
+            if [r['text'] for r in other['claims']] != [r['text'] for r in data['claims']]:private=True;break
+    details.update(source_ids=[ident],tools=[plan['tool']])
+    return {'status':'grounded' if claims else 'insufficient_data','claims':claims,'sources':[source] if claims else [],'warnings':data['warnings']},phrase,private
+
+
+def access_user(c,uid):
+    from meetings.access import load_user
+    return load_user(c,uid)
+
+
+def answer_corridor(actor_user,text,meeting_id,details):
+    from meetings.meeting_hints import corridor
+    now=utc_now()
+    with store.db() as c:
+        c.execute('BEGIN')
+        if meeting_id is not None and not store.can_read_meeting(c,actor_user['id'],meeting_id,model=True):
+            raise MeetError(404,'not_found','Не найдено или нет доступа.')
+        result=corridor(c,actor_user,now)
+        private=False
+        for uid in audience(c,actor_user['id'],meeting_id):
+            if uid==actor_user['id']:continue
+            try:other=corridor(c,access_user(c,uid),now)
+            except MeetError:private=True;break
+            if result['claims']!=other['claims']:private=True;break
+    details['source_ids']=[s['id'] for claim in result['claims'] for s in claim['sources']]
+    return result,result['spoken'],private
+
+
 def answer_agenda(actor_user, kind, text, meeting_id, details):
     """Встречи, задачи, сроки, решения, документы. None — вопрос не распознан, идём дальше."""
     from meetings import voice_agenda
@@ -216,6 +274,7 @@ def answer_agenda(actor_user, kind, text, meeting_id, details):
                       for member in audience(connection, actor_user['id'], meeting_id) if member != actor_user['id'])
     details['source_ids'] = [f'{item["kind"]}:{item["id"]}' for item in items]
     return {'status': 'ok', 'kind': kind, 'items': items}, phrase, private
+
 
 
 def ask(actor_user, text, meeting_id, speak_private, details):
@@ -241,11 +300,24 @@ def ask(actor_user, text, meeting_id, speak_private, details):
     kind = route(text)
     details['route'] = kind
     if kind == 'action':
+        from meetings.assistant.service import proposal
+        from meetings.privacy import Masker,customer_names
+        proposed=None
+        # Partial identities may use canned small talk, never source tools/drafts.
+        if actor_user.get('level') or actor_user.get('access_role'):
+            with store.db() as c:
+                if meeting_id is not None and not store.can_read_meeting(c,actor_user['id'],meeting_id):
+                    raise MeetError(404,'not_found','Не найдено или нет доступа.')
+                proposed=proposal(c,actor_user,Masker(customer_names()).text(text),meeting_id)
+        if proposed:
+            return {'route':'action_draft','status':'action_proposed','open_page':'assistant','answer':None,'proposed_action':proposed,
+                    'spoken':hello+'Черновик готов. Проверьте и подтвердите на экране.','display':hello+'Черновик готов. Проверьте поля и подтвердите на экране.','speak':True,'silent_reason':None}
         details['result'] = 'refused'
         reply = action_reply(text)
         if hello:
             reply.update(spoken=hello + reply['spoken'], display=hello + reply['display'])
         return reply
+
     agenda = None
     if kind in ('overview', 'knowledge'):
         from meetings import voice_agenda
@@ -259,8 +331,9 @@ def ask(actor_user, text, meeting_id, speak_private, details):
         details['route'] = kind
         result, phrase, private = agenda
     else:
-        handler = {'overview':answer_overview,'briefing':answer_briefing}.get(kind,answer_knowledge)
+        handler = {'overview':answer_overview,'briefing':answer_briefing,'assistant_read':answer_context,'corridor':answer_corridor}.get(kind,answer_knowledge)
         result, phrase, private = handler(actor_user, text, meeting_id, details)
+
     if kind == 'knowledge' and result.get('status') != 'grounded':
         phrase = f'{phrase} {voice_chat.suggestion()}'
     phrase = hello + phrase

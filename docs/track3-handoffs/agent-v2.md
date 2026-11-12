@@ -533,3 +533,213 @@
   inventory. Временные новые клоны/venv, параллельно, кэш неконтролируемый.
   Первичные v2-document-briefing-{runtime,base}-install.json сохранены.
   Новый CI/Windows/браузер не объявляются passed до проверки нового head.
+
+## Продолжение: assistant / operations / protocol export / adapters
+
+Миграции14–17: assistant/evidence/origins, operations/retention/notifications,
+protocol mail, durable calendar outbox. Изменения и параметры — V2_QUICKSTART
+и DATA_POLICY. Базовые E10 read-tools/selector/history/feedback/UI и действия
+preview/confirm; voice read/action draft без скрытых бизнес-записей.
+Ручная задача сохраняет отдельное основание, не создаёт вымышленную реплику.
+E11 browser-origin/header, persisted rate buckets, CSP/self-hosted Jost OFL,
+worker60s, сроки/удаление/marked-demo cleanup. E12 внутренний центр; внешние
+транспорты пока только очереди. MD/HTML export и локальные EML preview/confirm.
+
+E3 Bitrix HTTPS REST behind flag: TLS/no proxies/redirect, safe errors,
+redacted webhook, local scope/allowlist, marker+hash search before write,
+таймаут→uncertain/no retry; админ-маппинг не меняет роли. ERP/Mary/HR — mocks.
+Поля/методы сверены с apidocs.bitrix24.ru и официальным b24restdocs:
+calendar.accessibility.get (DATE_*_TS_UTC не UTC), calendar.event.add/getbyid/
+delete, task.commentitem.add (TASKID/FIELDS), crm.activity.list OWNER_TYPE2,
+crm.timeline.comment.add. getlist старой task-card не имеет fallback на add.
+
+E4 BitrixCalendar: mapped free/busy без чужих названий; provider/mapping hash
+заморожены в preview, confirm повторно проверяет. Состояние sending фиксируется
+до HTTP; при прерывании replay→uncertain, слот занят, ICS tentative, писем нет.
+Google/series/CalDAV/Exchange не заявляются готовыми.
+
+До E4 full1509 passed/28 skipped, обе HTTP ветки passed. Target интеграций84
+passed до дополнительных privacy/crash tests. Новый full выполняется отдельно.
+Node66 passed. Browser здесь запрещён socket() окружения; новый UI ожидает CI.
+
+- Перед публикацией fetch выявил новый удалённый c7b6763 (E6 document lifecycle).
+  Локальный a1cc794 сохранён; обычный merge b0cdd1f включил весь чужой код/тесты
+  и оба HTTP-сценария. Конфликты только журнал/политика/self-audit/HTTP сведены
+  с сохранением обоих наборов. Не force/reset.
+- На общем b0cdd1f:1547 passed/28 skipped/0 failed,224.42s; Node66 passed.
+  Обе HTTP ветки (scripted/unavailable) прошли, включая versions+assistant+
+  manual actions+retention/mappings+briefing/restart. OpenAPI98 путей.
+  Raw reports/v2-assistant-operations-*. Модели/аккаунты не запускались;
+  browser нового head ожидает CI. E7 разрабатывается отдельно, не входит в срез.
+
+## E7 · локальный рабочий блок до интеграции нового main
+
+- Миграция18: audio assets/jobs/segments/calls; consent, сигнатура/размер,
+  ограниченный PyAV decode, retained503 при отсутствии ASR, recovery/retry.
+  Single worker, no models by default; host-only Backend повторно использует
+  локальные GigaAM/sherpa под lock, TTS не нужен. Агент inference не запускал.
+- Transcript append preview/confirm/replay/stale, mapping на участников,
+  immutable original_text/timecodes; audio/source player и простая аналитика.
+  Retention удаляет original после review и сегменты после срока текста.
+- Calls consent/preview/confirm, confidential source meeting, scope own/dept,
+ 17 тем, цитатный checklist/триггеры/risk, timed overlap/pauses, без эмоций/
+  скрытых задач; базовый список/импорт/анализ UI. Предложение→assistant form.
+- Оригинальный frozen call_defect.txt восстановлен без изменения байтов
+  (1124d4e...), отдельный timed-case добавлен. Ручные expected/frozen для обоих
+  в evaluation/track3/calls. evaluate_calls.py passed на правилах, не live модели.
+- Live script написан: live_audio_pipeline.py; НЕ запускался с --allow-models.
+  Инструкции/ограничения в LIVE_CHECKS, DATA_POLICY, V2_QUICKSTART.
+- Публикация предыдущего среза7a7d383 прошла после проверки явного разрешения
+  V2_SPEC§10: tree9e907b0 точно равен локальному d30114e. Первая попытка
+  create_tree была отклонена auto-review, ref не менялся; повтор после чтения
+  §10 разрешён. Никаких workaround/force/secret-путей.
+- PR12 к этому времени уже merged владельцем. Новый origin/main abd8ef2
+  включает его и дизайн; нужно обычное объединение, сохраняя оформление.
+  Публикуемый следующий PR будет новым draft. Main агент не изменял.
+- Остаток E7: weekly top3→agenda, optional model-topic selector, ATC watcherP2;
+  общие E9 actions/P2/final acceptance остаются.
+
+- Target E7/calls/operations/seed:30 passed,50 warnings,25.80s.
+  Warnings: FastAPI startup API/Starlette/SWIG deprecations;0 failures.
+
+## E8.6/E9.2 и opt-in document selector после main merge
+
+Миграция19 action_basis: метрика/звонок → явный проект встречи/поручения →
+preview/confirm; source proof/current ACL/version перепроверяются. Изменение
+источника отменяет запись409; basis хранится отдельно от вымышленной реплики.
+Next-agenda имеет личный контекст KPI отдела/просроченных решений/top3 тем
+звонков недели. Кнопка добавляет в локальную повестку, не рассылает другим.
+Document summary semantic=true/MEETINGS_SEMANTIC_SUMMARY=1 выбирает3–5
+предложенных F-id, до30 фрагментов; текст claims только оригинальный.
+private_json/strict keys/unknown ID guard; после вызова полный snapshot+
+предупреждения актуальности/ACL. Target10 passed; настоящая модель NOT RUN.
+
+Полный E7/E9+main:1573/28/0,249.31s; Node66; HTTPdouble6.41s и unavailable
+5.72s passed; source/audio retained503/calls/actions включены. Frozen v2
+30/30,17/17 source claims,0 rights/false actions на double. Raw v2-e7-e9-*.
+Последующее изменение startup registration эквивалентно старому, убирает
+deprecation warning; recovery-target7 passed8.20s. Не выдавать это за новый
+полный1574: полный был1573, один отдельный recovery case добавлен позднее.
+Следующее: clean install/new draft PR/CI, затем недостающий voice parser и
+optional topic-selector, P2 по ТЗ. Main merge eaabf95 не меняет start-gateway
+относительно origin/main; оформление сохранено, новые controls в nav-extra.
+
+- Clean HEAD2f6564d: runtime passed28.994s. Base FAILED29.139s:
+  свежий FastAPI0.162.5/Starlette1.10 удалил FastAPI.add_event_handler.
+  Причина воспроизведена startup trace; старый результат не выдаётся за PASS.
+  Оба workers переведены на APIRouter(lifespan=...) через meetings/lifecycle.py.
+  Сохраняется lifespan корневого app, shutdown обратный. Target16 media/
+  operations и2 composition tests passed; повтор base/runtime после commit.
+
+- Исправленный543467b: чистые новые клоны+venv runtime27.884s и base33.597s
+  passed. Оба: pip-check/seed twice/seven-role HTTP/restart/provider503/
+  retained audio/calls/actions/inventory. Кэш неконтролируемый, модели не
+  устанавливались. Raw v2-e7-e9-{runtime,base}-install.json. Base0.162.5 и
+  runtime0.115.12 оба подтвердили lifespan API; первая ошибка сохранена.
+
+## E5.2/E7 · параметры действий и предлагаемые моделью темы (12.11.2026)
+
+Текущая база main17c3ff4 включена merge031e1eb: сохранены оформление,
+читаемые KPI, разговорные ответы/приветствия и мужской TTS, внесённые в main.
+Новые функции: справочник имён с падежами и ё/е, сроки/дни недели/числа словами,
+редактируемые поля поручения, параметры подбора календаря. Неоднозначность
+показывается явно. Confirm проекта встречи не назначает время/приглашения.
+Роль/отдел/делегирование и имена участников повторно проверяются на confirm.
+
+Темы звонков по MEETINGS_CALL_TOPIC_MODEL=1 выбираются из17кодов и разрешённых
+ID реплик. Цитаты берутся из БД, свободные утверждения не принимаются.
+ACL/роль/secret и изменение текста проверяются до/после модели. Аудиоконвейер
+перепроверяет доступ перед декодированием, загрузкой backend, каждым ASR-окном
+и сохранением. Secret не обрабатывается моделью даже для владельца.
+
+Целевые проверки: intent/voice89→94 passed на промежуточных срезах;
+финальные intent/topics/media/basis26 passed24.24s. Node66 passed.
+HTTPdouble5.662s и HTTPunavailable6.073s:7ролей, restart, voice-поля/проект
+без приглашений, audio retained503, calls и metric action passed.
+Frozen v2double30/30задач,17/17claims,0rights/falseactions.
+Новый локальный UI запуск снова остановлен средой Chromium(socket EPERM),
+это NOT RUN; assertions не удалялись. Browser должен пройти в новом PR CI.
+
+live_voice_check.py/live_read_tools.py подготовлены, проверен только --help.
+Модели, микрофон и реальные аккаунты агент не запускал. API111путей.
+Полный pytest/чистая установка и новый PR фиксируются следующим результатом.
+
+## Проверенный checkpoint042c036 (E5.2/E7)
+
+Полный небраузерный pytest:1614passed/28skipped/0failed,279.20s; Node66/66.
+Linux чистые установки из042c036: runtime33.259s, requirements.txt38.675s,
+обе passed (clone/venv/install/pip check/seed twice/HTTP7roles/restart/503/inventory).
+Это агентские проверки с неконтролируемым pip-cache, не независимая установка
+человеком. Модели не скачивались/не запускались. Полные первичные результаты:
+reports/v2-p1-fields-{python.log,node.log,http.json,unavailable.json,
+runtime-install.json,base-install.json,ui.json}. UI report failed по причине
+Chromium socket EPERM до запуска сценариев; browser NOT RUN локально.
+Проверка конвейера evaluator:30/30tasks,17/17citedclaims,0rights/falseactions.
+Новые P1 исходники/Node/HTTP соответствуют полному прогону. Protected-path и
+finite secret-pattern scan passed, start-gateway/.env/data/models не изменены.
+
+## E4.4–4.5/P2 · локальные серии и Google adapter
+
+Миграция20: спецификация конечной серии и настройка reminder_minutes.
+Серии2..30daily/weekdays/weekly, IANA-зона, smartshift/break/buffer-check,
+previewвсехдат/confirm/replay/cancel/stale/busy. Каждая встреча и протокол
+отдельные; открытые задачи серии — в личном контексте next-agenda.
+UI в существующих controls, без изменения оформления. Напоминания0..1440мин
+через preview/confirm;0выключает. Google переиспользует integrations transport
+и networkgates; частная reservationорганизатора, local ICSдлягостей;
+mapping proof и durableuncertain безповтора. Реальных аккаунтов нет.
+Целевые24passed20.89s, расширенная регрессия80passed25.65s;
+HTTP7roles/restart/series6.534s passed; Node66passed. Полный набор запускается
+отдельно. Локальный browser остаётся NOTRUN(socket EPERM); CI blocked publication.
+API114пути.
+
+Публикация локального3de1126 заблокирована automatic approvalreview: create_tree
+с точнымtree0a9909d0ef413daed40cc5f76b816825a80cad86 создан, create_commit
+отклонён с причиной недостаточного явного разрешения на124файла иназначение.
+Не повторять другимипутями и не обходить отказ. Remotebranch остаётся7a7d383,
+новогоPR/CIнет. Полная проверка локального кода продолжается; после подготовки
+конкретного набора нужно прямое разрешение пользователя на публикацию.
+
+## E4 законченный локальный срез d0f4895 и следующий пункт E6.4
+
+Календари: full1619passed/28skipped/0failed282.78s; Node66passed;
+HTTPseries/restart6.534s passed; cleanruntime26.482s passed.
+Первичные reports/v2-planning-*. После этого новый main5272c1c
+(голосовые списки,1.25x,автоматический wake) включён mergeaf29c96.
+Оба набора поведения сохранены;98voice/chat/intent tests passed14.05s.
+Дополнительно голосовые списки теперь исключают secret и учитывают только
+доступные актуальные редакции, а не факт наличия чужой новой версии.
+
+Следующий пункт: document-insights, source-bound promises/contradictions;
+37targetpassed17.25s. Детерминированные ключи «сущность+атрибут»/разные даты
+с двумя цитатами, карта обещаний из документов/встреч, ручной actiondraft с
+Basisdocument/utterance и повторной ACL/snapshot/version проверкой.
+Знания/подготовка: функциональные controls без изменения дизайна. API115путей.
+Ограничения грамматики/полноты/исполнения изложены в DOCUMENTS.md.
+
+Новое прямое указание Лёши12.11.2026: «начиная со следующего пункта лей все
+в мейн но не забывай проводить автотесты». Оно разрешает публикацию следующего
+проверенного пункта и накопленного необходимого кода в main репозитория
+yougmilee2642-a11y/iug6767hhh; отдельное повторное разрешение не нужно.
+Предыдущий automatic approvalblock разрешён новым прямым указанием.
+Публикация через branch/PR с проверкой CI, затем обычный merge; безforce/rebase.
+Текущая работа готовится к полному набору/HTTP/чистой установке и публикации.
+Liveмодели/аккаунты не запускались, ими автоматические тесты не заменяются.
+
+## E15.1/E15.6 и актуальная браузерная проверка
+
+Срез241a70c:1646Python passed/28skipped/0failed287.45s; это полный CPU
+с room-hints/corridor, до последнего UI-fixture regression. Целевой новый
+UI-transport+room5passed4.51s; Node66passed. Ранее E6.4source230fdfe:
+1642passed/28skipped286.51s; cleanruntime28.092/base29.534passed;
+HTTP5.726s passed. Первичные reports/v2-document-insights-* иv2-meeting-hints-*.
+
+PR13 опубликован. Первый CI43213981781: Linux/base/runtime и Windows/release/
+installpassed. Browser35scenarios failed2/errors39: icon-arrow изменял
+accessible name; multipart wake WAV ошибочно читался JSON fixture; старые
+селекторы card не соответствовали current main rows. Отдельно выявлен mobile
+overflow. Исправлены явный aria-label, binary-awarefixture, семантическое
+время/пояс, актуальные selectors без удаления assertions, min-width grid shrink.
+Реальные UI сценарии должны пройти новыйCI. Фикс private speech: wake-mode
+не является разрешением озвучить личные ответы; нужен явный solo-roomфлажок.
+Модель/аккаунты/живой микрофон не запускались. Браузер локально socketEPERM.

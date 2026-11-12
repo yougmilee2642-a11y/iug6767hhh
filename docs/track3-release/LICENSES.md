@@ -112,3 +112,23 @@ notice-файлов записаны в reports/v2-e0-dependencies.json. PyAV о
 SoundFile — BSD3, SciPy включает bundled notices, cffi — MIT-0, pycparser — BSD3.
 Лицензии FFmpeg/libsndfile в binary wheels нельзя выводить из лицензии Python wrapper;
 их отдельная проверка остаётся в реестре ограничений поставки.
+
+## Self-hosted Jost в срезе E11
+
+Внешние Google Fonts ссылки заменены локальным **тем же семейством Jost**:
+`static/fonts/jost/Jost.ttf` (134996 bytes) и полный неизменённый `OFL.txt`
+(4384 bytes). Источник: [google/fonts ofl/jost](https://github.com/google/fonts/tree/main/ofl/jost);
+Copyright2020 The Jost Project Authors, SIL Open Font License1.1.
+Файлы скачаны12.11.2026; TTF SHA256
+`6343b70971000b04c5d401c96ae08ce371086135e999d5e1e1413039c0213076`,
+OFL SHA256 `1af3438a4d5f0ed2bdbc5751a5a67ebf6d537334161184b7fbb68503ef0ea0c5`.
+Это новые конкретные байты; предыдущие разделы о CDN относятся к историческому
+срезу. Шрифт не модифицирован, уведомление включено в поставку. Самостоятельная
+поставка нужна для CSP/self и работы без внешнего запроса шрифтов.
+Новых Python/JS зависимостей для assistant/operations/Bitrix/calendar не добавлено.
+
+E7 добавляет собственный adapter к уже учтённым PyAV, NumPy, GigaAM и sherpa.
+Новых сторонних Python/JS packages и весов в поставке нет. Runtime текстового
+запуска работает с retained503 без загрузки этих моделей. Условия голосовых
+весов/bundled native библиотек остаются указанными выше ограничениями; новый
+script/adapter их не разрешает и не заменяет лицензионную проверку поставки.

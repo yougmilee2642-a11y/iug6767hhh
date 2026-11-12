@@ -26,8 +26,11 @@ export function voiceAssistant(h) {
   status.setAttribute('aria-live', 'polite');
   const heard = node('p', 'voice-heard', '');
   const result = node('div', 'voice-result');
-  // Фокус озвучивает все ответы: это решение владельца компьютера, флажок «я один» убран.
-  const SPEAK_EVERYTHING = true;
+  // Public replies may be spoken. A private reply needs an explicit solo-room
+  // choice; enabling automatic wake does not authorize private speech.
+  const loud = node('label', 'voice-loud');
+  const loudBox = node('input', '');loudBox.type='checkbox';
+  loud.append(loudBox,node('span','','Я один в комнате — разрешаю озвучку личных ответов'));
   const form = node('form', 'voice-form');
   const typed = node('input', '');
   typed.type = 'text';
@@ -69,7 +72,7 @@ export function voiceAssistant(h) {
   const hush = makeButton('Остановить озвучку', stopSpeaking, 'secondary-button');
   hush.hidden = true;
   head.append(node('h2', '', 'Фокус'), close);
-  panel.append(head, status, heard, result, hush, form, wakeBox);
+  panel.append(head, status, heard, result, hush, loud, form, wakeBox);
   document.body.append(panel);
 
   const talk = node('button', 'voice-talk-button', 'Спросить голосом');
@@ -115,6 +118,7 @@ export function voiceAssistant(h) {
   function reset() {
     sequence++; stopSpeaking(); void cancelCapture(); void stopWake('');
     wakeFailed = false;
+    loudBox.checked=false;
     panel.hidden = true; heard.textContent = ''; result.replaceChildren(); setStatus('');
   }
 
@@ -225,7 +229,7 @@ export function voiceAssistant(h) {
     let reply;
     try {
       const id = meetingId();
-      reply = await request('/voice/ask', { method: 'POST', body: { text, speak_private: SPEAK_EVERYTHING, ...(id ? { meeting_id: Number(id) } : {}) } });
+      reply = await request('/voice/ask', { method: 'POST', body: { text, speak_private: loudBox.checked, ...(id ? { meeting_id: Number(id) } : {}) } });
     } catch (error) {
       if (mine === sequence) setStatus(error.message || 'Не удалось получить ответ.');
       return;
@@ -412,6 +416,11 @@ export function voiceAssistant(h) {
     const phrase = node('p', `voice-phrase${reply.speak ? '' : ' voice-phrase-silent'}`, reply.display);
     result.append(phrase);
     if (reply.route === 'chat' || reply.route === 'restricted') return;
+    if (reply.route === 'action_draft') {
+      result.append(node('p','',reply.display),makeButton('Проверить действие',()=>h.proposeAction(reply.proposed_action),'secondary-button'));
+      return;
+    }
+
     if (reply.route === 'agenda') {
       const list = node('ul', 'voice-items');
       for (const item of (reply.answer?.items || []).slice(0, 12)) {
@@ -428,6 +437,7 @@ export function voiceAssistant(h) {
       if (list.childNodes.length) result.append(list);
       const page = { my_tasks: 'tasks', person_tasks: 'tasks', deadlines: 'tasks', documents: 'knowledge' }[reply.answer?.kind];
       if (page) result.append(makeButton(page === 'tasks' ? 'Все задачи' : 'Открыть знания', () => h.navigate(page), 'secondary-button'));
+
       return;
     }
     if (reply.route === 'action') {
@@ -441,6 +451,14 @@ export function voiceAssistant(h) {
       result.append(node('p','',answer.spoken || reply.display));
       for (const warning of answer.warnings || []) result.append(node('p','voice-warning',warning));
       result.append(makeButton('Открыть брифинг',()=>h.navigate('briefing'),'secondary-button'));
+      return;
+    }
+    if (reply.route === 'assistant_read') {
+      for (const claim of answer.claims || []) {
+        result.append(node('p','',claim.text));
+        for(const source of claim.sources || [])result.append(makeButton(source.title,()=>void openSource(source.kind,source.id,source.quote,source),'citation-chip'));
+      }
+      for(const warning of answer.warnings || [])result.append(node('p','voice-warning',warning));
       return;
     }
     if (reply.route === 'knowledge') {

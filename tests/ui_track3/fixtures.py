@@ -29,7 +29,11 @@ class FixtureAPI:
     def handle(self, route):
         req = route.request
         path = urlparse(req.url).path.removeprefix('/api/meet')
-        body = req.post_data_json if req.post_data else None
+        # Automatic wake mode sends multipart WAV, not UTF-8 JSON.
+        # Reading post_data on binary audio raises inside Playwright's callback
+        # and leaves unrelated navigation requests unresolved.
+        content_type=req.headers.get('content-type','')
+        body=req.post_data_json if content_type.startswith('application/json') else None
         self.calls.append((req.method, path, body))
         status, result = self.respond(req.method, path, body)
         route.fulfill(status=status, json=result)
@@ -44,6 +48,7 @@ class FixtureAPI:
         if path == '/login': self.user = body['login']; return 200, {'user': self.me()['user']}
         if path == '/logout': self.user = None; return 200, {}
         if not self.user: return 401, dict(code='not_authenticated', detail='Войдите снова')
+        if path == '/voice/wake': return 200, {'activated':False,'text':''}
         if path == '/me': return 200, self.me()
         if path == '/users': return 200, {'users': [{'id':1,'name':'Ирина'}, {'id':2,'name':'Пётр'}]}
         if path == '/documents': return 200, {'documents': [dict(id=1, title='План запуска', created_at=NOW, filename='plan.txt')]}

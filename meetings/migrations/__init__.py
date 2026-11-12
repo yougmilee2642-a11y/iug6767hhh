@@ -168,6 +168,51 @@ def m013_document_versions(connection):
     upgrade(connection)
 
 
+def m014_assistant(connection):
+    from meetings.migrations.assistant import upgrade
+    upgrade(connection)
+
+
+def m015_operations(connection):
+    from meetings.migrations.operations import upgrade
+    upgrade(connection)
+
+
+def m016_protocol_export(connection):
+    from meetings.migrations.protocol_export import upgrade
+    upgrade(connection)
+
+
+def m017_calendar_provider(connection):
+    from meetings.migrations.calendar_provider import upgrade
+    upgrade(connection)
+
+
+def m018_media(connection):
+    from meetings.migrations.media import upgrade
+    upgrade(connection)
+
+
+def m019_action_basis(connection):
+    from meetings.migrations.action_basis import upgrade
+    upgrade(connection)
+
+
+def m020_planning(connection):
+    from meetings.migrations.planning import upgrade
+    upgrade(connection)
+
+
+def m021_advanced_reports(connection):
+    from meetings.migrations.advanced_reports import upgrade
+    upgrade(connection)
+
+
+def m022_delivery(connection):
+    from meetings.migrations.delivery import upgrade
+    upgrade(connection)
+
+
 MIGRATIONS = [
     (1, 'roles', m001_roles),
     (2, 'audit', m002_audit),
@@ -182,6 +227,15 @@ MIGRATIONS = [
     (11, 'crm_outbox', m011_crm_outbox),
     (12, 'calendar_interchange', m012_calendar_interchange),
     (13, 'document_versions', m013_document_versions),
+    (14, 'assistant', m014_assistant),
+    (15, 'operations', m015_operations),
+    (16, 'protocol_export', m016_protocol_export),
+    (17, 'calendar_provider', m017_calendar_provider),
+    (18, 'media', m018_media),
+    (19, 'action_basis', m019_action_basis),
+    (20, 'planning', m020_planning),
+    (21, 'advanced_reports', m021_advanced_reports),
+    (22, 'reviewed_delivery', m022_delivery),
 ]
 LATEST = MIGRATIONS[-1][0]
 

@@ -107,3 +107,43 @@ Content-Type: application/json
 
 ### Дневной брифинг в текущем scope
 GET {{base}}/briefing?date=2026-11-11
+
+
+### Серии/обязательства/расширенный обзор — только чтение
+GET {{base}}/calendar/series
+
+### Текущие цитатные противоречия/обещания
+GET {{base}}/document-insights
+
+### Сезонность, quality и сроки ПВЗ в текущем scope
+GET {{base}}/advanced-overview
+
+### Личный недельный дайджест — сначала прочитать preview на экране
+POST {{base}}/briefing/weekly/preview
+Content-Type: application/json
+
+{"period_end":"2026-11-11"}
+
+### Только после проверки человеком; confirmationId из weekly/preview
+POST {{base}}/briefing/weekly/confirm
+Content-Type: application/json
+
+{"confirmation_id":"{{confirmationId}}","idempotency_key":"manual-weekly-001"}
+
+### Проверки результатов решений и доступность каналов
+GET {{base}}/effect-checks
+
+### По умолчанию все внешние каналы закрыты
+GET {{base}}/delivery-status
+
+### SMTP не выполнять без флагов/проверенного адресата; ID локального приглашения
+POST {{base}}/calendar/outbox/1/smtp/preview
+
+### Только после отдельной проверки внешнего получателя/письма человеком
+POST {{base}}/calendar/outbox/1/smtp/confirm
+Content-Type: application/json
+
+{"confirmation_id":"{{confirmationId}}","idempotency_key":"manual-smtp-001"}
+
+### Собственные статусы SMTP; uncertain не повторять
+GET {{base}}/smtp-outbox

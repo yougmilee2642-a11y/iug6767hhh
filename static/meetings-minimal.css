@@ -182,6 +182,8 @@ body.meetings-page {
 
 /* ── Знания: источники слева, вопрос справа ─────────── */
 .knowledge-layout { display: grid; grid-template-columns: minmax(240px, 320px) minmax(0, 1fr); gap: 0 72px; align-items: start; }
+/* TODO(design): allow document controls/citations to shrink inside the layout. */
+.knowledge-layout > *, .knowledge-sources .panel, .knowledge-sources .search-results > * { min-width: 0; max-width: 100%; }
 .knowledge-sources > h2 { margin: 6px 0 14px; font-size: 26px; }
 .knowledge-source-list { margin: 0 0 20px; padding: 10px 0 0; border-top: 1px solid var(--f-line-strong); list-style: none; }
 .knowledge-source-list li { margin: 0; }
@@ -256,7 +258,7 @@ body.meetings-page {
   .meetings-nav button::after { bottom: 8px; }
 }
 @media (max-width: 900px) {
-  .overview-columns, .knowledge-layout { grid-template-columns: 1fr; gap: 28px; }
+  .overview-columns, .knowledge-layout { grid-template-columns: minmax(0, 1fr); gap: 28px; }
   .task-table-head { display: none; }
   .task-row { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; }
   .task-row-main, .task-row-meeting { grid-column: 1 / -1; }

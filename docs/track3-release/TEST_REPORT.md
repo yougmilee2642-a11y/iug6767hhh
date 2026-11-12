@@ -1,67 +1,75 @@
 # Проверки Фокус v2 — 12.11.2026
 
-Это промежуточный отчёт P0/E14; весь объём ТЗ не завершён. Результат привязан
-к commit/dirty в первичных JSON. Документационные коммиты не являются новым
-прогоном модели. [Самоаудит](SELF_AUDIT.md) содержит риски каждого требования.
+Это отчёт прототипа. Проверки на scripted/transport doubles не измеряют качество
+настоящих моделей и не подтверждают подключение внешних аккаунтов.
+[История измерений](TEST_REPORT_HISTORY.md) сохраняет старые срезы и ошибки;
+актуальная сводка ниже заменяет старые утверждения о незавершённых P1/P2.
 
-## Измеренные проверки
+## Воспроизводимые результаты
 
-| Проверка | Результат и границы |
+| Проверка | Результат / первичный отчёт |
 |---|---|
-| Полный небраузерный Python | 1494 passed, 28 skipped, 0 failed, 209,53 s; `reports/v2-document-briefing-python.log`. Шесть deprecation warnings PyMuPDF; skips не считаются passed. |
-| Node | 66 passed, 0 failed; `reports/v2-document-briefing-node.log` |
-| Настоящий HTTP, 7 уровней | `reports/v2-document-briefing-http.json`: KPI/ACL/CRM/ICS/smart slots, версии/cancel/replay/restart; без инференса |
-| Недоступная модель через настоящий HTTP | `reports/v2-document-briefing-http.json`: реальные provider/prepare/protocol/QA → 503 model_*, расшифровка не изменена; наблюдаемые коды сохранены |
-| Предыдущий чистый CI | [43166951277](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43166951277) на 574ab18: Linux base/runtime, Windows release/runtime, Python/Node/35 UI, browser→HTTP и evaluator success. Новые версии требуют нового CI. |
-| E13 на дублёре | `reports/v2-document-integration-double.json`: pipeline_passed, 30 задач/36 вопросов; quality NOT MEASURED, не live recall |
-| Первоначальный чистый base | `reports/v2-e14-initial-install.json`: 65,88 s всего; base install 25,28 s прошёл, seed упал без PDF reader; после test-профиля seed/restart прошли |
-| Изолированный runtime | `reports/v2-e14-initial-runtime.json`: 12,68 s, повтор seed/HTTP passed; pytest/Playwright/torch/scipy/av/soundfile отсутствуют. Кэш pip не контролировался. Профиль был незакоммичен, код клона 3dbc30c. |
-| Исправленная установка base/runtime | CI43166951277 Linux base/runtime и Windows runtime success; новые версии проверяются после commit отдельно. Кэш пакетов неконтролируемый. |
-| OpenAPI | `export_api.py` из настоящего app: 73 пути; временная БД, без моделей/рабочей data/ |
-| Secret scan истории | Форматы ключей/private keys/webhooks/credential URLs. Три credential-URL совпадения — один отрицательный fixture `https://u:p@example.com` в повторённой истории теста; реальных ключей этими правилами не обнаружено. Не полноценный DLP-аудит. |
+| Расширенные отчёты, весь Python на 0207c3c | 1653 passed, 28 skipped, 0 failed, 308.95с; reports/v2-radar-full.log |
+| Отчёты/operations/briefing | 34 passed; формулы, нулевая мощность, ACL, подпись источника, устаревший confirm, weekly cancel/replay и эффект111→96 |
+| Доставка/operations | 16 passed; tests/test_track3_delivery.py и test_track3_operations.py, только транспортные дублёры |
+| Финальный небраузерный Python | 1660 passed, 28 skipped, 0 failed, 337.41с на fafc326; reports/v2-final-full.log |
+| Финальный JS | 66 passed, 0 failed; reports/v2-final-node.log |
+| Настоящий HTTP | Passed: восемь ролей, источники/чужой404, cancel/confirm/replay, series/insights/weekly, закрытая SMTP, restart; reports/v2-final-http.json |
+| Предыдущая чистая runtime установка 110741f | Passed, 29.898с: clone/venv/pip check, seed дважды, HTTP8ролей/restart/model503, inventory; reports/v2-radar-runtime.json |
+| Чистые установки итогового кода c8f635c | Runtime29.533с / base30.632с — passed, без моделей, pip-cache неконтролируемый; reports/v2-final-runtime.json и v2-final-base.json |
+| Frozen v2 evaluator | Pipeline passed на double:30/30 задач,17/17 claims с источником,0 ошибок владельца/срока/прав/ложных действий; reports/v2-final-eval.json |
+| Браузер, Linux/Windows | CI по опубликованному SHA в [PR13](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/13); локальный Chromium ограничен средой (socket EPERM), локальный browser NOT RUN |
+| Ollama / ASR / TTS / диаризация | NOT RUN; LIVE_CHECKS.md, только скрипты для хоста |
+| Настоящие Bitrix / Google / Telegram / SMTP | NOT RUN; транспортные MockTransport/SMTP doubles |
+| Независимая установка человеком | NOT RUN; агентская/CI установка не является независимой |
 
-## Критерии приёмки §7.5
+Кэш pip не контролируется; время установки не включает скачивание весов.
+Пропущенные тесты не засчитываются как passed. Требование live recall≥80%
+остаётся проверкой хоста, даже при double recall=100%.
 
-| Критерий | Проверка | Результат |
+## Критерии §7.5 и ОТ-01..08
+
+| Критерий | Тест/доказательство | Вывод |
 |---|---|---|
-| ≥80% явных задач | frozen 5×6, scorer v3/evaluate_v2; `test_track3_v2_evaluation.py` | Конвейер double passed; live требует хоста |
-| Источник каждого утверждения | knowledge claims/excerpt integrity, core risk/summary quotes | CPU/double passed; полнота live неизвестна |
-| Чужая роль получает отказ, отказ в журнале | access_matrix, core denial-survives-rollback, HTTP | Passed |
-| Cancel без изменения | core/task/calendar/decision/CRM cancel tests | Passed |
-| Протокол↔поручение | core confirm/idempotence, task controls; UI/HTTP navigation | Passed на предыдущем CI; новый CI обязателен |
+| §7.5 recall≥80% | evaluate_v2 / test_track3_v2_evaluation.py / frozen gold | Конвейер проверен; live v2 NOT RUN |
+| Утверждение→источник | core/knowledge/hardening/action_basis/document_insights/advanced_reports | CPU/double passed, семантическая полнота live неизвестна |
+| Чужая роль и аудит отказа | test_access_matrix.py, core denial-survives-rollback, HTTP | Проверяется до модели и повторно при чтении/confirm |
+| Отмена без записи | core/calendar/CRM/assistant/series/weekly/delivery | Cancel не создаёт бизнес-объект или отправку |
+| Протокол↔поручение↔реплика | test_track3_core.py, task_controls, ui_track3/http_browser_smoke.py | API/HTTP и браузерная навигация в CI |
+| ОТ-01 запуск | clean_install.py base/runtime, V2_QUICKSTART | Текстовый запуск измерен; ≤15мин с весами не заявляется |
+| ОТ-02 права | access_matrix, roles/delegations/secret tests | Серверные SQL/объектные проверки; SSO не реализован |
+| ОТ-03 данные | test_fotoprint_seed.py, frozen hash / generator | Только синтетика; новая seasonality отдельно от frozen v1/v2 |
+| ОТ-04 журнал | core/privacy/operations/audit filters/CSV | Аудит отказа переживает откат; секреты/PII маскируются |
+| ОТ-05 ошибки | model_*503, audio retained, provider/SMTP/notification timeouts | Сохранность исходника; uncertain без слепого повтора |
+| ОТ-06 русский/адаптив | Node, UI35 и v2_ui_check360/768/1440 | Новый финальный browser CI обязателен; ручной accessibility-аудит неполон |
+| ОТ-07 даты/формулы | management/domain_metrics/calendar/planning/advanced_reports | Europe/Minsk/IANA/DST, BYN, числитель/знаменатель, null вместо деления на0 |
+| ОТ-08 лицензии | LICENSES.md, metadata/notice hashes | Условия голосовых весов и PyMuPDF требуют решения владельца |
 
-## ОТ-01..08
+## Шесть веток поведения
 
-| ID | Тест/доказательство | Результат |
-|---|---|---|
-| ОТ-01 | clean_install base/runtime Linux/Windows | CI43166951277 success для Linux base/runtime и Windows runtime; новый head проверяется отдельно, первоначальные ошибки сохранены |
-| ОТ-02 | `test_access_matrix.py`, HTTP семи уровней, отозванные права/истёкшее делегирование | Passed |
-| ОТ-03 | `test_fotoprint_seed.py`, генератор и хеши v1/v2 | Passed |
-| ОТ-04 | core/privacy audit/filter/CSV/logout; auditor/director/head-scope | Passed |
-| ОТ-05 | real unavailable HTTP, model error/garbage/timeout tests, CRM uncertain | Passed на CPU/локальном HTTP |
-| ОТ-06 | UI35 + v2 browser, русские сообщения | Предыдущий CI passed, новый ожидается; ручной аудит неполон |
-| ОТ-07 | management/domain_metrics/decision_controls/calendar time tests | Passed |
-| ОТ-08 | LICENSES + metadata/notice hashes | Частично: юридические решения не заменяются тестами |
+Сокращения обозначают `tests/test_track3_<имя>.py`. Это карта конкретных
+сценариев, а не утверждение, что каждый тест проверяет всю систему.
+«Не применяется» означает чистое чтение без доставки/зависимости, а не успешный вызов сервиса.
 
-## Шесть веток лекции — карта покрытия
-
-Сокращения: core=`test_track3_core.py`, QA=`test_track3_knowledge.py`,
-CRM=`test_track3_crm.py`, calendar=`test_track3_calendar.py`,
-KPI=`test_track3_management.py`. Все файлы в `tests/`.
-«Частично» означает пробел, а не пройденный критерий.
-
-| Функция | Обычный путь | Нет прав | Повтор | Нет данных | Источник недоступен | Устаревание |
+| Функция / файлы | Обычный путь | Нет прав | Повтор | Нет данных | Источник недоступен | Устаревание / изменение |
 |---|---|---|---|---|---|---|
-| QA | QA grounded/dated/source | QA each_document_acl | QA saved/revalidated | QA no_relevant_data | QA saved source revoked/corrupt; hardening tests | v2 stale controls + retrieval/source_at |
-| Протокол | core risk/summary/status | core reader/foreign | core confirm idempotent | meetings empty_transcript | core transcript_edited_during_draft, ACL recheck; внешний источник не нужен | Частично: version/recheck есть, полного отдельного ageing сценария нет |
-| CRM | CRM create/status | CRM employee/foreign_token | CRM replay/concurrent | CRM missing_mapping/source_empty | CRM down/timeout durable | CRM stale fault/changed state before confirm |
-| Календарь | calendar slots/preview/confirm | calendar roles/ACL/revocation | calendar double_confirm/races | calendar no-free-interval/participant checks | Частично: mock provider есть, отдельного transport outage нет | calendar stale_meeting/slot taken; возраст витрин смен ещё не реализован |
-| Обзор | KPI known formulas | KPI ACL-before-count/sum | Повтор GET, resolver recheck | KPI empty/missing/hidden + zero denom | domain source mutation, missing table; CRM fault warning | KPI snapshot_freshness + conservative source_at |
+| QA: knowledge, knowledge_hardening, fts | цитатный ответ | SQL до поиска | saved answer recheck | insufficient_data | удалённая/отозванная цитата | replaced/valid_until/изменение во время модели |
+| Протокол: core, document_summary | проверенные реплики | reader/foreign/secret | confirm без дубля | пустая расшифровка | model503/timeout/garbage | версия/редактирование после draft |
+| CRM: crm, bitrix | reviewed create/update | employee/foreign token | replay/concurrency | нет mapping/данных | down/transport timeout | changed state / stale mirror |
+| Календарь: calendar, calendar_availability, calendar_providers | слоты/приглашение | роли/ACL | durable replay | нет слотов/участника | unavailable provider | смены старше24ч / слот занят / DST |
+| Серия/Google: planning | конечная серия/freebusy | capability/mapping | отдельные встречи без дубля | пустой календарь/конфликт | Google gate/timeout | изменённые люди/слоты/настройки |
+| Обзор/брифинг: management, domain_metrics, briefing | формулы/claims | scoped суммы | GET без записей | null/нулевой знаменатель | витрина/CRM fault | as_of предупреждение |
+| Документы: document_versions, document_insights | версии/diff/цитаты обещаний | чужой/secret/hidden successor | confirm одной версии/задачи | нет обещаний/условные фразы | источник исчез/сменил текст | current-version/proof recheck |
+| Ассистент/голос: assistant, voice, intent | allowlisted reads/редактируемый draft | ACL/private speech/secret | action idempotence | честное уточнение | model router failure | права/поля/цитата после preview |
+| Аудио/звонки: media, calls, call_topics | consent/import/17тем | own/dept/secret | retry/import/recovery | нет времени/реплик | asr503 сохранённый файл | ACL/source меняется во время обработки |
+| Сезонный/PVZ/quality: advanced_reports |75×1.48=111/явный срок | scopeLOG/PROD | чтение без записи | нулевая мощность/нет истории | proof перестал разрешаться | HMAC меняется вместе с данными |
+| Недельный дайджест: advanced_reports | preview→личный EML | чужой404 | один confirm/outbox | нет доступных claims | изменённый источник409 | текущий snapshot/hash recheck |
+| Контроль результата: advanced_reports |111→96/цель≤100 | ACL снимков | один tick/confirm | waiting_data | недоступный снимок | новый снимок после контроля, ≤48ч |
+| Переговорная/коридор: meeting_hints | подсказки/3фразы | consent/private/secret | чистое чтение | честное отсутствие встречи | нет доступной реплики | каждый запрос читает текущий ACL; нет долговечного ответа |
+| Доставка: delivery, operations | genericTG/Bitrix, reviewedSMTP | владелец/ACL/active | durable claim, terminal uncertain | нет mapping/gate | timeout/обрыв sending | settings/config/address/hash/старше24ч |
+| Хранение: operations | worker/policy/delete | admin confirm | replay/идемпотентная очистка | пустая тестовая БД | нет test-marker отказ | изменённая policy/preview |
 
-Устаревшая витрина, изменившийся preview и отозванная цитата проверяют разные
-свойства. Эта карта не заявляет полное покрытие ещё не реализованных P1-маршрутов.
-
-## Команды воспроизведения
+## Команды
 
 ```bash
 python -m pip install -r requirements-track3-v2-test.txt
@@ -69,185 +77,13 @@ python scripts/track3/check.py -q tests --ignore=tests/ui_track3
 node --test tests/*.cjs static/mts-shell/tests/*.mjs
 python scripts/track3/v2_http_smoke.py --output /absolute/new-http.json
 python scripts/track3/v2_http_smoke.py --unavailable --output /absolute/new-unavailable.json
-python scripts/track3/clean_install.py --profile runtime --output /absolute/new-runtime-install.json
-python scripts/track3/clean_install.py --profile base --output /absolute/new-base-install.json
+python scripts/track3/evaluate.py --dataset photoprint-v2 --scripted-double --output /absolute/new-eval.json
+python scripts/track3/clean_install.py --profile runtime --output /absolute/new-runtime.json
+python scripts/track3/clean_install.py --profile base --output /absolute/new-base.json
+python -m unittest discover -s tests/ui_track3 -p 'test_browser.py' -v
+python scripts/track3/v2_ui_check.py --output /absolute/new-ui.json --artifacts /absolute/new-ui
 ```
 
-Полная установка и smoke выполняются с синтетическими временными БД. Рабочая
-`data/` не очищается. Локальный Chromium не перезапускался при прежнем запрете
-Unix socket; браузер проверяет CI. Хост отдельно запускает LIVE_CHECKS.
-Живые Ollama/ASR/TTS/диаризация, настоящая почта/CRM, микрофон и независимый
-человеческий install не выполнялись агентом.
-
-## E4: календарный обмен (12.11.2026)
-
-- Полный pytest:1389 passed/28 skipped/0 failed,97,76s (`reports/v2-calendar-python.log`).
-  Первый запуск выбрал неполное окружение без PyAV/SciPy:1387 passed/28 skipped/2 failed;
-  исходный лог `v2-calendar-python-incomplete-env.log` сохранён. Повтор в v2 CPU
-  окружении не менял существующие тесты/порог успеха. Новых календарных случаев15.
-- Node66/0, syntax/diff passed. `v2-calendar-http.json`:7 уровней, ICS/EML,
-  import preview/confirm, subscription/restart/revoke, provider503;3,94s.
-- Frozen evaluator повторён без изменения gold: pipeline_passed30/30 задач,
- 36/36 QA,17/17 claims,0 rights/false_actions. Это scripted double, не live качество.
-- `v2-calendar-ui-local.json`: браузер NOT RUN, launch заблокирован socket policy.
-  Новый UI путь cancel/confirm import, subscription/revoke,360/768/1440 включён
-  в v2_ui_check.py и должен пройти на опубликованном CI.
-- Финальные E14 чистые установки на локальном a11f836:base23,31s/runtime19,964s;
-  отчёты `v2-e14-base-final.json`, `v2-e14-runtime-final.json`. Кэш неконтролируемый,
-  модели не скачивались. API-публикация имеет идентичное дерево7c98d1c; CI43161157327
-  уже подтвердил base/runtime Linux и text/browser. Windows ещё queued.
-- Миграция12 работает на пустой и заполненной v8; повтор seed сохраняет количества.
-  Расширено ожидание списка миграций в старом тесте: теперь9..LATEST вместо9,10,11;
-  ни один старый тест не удалён. Подписки хранят hash токена, права и срок
-  перепроверяются; устаревший outbox больше не выдаёт название после отзыва ACL.
-
-Границы: [CALENDAR](CALENDAR.md). Реального SMTP/Outlook/Google/Битрикс24 нет.
-
-## E4.2: график и Windows startup
-
-- Full: 1405 passed, 28 skipped, 0 failed, 100,84 s; `v2-smart-calendar-python.log`.
-  Затем добавлен regression canonical marker path: targeted 45 passed, 8,03 s
-  (`v2-smart-calendar-target.log`); новый CI проверит полный состав. Node: 66/0.
-  OpenAPI сохраняет 67 путей и расширяет поля slots/preview.
-- `v2-smart-calendar-http.json`: настоящий сервер, 7 уровней, 3 smart-слота,
-  preview/cancel, ICS/EML/подписка/restart/revoke/provider503. Без моделей.
-- До smart-изменений CI 43162911735: Linux full/Node/browser35/новый calendar UI,
-  base/runtime install — SUCCESS; Windows release — SUCCESS. Windows clean install —
-  FAILED: pip/seed twice прошли, сервер завершился, 52,19 s
-  (`v2-calendar-windows-install-failed.json`). Этот fail не переписан на PASS.
-  Причина падения в старом smoke терялась в DEVNULL.
-- `start.configure` канонизирует абсолютный путь (проверена регрессия relative path);
-  Windows 8.3 остаётся гипотезой до CI. Smoke сохраняет tail stderr, installer
-  сохраняет HTTP JSON даже при сбое. Исправленный Windows требует нового прогона.
-
-Шесть веток smart: нормальный слот; роль/отказ в аудите; replay/cancel;
-нет смен/слотов; source down/corrupt; устаревший график/новые предупреждения.
-
-## Windows: уточнённая причина после исправления startup
-
-CI43164400635: Windows сервер запустился, но smoke упал на503 model_timeout
-вместо ожидавшегося model_unavailable. RawJSON: v2-windows-provider-diagnostic.json.
-Новая проверка допускает только эти два503 provider-кода и непустое объяснение,
-записывает фактический код. Семь тестов проверяют оба допустимых отказа и
-отклоняют успешные/пустые/посторонние результаты. Живой инференс отсутствует.
-
-Чистый runtime b294178 локально passed22,898s: v2-calendar-candidate-runtime.json;
-кэш неконтролируемый. Финальный Windows результат требует нового CI.
-
-## E6.3: FTS5/BM25
-
-- `v2-fts-python.log`:1426 passed/28 skipped/0 failed,108,70s. Затем добавлен
-  role-denial/audit case; targeted52 passed11,29s (`v2-fts-target.log`).
-- `v2-fts-node.log`:66 passed. HTTP7 ролей/поиск/QA/provider failures/CRM/календарь/
-  restart passed3,99s (`v2-fts-http.json`). Новая browser search ветка в v2_ui_check.
-- `v2-fts-double.json`: frozen pipeline passed30 задач/36QA,17/17claims,0rights/
-  false_actions. Gold не изменён. Live качество после смены ранжирования неизвестно.
-- Приватные документы исключаются SQL до TEMP-индекса; добавление15 закрытых
-  документов не меняет порядок доступных результатов. Проверены немедленный отзыв
-  ACL, обновление/удаление фрагмента, контекст встречи, ё/е/окончания, BM25,
-  отсутствие данных, FTS/SQL операторы как текст, безопасный сбой/аудит/повтор.
-- Secret отсутствует в snippets и model index. Открытие файла владельцем сохранено.
-  Дата загрузки source_at возвращается поиском. Версии/valid_until не закрываются
-  этими тестами и остаются E6.2/E6.4.
-
-## E6.2/E6.4: редакции, актуальность и выдержки (12.11.2026)
-
-- 26 новых случаев в `test_document_versions.py`: нет записи до confirm, cancel
-  удаляет временный BLOB, concurrent/replay создают одну редакцию, stale ACL/metadata/
-  content/fragments/file отвергаются, не возникает ветка из двух preview.
-- Owner-only запись, server ACL на каждой редакции, admin/auditor deny с аудитом,
-  secret исключён из summary/diff/model. Скрытый потомок или промежуточная версия
-  не влияют на выдачу и не раскрываются ссылкой. Цитаты разрешаются в исходный F-id.
-- SQL выбирает актуальную доступную редакцию до FTS; явная история, сохранённые
-  ответы/отзыв прав, expiry warnings, подготовка встречи и добавление новой редакции
-  во время генерации проверены. Привязки встреч не меняются автоматически.
-- Шесть веток: обычный confirm/summary/diff; foreign/admin denial; replay/concurrent;
-  пустой/неподходящий источник; отсутствующий/изменённый BLOB409; expired/superseded
-  и источник, заменённый в процессе запроса. Это локальные источники, не внешний API.
-- Full1453/28/0 и Node66/0. Миграция13 на пустой/заполненной БД и повторный seed
-  входят в полный набор; старые тесты не удалены. Прежняя полная база CI1427: +26.
-- `v2_http_smoke.py` расширен версиями/cancel/confirm/replay/summary/diff/restart.
-  Новый сценарий UI добавлен в `v2_ui_check.py`; локально Chromium не запускался
-  повторно после установленного запрета Unix socket. Нужен CI нового head.
-- Frozen double повторён:30/30 задач,36/36 QA,17/17 claims,0 прав/ложных действий.
-  Gold не изменён, live модели не запускались. Новых зависимостей нет.
-- Границы: DOCUMENTS.md. Смысловая сводка/противоречия/обязательства и фоновая
-  очистка временных файлов остаются. Формат ошибок и дата Source сохранены.
-
-
-## E6.2 / E6.4 / E6.5 · версии документов
-
-- Полный CPU: **1448 passed, 28 skipped, 0 failed**, 163,94 s. Новые21 проверки
-  покрывают версии/отмену/конкуренцию/ACL/актуальность/миграцию v12→13/метаданные.
-  Ни один старый тест не удалён. Raw: reports/v2-documents-python-final.log.
-- Node: **66 passed**, синтаксис новых/изменённых JS и compileall/diff passed.
-- Настоящий HTTP:7 уровней, immutable версии/отмена/replay/summary/diff/restart
-  passed. Режим без модели также passed: prepare/protocol/QA дают503
-  model_unavailable; версии/документы работают. Raw: v2-documents-*http.json.
-- Frozen photoprint-v2 pipeline:30/30 задач,36/36QA,17/17 claims с источником,
-  0 нарушений прав/ложных действий. Gold не менялся. Это double, не live-качество.
-- Локальный browser NOT RUN: Chromium упал до открытия страницы с socket()
-  Operation not permitted. Raw: reports/v2-documents-browser.json. Новый путь
-  upload→summary→preview/cancel→confirm→history/diff включён в v2_ui_check.py/CI.
-- Новых библиотек/весов нет. Semantic-summary и P2-противоречия/обязательства
-  не заявлены: кнопка «Кратко» возвращает явно помеченные дословные выдержки.
-- Предыдущий574ab18/CI43166951277 завершился SUCCESS целиком, включая Windows.
-  Новый срез требует отдельного CI; прежний успех на него не переносится.
-
-## Совмещение с опубликованным45a3f12
-
-Merge сохраняет обе поставки и все тесты:1474 passed/28 skipped/0 failed,
-216,56s; Node66/0; целевые47/0. Дополнительная проверка Source.source_at=дата
-загрузки, а не authored_at:1 passed. HTTP/restart/provider503/версии passed6,22s.
-Файлы `v2-document-integration-*` относятся к совмещённому рабочему дереву
-(до merge commit, JSON честно показывает dirty и прежний HEAD7e18d23).
-
-Сохранён опубликованный контракт исторического ответа QA:200 с прежними цитатами
-и предупреждением. При новой генерации смена источника по-прежнему409. Из нашей
-новой тестовой поставки изменены ожидания двух чтений и owner-only404; защиты
-прав/цитат/актуальности не отключены. Исходные тесты и21 тест удалённой поставки
-не удалены. Мульти-file/metadata/filters сохранены, partial и File после cancel
-добавлены в UI; CI должен проверить2 файла, повторpreview и мобильные ширины.
-
-До merge чистый7e18d23: base40,693s/runtime27,094s, оба passed, первичные JSON
-`v2-document-versions-{base,runtime}-install.json`. Запуски параллельны, кэш
-неконтролируемый, без моделей. Совмещённый commit требует отдельной установки.
-
-
-## E9.3 · дневной брифинг / импортированные документы
-
-- ПолныйCPU: **1468 passed,28 skipped,0 failed**,207,05s; Node66/0.
-  Raw reports/v2-briefing-python.log и v2-briefing-node.log. Целевой84/0
-  выполнен до двух дополнительных проверок calendar-attendee/list-bound, которые
-  вошли в полный прогон. Новые20 тестов суммарно после E6, старые не удалялись.
-- Настоящий HTTP с моделью-дублёром и без модели:7 ролей, брифинг/голосовой
-  маршрут/источник встречи/отказы/restart passed. Новые записи во внешние
-  системы не добавлены. 503model_* остаются честными для генерации.
-- Новая версия импортированного документа больше не копирует UNIQUEsource_ref:
-  внешний ID остаётся у оригинала, цепочка supersedes_id сохраняет происхождение.
-  Регрессионный тест на этот случай passed.
-- Чистая runtime-установка E6-кандидата165c561 (дерево идентично45a3f12) прошла
-  за51,505s, кэш неконтролируемый, без моделей; raw v2-documents-clean-runtime.json.
-  Это результат E6, не отдельное измерение нового E9-кандидата.
-- CI43184793897 на45a3f12: Linux CPU/JS/HTTP/eval/browser и обе clean-install
-  прошли. Windows оставался queued. Новый брифинг требует своегоCI.
-- Browser-маршрут кнопка→дата→ответ включён в v2_ui_check.py. Локально повторно
-  не запускался после неизменившейся socket policy. Живые ASR/TTS/микрофон NOT RUN.
-
-## Финальное сведение E6 и опубликованного E9
-
-1494 passed/28 skipped/0 failed,209,53s; Node66/0. HTTP7 ролей/версии/брифинг/
-voice text/restart/provider503 passed6,34s. Первичные v2-document-briefing-*.
-Полный pytest запускался во время исправления синтаксиса HTTP helper; закончил
-без падений. Отдельный HTTP затем запускался только после ast.parse и прошёл.
-Брифинг/voice работают без модели; ASR/TTS/LLM не запускались. Старые raw-отчёты
-сохранены и не объявляются проверкой нового дерева.
-
-## Чистая установка итогового E6+E9
-
-Из нового локального клонаe58a904 (tree da3191d, идентичен GitHub e496e4e):
-Linux runtime34,330s/base37,937s, оба passed. Venv/pip-check/seed twice/HTTP
-семи ролей/versions/briefing/restart/provider503/inventory прошли. Запуски
-параллельны; кэш неконтролируемый, модели не скачивались. Первичные JSON:
-`v2-document-briefing-runtime-install.json`, `v2-document-briefing-base-install.json`.
-Это не независимая установка человеком и не результат Windows нового head.
+Все тестовые БД временные. Рабочие `.env`, `data/`, `models/` и пользовательский
+`start-gateway.ps1` не изменяются. Результаты чистой установки привязаны к commit
+в JSON; документационный commit не считается новым прогоном модели.

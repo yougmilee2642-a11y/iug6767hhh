@@ -101,7 +101,7 @@ def listing(items, more_noun):
 
 # ---------- выборки с учётом прав ----------
 def visible_meetings(connection, user_id):
-    ids = store.accessible_meeting_ids(connection, user_id)
+    ids = store.accessible_meeting_ids(connection, user_id, model=True)
     if not ids:
         return []
     rows = connection.execute(f'SELECT * FROM meetings WHERE id IN ({",".join("?" * len(ids))})', ids).fetchall()
@@ -297,7 +297,7 @@ def decisions_answer(connection, user, text, now):
                 {'kind': 'meeting', 'id': named['id'], 'meeting_id': named['id'], 'title': named['title'], 'meta': ''}]
         return f'На встрече «{named["title"]}» решили: ' + listing([f'«{i["title"]}»' for i in items],
                                                                    lambda n: plural(n, 'решение', 'решения', 'решений')) + '.', items
-    rows = [r for r in visible(connection, user['id']) if r['status'] == 'open']
+    rows = [r for r in visible(connection, user['id'], model=True) if r['status'] == 'open']
     for row in rows:
         day = due_day(row)
         items.append({'kind': 'decision', 'id': row['id'], 'meeting_id': row['meeting_id'], 'title': row['text'],
@@ -311,12 +311,14 @@ def decisions_answer(connection, user, text, now):
 
 
 def documents_answer(connection, user, text, now):
-    ids = store.accessible_document_ids(connection, user['id'])
+    ids = store.accessible_document_ids(connection, user['id'], model=True)
     if not ids:
         return 'Доступных документов пока нет.', []
+    from meetings.knowledge.index import current_clause
+    current,args = current_clause(connection,user['id'])
     rows = connection.execute(
-        f'SELECT id, title, COALESCE(authored_at, created_at) AS at FROM documents WHERE id IN ({",".join("?" * len(ids))}) '
-        'AND id NOT IN (SELECT supersedes_id FROM documents WHERE supersedes_id IS NOT NULL) ORDER BY at DESC, id DESC', ids).fetchall()
+        f'SELECT d.id, d.title, COALESCE(d.authored_at, d.created_at) AS at FROM documents d WHERE d.id IN ({",".join("?" * len(ids))}) '
+        'AND '+current+' ORDER BY at DESC,d.id DESC', [*ids,*args]).fetchall()
     today = now.astimezone(ZONE).date()
     items = [{'kind': 'document', 'id': r['id'], 'meeting_id': None, 'title': r['title'],
               'meta': spoken_day(local_day(r['at']).date(), today) if r['at'] else ''} for r in rows]
@@ -379,8 +381,8 @@ def visible_to(connection, member, items):
     """Может ли слушатель сам увидеть каждый названный объект."""
     for item in items:
         if item['kind'] == 'document':
-            if not store.can_read_document(connection, member, item['id']):
+            if not store.can_read_document(connection, member, item['id'], model=True):
                 return False
-        elif item.get('meeting_id') is not None and not store.can_read_meeting(connection, member, item['meeting_id']):
+        elif item.get('meeting_id') is not None and not store.can_read_meeting(connection, member, item['meeting_id'], model=True):
             return False
     return True

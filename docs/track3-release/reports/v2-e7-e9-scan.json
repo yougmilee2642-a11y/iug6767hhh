@@ -1,0 +1,9 @@
+{
+  "baseline": "abd8ef22b20531e7b62a604bfb9be7c0e7407b4c",
+  "protected_paths": [],
+  "secret_pattern_findings": [],
+  "scope": "Changed candidate files vs current main; finite key formats, not full DLP",
+  "models_run": false,
+  "real_accounts_used": false,
+  "status": "passed"
+}

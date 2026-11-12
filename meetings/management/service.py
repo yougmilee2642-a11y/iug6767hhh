@@ -219,7 +219,35 @@ def source_timestamp(value):
 def resolve(actor, kind, source_id, audit):
     with store.db() as connection:
         connection.execute('BEGIN')
-        if kind == 'meeting':
+        if kind == 'insight':
+            from meetings.management.advanced import resolve as advanced_source
+            from meetings.access import load_user
+            result=advanced_source(connection,load_user(connection,actor),source_id)
+            audit.update(object_id=source_id,source_ids=[source_id])
+            return result
+        elif kind in ('document','utterance'):
+            from meetings.evidence import resolve as evidence
+            from meetings.access import load_user
+            result=evidence(connection,load_user(connection,actor),kind,source_id)
+            audit.update(object_id=source_id,source_ids=[source_id])
+            return result
+        elif kind == 'assistant':
+            from meetings.assistant.service import source_result
+            from meetings.access import load_user
+            user = load_user(connection,actor)
+            result = source_result(connection,user,source_id)
+            audit.update(object_id=source_id,source_ids=[source_id])
+            return result
+        elif kind == 'call':
+            from meetings import calls,access
+            key=source_id[1:] if source_id.startswith('C') else source_id
+            if not re.fullmatch(r'[1-9]\d{0,17}',key):raise not_found()
+            user=access.load_user(connection,actor)
+            row=calls.checked(connection,user,int(key))
+            source={'kind':'call','id':source_id,'title':'Звонок '+key,'source_at':source_timestamp(row['started_at'])}
+            data=calls.analyze(connection,user,row)
+            data['meeting']={'id':row['meeting_id'],'title':'Расшифровка звонка','scheduled_at':row['started_at']}
+        elif kind == 'meeting':
             if not re.fullmatch(r'[1-9]\d{0,18}', source_id) or int(source_id) > 2**63 - 1:
                 raise not_found()
             if not store.can_read_meeting(connection, actor, int(source_id), model=True):

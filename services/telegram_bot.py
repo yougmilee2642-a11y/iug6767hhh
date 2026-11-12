@@ -1,6 +1,7 @@
 """Long-polling bot + outbox worker. Sanitized errors, no token/body logging."""
 import json
 import logging
+import re
 import os
 import threading
 import time
@@ -9,6 +10,20 @@ from urllib.parse import urlsplit
 import httpx
 from services import telegram_store as store
 
+class TokenRedaction(logging.Filter):
+    def filter(self,record):
+        def redact(value):
+            if isinstance(value,(int,float)) or value is None:return value
+            text=str(value)
+            return re.sub(r'(/bot)[0-9]+:[A-Za-z0-9_-]+',r'\1[redacted]',text) if '/bot' in text else value
+        if isinstance(record.args,tuple):record.args=tuple(redact(v) for v in record.args)
+        elif isinstance(record.args,dict):record.args={k:redact(v) for k,v in record.args.items()}
+        record.msg=redact(record.msg)
+        return True
+
+
+for _logger in ('httpx','httpcore'):
+    logging.getLogger(_logger).addFilter(TokenRedaction())
 logging.getLogger('httpx').setLevel(logging.WARNING)
 
 
@@ -27,7 +42,7 @@ class TelegramClient:
         from providers.local_settings import local_only, LocalAIError
         if local_only(): raise LocalAIError('cloud_disabled')
         try:
-            with httpx.Client(timeout=15, transport=self.transport) as client:
+            with httpx.Client(timeout=15, transport=self.transport, trust_env=False, follow_redirects=False) as client:
                 response = client.post(f'https://api.telegram.org/bot{self._token}/{method}', json=payload)
             data = response.json()
         except (httpx.HTTPError, ValueError):

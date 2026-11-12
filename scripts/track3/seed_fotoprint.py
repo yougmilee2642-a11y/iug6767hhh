@@ -42,6 +42,8 @@ def seed(db_path):
         if old:
             if old['manifest_sha256'] != digest:
                 raise ValueError('Набор изменился: создайте новую тестовую БД или явно сбросьте демо.')
+            from scripts.track3.seed_insights import seed as seed_insights
+            seed_insights(c)
             return json.loads(old['object_ids'])
         for dep in fixture['departments']:
             c.execute('INSERT OR IGNORE INTO departments(code,name) VALUES (?,?)', (dep['code'], dep['name']))
@@ -129,6 +131,8 @@ def seed(db_path):
         for user in fixture['users']:
             c.execute('INSERT INTO user_external_ids VALUES (?,?,?)', (users[user['login']], 'bitrix24-mock', 'demo-' + user['login']))
         c.execute('INSERT INTO demo_imports VALUES (?,?,?,?)', (fixture['version'], digest, store.now(), json.dumps(result, ensure_ascii=False)))
+        from scripts.track3.seed_insights import seed as seed_insights
+        seed_insights(c)
     return result
 
 

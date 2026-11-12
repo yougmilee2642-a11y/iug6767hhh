@@ -96,6 +96,8 @@ class GoogleCalendar:
                 raise IntegrationError('conflict', uncertain=write)
             if not response.is_success:
                 raise IntegrationError('unavailable', uncertain=write and (response.status_code >= 500 or 300 <= response.status_code < 400))
+            if method == 'DELETE' and response.status_code == 204:
+                return {}
             result = response.json()
             if not isinstance(result, dict):
                 raise ValueError()

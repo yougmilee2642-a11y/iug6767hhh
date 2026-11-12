@@ -1,5 +1,6 @@
 import { documentLibrary } from './documents.js';
 import { formulaLine } from './formula.js';
+import { advancedUI } from './advanced.js';
 
 // Демо «Фотопринт»: вопросы, на которые в документах роли есть подтверждённый ответ.
 const EXAMPLE_QUESTIONS = {
@@ -54,6 +55,7 @@ export function track3UI(h) {
   };
 
   const documents = documentLibrary({...h, dialog, field, sourceButton, claims});
+  const advanced = advancedUI({...h,dialog,sourceButton});
 
   function reset({ keepDrafts = false } = {}) {
     generation++;
@@ -225,6 +227,7 @@ export function track3UI(h) {
       parent.append(button('Обновить обзор', () => void loadOverview()), node('p', 'inline-error', overview.message)); return;
     }
     for (const warning of overview.warnings || []) parent.append(node('p', 'gap-state', warning));
+    advanced.mount(parent);
     const columns = node('div', 'overview-columns');
     columns.append(todayColumn(), attentionColumn());
     parent.append(columns);
@@ -455,6 +458,8 @@ export function track3UI(h) {
     duration.input.min = 15; duration.input.max = 540; duration.input.step = 15;
     const smart = node('input');smart.type='checkbox';smart.checked=saved.smart ?? true;
     const smartLabel=field('Учитывать смены, перерывы и буфер 10 минут',smart);
+    const weekends=node('input');weekends.type='checkbox';weekends.checked=saved.weekends ?? false;
+    const weekendsLabel=field('Искать также в выходные (при наличии рабочих смен)',weekends);
     let revision = 0;
     const viewGeneration = generation;
     const participants = node('fieldset', 'access-users'); participants.append(node('legend', '', 'Календарные участники из тестового справочника'));
@@ -469,11 +474,11 @@ export function track3UI(h) {
     participants.append(load);
     const search = button('Найти свободное время', null, 'secondary-button', 'submit');
     search.disabled = !can('calendar.view') || !saved.directory;
-    form.append(zone.wrap, start.wrap, end.wrap, duration.wrap, smartLabel, participants, search);
+    form.append(zone.wrap, start.wrap, end.wrap, duration.wrap, smartLabel, weekendsLabel, participants, search);
     const slots = node('div', 'meet-slots'); slots.setAttribute('aria-live', 'polite');
     const rememberRange = () => calendarDrafts.set(calendarKey, { ...calendarDrafts.get(calendarKey), zone: zone.input.value,
       start: start.input.value, end: end.input.value, duration: duration.input.value,
-      smart:smart.checked,
+      smart:smart.checked,weekends:weekends.checked,
       participantIds: [...participants.querySelectorAll('input[data-calendar-role="participant"]:checked')].map((box) => box.value),
       optionalIds:[...participants.querySelectorAll('input[data-calendar-role="optional"]:checked')].map((box)=>box.value) });
     function renderParticipants(directory) {
@@ -517,6 +522,7 @@ export function track3UI(h) {
           timezone: zone.input.value.trim(), range_start: zonedISO(start.input.value, zone.input.value.trim()),
           range_end: zonedISO(end.input.value, zone.input.value.trim()), duration_minutes: Number(duration.input.value),
           smart:smart.checked,
+          include_weekends:weekends.checked,
           participant_ids: [...participants.querySelectorAll('input[data-calendar-role="participant"]:checked')].filter(box=>!smart.checked || !participants.querySelector(`input[data-calendar-role="optional"][value="${box.value}"]`)?.checked).map((box) => Number(box.value)),
           optional_participant_ids:smart.checked ? [...participants.querySelectorAll('input[data-calendar-role="optional"]:checked:not(:disabled)')].map(box=>Number(box.value)) : [],
         };
@@ -525,7 +531,7 @@ export function track3UI(h) {
         try { result = await request('/calendar/slots', { method: 'POST', body }); }
         catch (e) { slots.replaceChildren(node('p', 'inline-error', 'Не удалось подобрать время. Измените параметры или повторите поиск.')); throw e; }
         if (!form.isConnected || searchedRevision !== revision || viewGeneration !== generation) return;
-        slots.replaceChildren(node('p', 'muted-copy', `Тестовый календарь · зона ${result.timezone} · ${(result.participants || []).map((p) => p.name).join(', ')}`));
+        slots.replaceChildren(node('p', 'muted-copy', `${result.provider==='mock' ? 'Тестовый календарь' : 'Внешний календарь'} · зона ${result.timezone} · ${(result.participants || []).map((p) => p.name).join(', ')}`));
         for(const warning of result.warnings || [])slots.append(node('p','gap-state',warning));
         if(result.generated_at)slots.append(node('p','task-meta',`Подбор рассчитан: ${date(result.generated_at)}`));
         if (!result.slots?.length) slots.append(node('p', '', 'Свободных слотов нет. Измените диапазон или состав участников.'));
@@ -551,7 +557,7 @@ export function track3UI(h) {
               dialog('Проверить встречу и приглашения', content, async () => {
                 try {
                   await request('/calendar/confirm', { method: 'POST', body: { confirmation_id: preview.confirmation_id, idempotency_key: idempotencyKey } });
-                  toast('Встреча назначена. Тестовые приглашения сохранены в локальной очереди.');
+                  toast('Встреча назначена. Приглашения сохранены в локальной очереди.');
                   h.markSaved(form);
                   try { await h.refreshMeeting(meetingId); }
                   catch (e) {
@@ -662,5 +668,20 @@ export function track3UI(h) {
     return new Date([...candidates][0]).toISOString();
   }
 
-  return { can, reset, discardForeignDrafts, dialog, planning, feedback, sourceButton, renderOverview, renderKnowledge, openKnowledge, editTask, controlDecision, loadOverview, zonedISO };
+  async function seedCalendar(meetingId,hint) {
+    const owner=state.user?.id,current=generation,page=state.page;
+    const result=await request('/calendar/participants');
+    if(state.user?.id!==owner || generation!==current || state.page!==page)return false;
+    const zone=hint.timezone || state.timezone;
+    const local=(value)=>{
+      if(!value)return '';
+      const parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(value)).map(p=>[p.type,p.value]));
+      return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+    };
+    calendarDrafts.set(`${owner}/${meetingId}`,{zone,start:local(hint.range_start),end:local(hint.range_end),duration:hint.duration_minutes,
+      smart:true,weekends:hint.range_start?['Sat','Sun'].includes(new Intl.DateTimeFormat('en-US',{timeZone:zone,weekday:'short'}).format(new Date(hint.range_start))):false,
+      participantIds:hint.participant_ids.map(String),directory:result.participants});
+    return true;
+  }
+  return { can, reset, discardForeignDrafts, dialog, planning, seedCalendar, feedback, sourceButton, renderOverview, renderKnowledge, openKnowledge, editTask, controlDecision, loadOverview, zonedISO };
 }

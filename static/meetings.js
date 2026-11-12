@@ -1,3 +1,5 @@
+import { operationsUI } from './meetings/operations.js';
+import { assistantUI } from './meetings/assistant.js';
 import { briefingUI } from './meetings/briefing.js';
 import { track3UI } from './meetings/track3.js';
 import { protocolPayload } from './meetings/protocol.js';
@@ -5,6 +7,8 @@ import { voiceAssistant } from './meetings/voice.js';
 import { administrationUI } from './meetings/administration.js';
 import { crmUI } from './meetings/crm.js';
 import { calendarUI } from './meetings/calendar.js';
+import { mediaUI } from './meetings/media.js';
+import { callsUI } from './meetings/calls.js';
 import { formulaLine } from './meetings/formula.js';
 
 const API = '/api/meet';
@@ -50,16 +54,23 @@ let meetingSequence = 0;
 let searchSequence = 0;
 const ui = track3UI({ node, makeButton, makeInput, makeTextarea, makeSelect, request, runAction, state,
   dateLabel, render, openMeeting, openSource, showNotice, toast, refreshMeeting, markSaved, draftCheckpoint,
-  navigate: setPage });
+  navigate: setPage, propose:(proposal)=>{managerAssistant.propose(proposal);setPage('assistant');} });
+const managerAssistant = assistantUI({node,makeButton,makeInput,makeTextarea,makeSelect,request,runAction,state,ui,dateLabel,openMeeting,openSource});
 const administration = administrationUI({ node, makeButton, makeInput, request, runAction, state, dateLabel });
 const crm = crmUI({ node, makeButton, makeInput, request, runAction, state, dateLabel, ui });
-const calendarTools = calendarUI({ node, makeButton, makeInput, request, runAction, state, dateLabel, ui, markSaved });
-const assistant = voiceAssistant({ node, makeButton, request, state, openSource, dateLabel, openMeeting, navigate: (page) => {
+const calendarTools = calendarUI({ node, makeButton, makeInput, makeSelect, request, runAction, state, dateLabel, ui, markSaved, openMeeting });
+const mediaTools = mediaUI({node,makeButton,makeInput,makeSelect,request,runAction,state,ui,refreshMeeting});
+const callTools = callsUI({node,makeButton,makeInput,makeTextarea,makeSelect,request,runAction,state,ui,openMeeting,openSource,
+  propose:(proposal)=>{managerAssistant.propose(proposal);setPage('assistant');}});
+const assistant = voiceAssistant({ node, makeButton, request, state, openSource, dateLabel, openMeeting, proposeAction:(proposal)=>{managerAssistant.propose(proposal);setPage('assistant');}, navigate: (page) => {
+
   if (page === 'tasks') void openTasks(); else setPage(page);
 } });
 
+const operations = operationsUI({node,makeButton,makeInput,request,runAction,state,ui,dateLabel,openMeeting,navigate:setPage});
+
 const briefing = briefingUI({node,makeButton,makeInput,request,runAction,state,dateLabel,openSource,openMeeting,
-  speak:()=>assistant.ask('Брифинг дня')});
+  speak:()=>assistant.ask('Брифинг дня'),corridor:()=>assistant.ask('Подготовь меня к встрече за 30 секунд')});
 
 function operation(button, key) {
   key = `${state.epoch}:${key}`;
@@ -143,7 +154,7 @@ function clearIdentity({ keepDrafts = false } = {}) {
   state.searchQuery = ''; state.searchStatus = 'idle'; state.searchError = '';
   state.showCreateMeeting = false;
   state.page = 'meetings';
-  closeSource(); ui.reset({ keepDrafts }); assistant.reset();
+  closeSource(); ui.reset({ keepDrafts }); assistant.reset(); managerAssistant.reset();
   clearNotice(); $('#toast').textContent = '';
   if (!keepDrafts) dirtyFields.clear();
 }
@@ -228,7 +239,7 @@ function makeSelect(options, selected = '') {
 
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const epoch = state.epoch;
-  const requestHeaders = { ...headers };
+  const requestHeaders = { 'X-Focus-Request':'1', ...headers };
   let payload = body;
   if (body !== undefined && !(body instanceof FormData)) {
     requestHeaders['Content-Type'] = 'application/json';
@@ -369,13 +380,15 @@ function updateAccount() {
   extra?.replaceChildren();
   if (!state.user) return;
   // Role pages sit in the main navigation (always visible), not behind a menu.
-  const pages = [['overview.read','Брифинг','briefing'], ['users.manage','Пользователи','administration'], ['integrations.manage','Интеграции','integrations'], ['audit.read','Журнал','audit'], ['delegation.grant','Делегировать','delegation']];
+  const pages = [['overview.read','Брифинг','briefing'], ['qa.ask','Ассистент','assistant'], ['calls.read','Звонки','calls'], ['retention.manage','Хранение данных','retention'], ['users.manage','Пользователи','administration'], ['integrations.manage','Интеграции','integrations'], ['audit.read','Журнал','audit'], ['delegation.grant','Делегировать','delegation']];
   for (const [capability, label, page] of pages) {
     if (!state.capabilities.includes(capability) || !extra) continue;
     const item = makeButton(label, () => setPage(page));
     item.dataset.page = page;
     extra.append(item);
   }
+  (extra || account).append(makeButton('Уведомления',()=>setPage('notifications')));
+  (extra || account).append(makeButton('Удалить мои данные',()=>{const content=node('p','','Запрос будет передан администратору. Данные удалятся только после его проверки и подтверждения.');ui.dialog('Запросить удаление данных',content,()=>request('/privacy/delete-request',{method:'POST'}),null,'Отправить запрос');}));
   assistant.mount(account);
   const person = node('span', 'account-person');
   const name = state.user.name || state.user.login;
@@ -435,6 +448,10 @@ function render() {
   else if (state.page === 'meeting' && state.meetingData) renderMeeting(app);
   else if (state.page === 'overview') ui.renderOverview(app);
   else if (state.page === 'briefing') briefing.render(app);
+  else if (state.page === 'assistant') managerAssistant.render(app);
+  else if (state.page === 'notifications') void runAction(null,()=>operations.notifications(app));
+  else if (state.page === 'retention') void runAction(null,()=>operations.retention(app));
+  else if (state.page === 'calls') void runAction(null,()=>callTools.render(app));
   else if (state.page === 'knowledge') ui.renderKnowledge(app);
   else if (state.page === 'tasks') renderTaskBoard(app, state.tasks, false);
   else if (state.page === 'search') renderSearchResults(app);
@@ -663,13 +680,17 @@ function plural(count, one, few, many) {
 
 function meetingRow(meeting, zone) {
   const row = node('article', 'meeting-row');
-  row.append(node('span', 'meeting-row-time', timeLabel(meeting.scheduled_at, zone)));
+  const time=node('time','meeting-row-time',timeLabel(meeting.scheduled_at,zone));
+  if(meeting.scheduled_at)time.dateTime=meeting.scheduled_at;
+  time.title=`${dateLabel(meeting.scheduled_at,zone)} · ${zone}`;
+  time.setAttribute('aria-label',time.title);row.append(time);
   const main = node('div', 'meeting-row-main');
   main.append(node('h3', '', meeting.title || 'Без названия'));
   if (meeting.topic && meeting.topic.trim() !== (meeting.title || '').trim()) main.append(node('p', '', meeting.topic));
   const people = (meeting.participants || []).length;
   row.append(main, node('span', 'meeting-row-meta', people ? `${people} ${plural(people, 'участник', 'участника', 'участников')}` : 'Участники не указаны'));
   const open = makeButton('Открыть встречу', () => void openMeeting(meeting.id), 'row-open');
+  open.setAttribute('aria-label','Открыть встречу');
   open.title = meeting.title || 'Открыть встречу';
   row.append(open);
   row.addEventListener('click', (event) => { if (!event.target.closest('button')) void openMeeting(meeting.id); });
@@ -963,6 +984,18 @@ function renderPreparation(target) {
     for (const task of followup.open_tasks || []) prep.append(makeButton(`В повестку: ${task.text}`, () => addDraft(task.text,[task.source])));
   }
   const draftAgenda = state.agendaDrafts[String(meeting.id)] || [];
+  if(followup?.document_insights_partial)prep.append(node('p','access-limited-note','Анализ документов неполный: достигнут лимит. Откройте реестр источников.'));
+  for(const conflict of followup?.document_conflicts || []){
+    const card=node('article','panel');card.append(node('h3','','Возможное противоречие'),node('p','',conflict.text));
+    for(const source of conflict.sources)card.append(ui.sourceButton(source));
+    card.append(makeButton('Добавить противоречие в проект повестки',()=>{
+      const items=state.agendaDrafts[String(meeting.id)] ||= [];if(!items.some(i=>i.text===conflict.text))items.push({text:conflict.text,sources:conflict.sources});render();
+    }));prep.append(card);
+  }
+  for(const promise of followup?.commitments || []){
+    const card=node('article','panel');card.append(node('p','',`Обязательство: ${promise.what}`));for(const source of promise.sources)card.append(ui.sourceButton(source));
+    if(can('protocol.confirm'))card.append(makeButton('Подготовить задачу по обязательству',()=>{managerAssistant.propose(promise.proposed_action);setPage('assistant');}));prep.append(card);
+  }
   if (draftAgenda.length) {
     prep.append(node('h3','','Локальный проект повестки'), node('p','muted-copy','Не сохранён на сервере; исчезнет после выхода или закрытия вкладки.'));
     for (const item of draftAgenda) {
@@ -1048,7 +1081,7 @@ function renderMaterials(target) {
   voice.append(node('p', 'muted-copy', 'Речь распознаётся короткими фрагментами. Каждый фрагмент можно исправить перед добавлением.'));
   const voiceState = node('div', 'voice-capture-status');
   voiceState.id = 'voice-capture-status';
-  voiceState.textContent = state.voiceCapture?.recording ? 'Идёт запись · фрагменты до 15 секунд'
+  voiceState.textContent = state.voiceCapture?.recording ? 'Идёт запись, все уведомлены · фрагменты до 15 секунд'
     : state.voiceCapture ? 'Завершается распознавание фрагментов…' : 'Микрофон выключен';
   voice.append(voiceState);
   const consentLabel = node('label', 'record-consent');
@@ -1057,6 +1090,7 @@ function renderMaterials(target) {
   consentLabel.append(consent, node('span', '', 'Я подтвердил(а), что все участники согласны на запись и расшифровку встречи.'));
   consentLabel.hidden = Boolean(state.voiceCapture?.recording);
   voice.append(permit(consentLabel, 'transcript.edit'));
+  voice.append(node('p','muted-copy','Автоостановка после двух минут тишины. Уже записанные фрагменты сохраняются.'));
   const voiceButton = makeButton(state.voiceCapture?.recording ? 'Остановить запись' : state.voiceCapture ? 'Распознавание…' : 'Начать запись', null,
     state.voiceCapture?.recording ? 'stop-recording-button' : 'primary-button');
   voiceButton.disabled = Boolean(state.voiceCapture && !state.voiceCapture.recording) || (!state.voiceCapture?.recording && !consent.checked);
@@ -1090,6 +1124,7 @@ function renderMaterials(target) {
   utterances.append(list);
   layout.append(transcript, voice, utterances);
   target.append(layout);
+  mediaTools.mount(target,data.meeting);
   renderUtteranceList();
   renderSpeakerMapping();
 }
@@ -1330,6 +1365,7 @@ async function startVoiceCapture(meetingId, button) {
       const capture = {
         meetingId, epoch, stream, context, source, worklet, gain, recording: true,
         frames: [], sampleCount: 0, sentSamples: 0, queue: Promise.resolve(), flushResolve: null,
+        silenceSamples:0,
       };
       worklet.port.onmessage = ({ data }) => {
         if (data === 'flushed') { capture.flushResolve?.(); capture.flushResolve = null; return; }
@@ -1348,7 +1384,7 @@ async function startVoiceCapture(meetingId, button) {
   });
   if (started) {
     const status = $('#voice-capture-status');
-    if (status) status.textContent = 'Идёт запись · фрагменты до 15 секунд';
+    if (status) status.textContent = 'Идёт запись, все уведомлены · фрагменты до 15 секунд';
     const control = $('#voice-capture-toggle');
     if (control) { control.textContent = 'Остановить запись'; control.className = 'stop-recording-button'; }
     toast('Запись началась');
@@ -1359,6 +1395,12 @@ function acceptVoiceFrame(capture, frame) {
   if (capture.closed || capture.cancelled || capture.epoch !== state.epoch) return;
   capture.frames.push(frame);
   capture.sampleCount += frame.length;
+  let energy=0;for(const value of frame)energy+=value*value;
+  capture.silenceSamples=Math.sqrt(energy/Math.max(1,frame.length))<0.008 ? capture.silenceSamples+frame.length : 0;
+  if(capture.recording && capture.silenceSamples>=16000*120){
+    showNotice('Запись остановлена после двух минут тишины. Фрагменты сохранены для проверки.');
+    void stopVoiceCapture();return;
+  }
   const chunkSize = 16000 * 15;
   while (capture.sampleCount >= chunkSize) {
     const frames = takeVoiceSamples(capture, chunkSize);
@@ -1486,6 +1528,7 @@ async function openSource(kind, id, quote, source = {}) {
       content.replaceChildren();
       content.append(node('p', 'source-location', `${utterance.speaker || utterance.speaker_label || 'Говорящий ?'} · реплика ${utterance.idx ?? ''}`));
       appendHighlighted(content, utterance.text, quote);
+      await mediaTools.source(content,utterance,()=>panel.open && sequence===sourceSequence && epoch===state.epoch);
       const meeting = String(utterance.meeting_id) === String(state.meetingData?.meeting?.id)
         ? state.meetingData
         : await request(`/meetings/${encodeURIComponent(utterance.meeting_id)}`).catch(() => null);
@@ -1514,8 +1557,25 @@ async function openSource(kind, id, quote, source = {}) {
         row.append(makeButton('Открыть решение в протоколе',()=>{ closeSource(); void openMeeting(decision.meeting_id,'protocol'); },'task-meeting-link'));
         content.append(row);
       }
+      for (const claim of data?.claims || []) {
+        content.append(node('p','',claim.text));
+        for (const source of claim.native_sources || []) content.append(makeButton(source.title || 'Источник',()=>void openSource(source.kind==='document'?'fragment':source.kind,source.id,source.quote,source),'citation-chip'));
+      }
+      for (const warning of data?.warnings || []) content.append(node('p','access-limited-note',warning));
       if (data?.meeting) content.append(node('p','',data.meeting.title),node('p','task-meta',dateLabel(data.meeting.scheduled_at)),makeButton('Открыть встречу-источник',()=>{closeSource();void openMeeting(data.meeting.id);},'secondary-button'));
       if (data?.metric) content.append(node('p','',`${data.metric.label}: ${data.metric.value ?? 'Нет данных'} ${data.metric.unit || ''}`),formulaLine(node, data.metric));
+      if(data?.data?.counts){
+        const names={defective_premium_orders:'Заказы Premium с браком',support_defect_cases:'Обращения о браке Premium',defect_calls:'Звонки о браке/переплёте',controlled_decisions:'Решения на контроле',overdue_tasks:'Просроченные поручения'};
+        for(const [key,value] of Object.entries(data.data.counts))content.append(node('p','',`${names[key] || key}: ${value==null?'нет доступа к источнику':value}`));
+      }
+      for(const point of data?.data?.points || [])content.append(node('p','',`${dateLabel(point.start)} — ${dateLabel(point.end)}: ${point.value}%; дефицит ${point.deficit_percent}%.`));
+      for(const order of data?.data?.orders || [])content.append(node('p','',typeof order==='string'?order:`${order.order_no}: хранение до ${dateLabel(order.expires_at)}`));
+      if(['metric','insight'].includes(kind) && data?.metric) {
+        const basis={kind,id:String(id)};
+        const propose=(type)=>{closeSource();managerAssistant.propose({kind:type,text:`Проверить показатель «${data.metric.label}»`,basis});setPage('assistant');};
+        if(state.capabilities.includes('meetings.create'))content.append(makeButton('Обсудить показатель на новой встрече',()=>propose('meeting')));
+        if(state.capabilities.includes('protocol.confirm'))content.append(makeButton('Предложить поручение по показателю',()=>propose('task')));
+      }
       const labels = { numerator: 'Числитель', denominator: 'Знаменатель', completed_orders: 'Завершённые заказы', on_time_orders: 'Заказы в срок', produced_units: 'Произведено единиц', defective_units: 'Бракованных единиц', occupied_capacity: 'Занятая мощность', available_capacity: 'Доступная мощность', order_no:'Заказ', status:'Статус', promised_at:'Обещанный срок', completed_at:'Завершён', first_response_seconds:'Первый ответ, секунд', sla_seconds:'SLA, секунд', closed_by:'Закрыто кем', occupied_hours:'Занятые часы', available_hours:'Доступные часы', section:'Участок', forecast:'Прогноз (0/1)' };
       const snapshots = data?.snapshots || [data];
       for (const snapshot of [data, ...snapshots.filter((item) => item !== data)]) {
@@ -1553,6 +1613,23 @@ function renderProtocol(target) {
   }, { model: true }));
   heading.append(copy, permit(draft, 'protocol.edit'));
   section.append(heading);
+  if (protocol) {
+    const exports=node('div','inline-actions');
+    for(const [format,label] of [['md','Скачать протокол MD'],['html','Версия для печати']]){
+      const link=node('a','download-link',label);link.href=`${API}/meetings/${data.meeting.id}/protocol/export?format=${format}`;link.setAttribute('download','');exports.append(link);
+    }
+    if(ui.can('calendar.invite'))exports.append(makeButton('Разослать протокол участникам',()=>void runAction(null,async()=>{
+      const preview=await request(`/meetings/${data.meeting.id}/protocol/mail/preview`,{method:'POST',body:{recipient_ids:[]}});
+      const content=node('div');content.append(node('p','',preview.preview.notice),node('p','',`Получателей: ${preview.preview.recipients.length}`),node('pre','',preview.preview.body));
+      const key=crypto.randomUUID();
+      ui.dialog('Подтвердить рассылку протокола',content,async()=>{
+        const result=await request(`/meetings/${data.meeting.id}/protocol/mail/confirm`,{method:'POST',body:{confirmation_id:preview.confirmation_id,idempotency_key:key}});
+        for(const id of result.outbox_ids){const link=node('a','download-link',`Письмо ${id}`);link.href=`${API}/protocol-outbox/${id}/download.eml`;link.setAttribute('download','');exports.append(link);}
+        toast('Протокол помещён в локальную очередь');
+      },()=>request(`/confirmations/${preview.confirmation_id}/cancel`,{method:'POST'}));
+    }),'secondary-button'));
+    section.append(exports);
+  }
   if (!protocol) {
     section.append(emptyState('Протокол ещё не подготовлен', 'Сохраните стенограмму, затем создайте черновик протокола.'));
     target.append(section);
@@ -1776,6 +1853,20 @@ function renderNextAgenda(parent, result) {
     list.append(row);
   });
   panel.append(list);
+  if(result.context) {
+    panel.append(node('p','muted-copy',result.context.notice));
+    for(const warning of result.context.warnings || [])panel.append(node('p','gap-state',warning));
+    for(const item of result.context.items || []) {
+      panel.append(node('p','',item.text));
+      for(const source of item.sources || [])panel.append(ui.sourceButton(source));
+      const meetingId=state.meetingData.meeting.id;
+      panel.append(makeButton('Добавить в проект повестки',()=>{
+        const drafts=state.agendaDrafts[String(meetingId)] ||= [];
+        if(!drafts.some(d=>d.text===item.text))drafts.push({text:item.text,sources:item.sources});
+        toast('Добавлено в локальный проект повестки подготовки.');
+      }));
+    }
+  }
   if (!result.meeting && result.agenda?.length && ui.can('meetings.create')) {
     panel.append(makeButton('Создать следующую встречу', () => {
       const preview = node('div');
@@ -1866,6 +1957,13 @@ function renderTaskBoard(parent, tasks, meetingOnly) {
     const heading = node('div', 'task-column-heading');
     heading.append(node('h2', '', title), node('span', 'small-chip', String(group.length)));
     column.append(heading);
+    if(ui.can('tasks.change')){
+      column.addEventListener('dragover',event=>event.preventDefault());
+      column.addEventListener('drop',event=>{event.preventDefault();const id=Number(event.dataTransfer.getData('text/plain'));const task=tasks.find(t=>Number(t.id)===id);if(!task || task.status===status)return;void runAction(null,async()=>{
+        const preview=await request(`/tasks/${id}/preview`,{method:'POST',body:{changes:{status}}});const content=node('p','',`Переместить поручение «${task.text}» в «${title}»?`);const key=crypto.randomUUID();
+        ui.dialog('Подтвердить смену статуса',content,async()=>{const result=await request(`/tasks/${id}/confirm`,{method:'POST',body:{confirmation_id:preview.confirmation_id,idempotency_key:key}});Object.assign(task,result.task);render();},()=>request(`/confirmations/${preview.confirmation_id}/cancel`,{method:'POST'}));
+      });});
+    }
     if (!group.length) column.append(node('p', 'empty-copy', 'Нет задач'));
     group.forEach((task) => column.append(renderTaskCard(task, tasks, meetingOnly)));
     grid.append(column);
@@ -1936,6 +2034,7 @@ function renderTaskRow(task, collection, meetingOnly) {
 function renderTaskCard(task, collection, meetingOnly) {
   const card = node('article', 'task-card panel');
   card.id = `task-${task.id}`; card.tabIndex = -1;
+  if(ui.can('tasks.change')){card.draggable=true;card.addEventListener('dragstart',event=>event.dataTransfer.setData('text/plain',String(task.id)));}
   card.append(node('p', 'task-card-text', task.text || 'Без описания'));
   const priorities = {low:'Низкий', normal:'Обычный', high:'Высокий', urgent:'Срочный'};
   if (task.priority) card.append(node('p','task-meta',`Приоритет: ${priorities[task.priority] || task.priority}`));
@@ -1955,7 +2054,10 @@ function renderTaskCard(task, collection, meetingOnly) {
   if (task.protocol_item_id) card.append(makeButton('Основание в протоколе', async () => {
     await openMeeting(task.meeting_id,'protocol'); $$('.protocol-item').find(item => String(item.dataset.itemId) === String(task.protocol_item_id))?.focus();
   },'task-meeting-link'));
+  if (task.source_quote?.kind==='manual_request') card.append(node('p','task-meta','Ручное поручение, подтверждённое пользователем; это не реплика записи.'));
   if (task.source_quote?.utterance_id) card.append(citationButton(task.source_quote.utterance_id, task.source_quote.text, 'utterance', 'Открыть цитату'));
+  card.append(makeButton('Комментарии и история',()=>void runAction(null,()=>operations.comments(card,task.id)),'secondary-button'));
+  if (task.escalated) card.append(node('p','warning-badge red','Эскалировано руководителю'));
   if (ui.can('tasks.change')) card.append(makeButton('Изменить задачу', () => ui.editTask(task, collection, meetingOnly)));
   if (ui.can('crm.write')) {
     if (!task.crm_status && !['done','cancelled'].includes(task.status)) card.append(makeButton('Отправить в Битрикс24 · mock',()=>void runAction(null,()=>crm.exportTask(task,async()=>{ if(meetingOnly) await refreshMeeting(task.meeting_id); else await openTasks(); }))));

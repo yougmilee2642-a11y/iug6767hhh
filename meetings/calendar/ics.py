@@ -47,7 +47,8 @@ def calendar(events):
         lines += ['BEGIN:VEVENT', 'UID:' + escape(event['uid']),
                   'DTSTAMP:' + utc(event['created_at']), 'DTSTART:' + utc(event['start_at']),
                   'DTEND:' + utc(event['end_at']), 'SUMMARY:' + escape(event['title']),
-                  'STATUS:' + ('CANCELLED' if event.get('status') == 'cancelled' else 'CONFIRMED'),
+                  'STATUS:' + ('CONFIRMED' if event.get('status','confirmed') == 'confirmed' else
+                               'CANCELLED' if event.get('status') in ('cancelled','failed') else 'TENTATIVE'),
                   'TRANSP:OPAQUE', 'END:VEVENT']
     return ('\r\n'.join(fold(line) for line in [*lines, 'END:VCALENDAR']) + '\r\n').encode('utf-8')
 

@@ -21,6 +21,7 @@ export function briefingUI(h) {
         for (const warning of result.warnings || []) output.append(node('p','access-limited-note',warning));
         const speak=button('Озвучить через Фокус',()=>void h.speak(), 'secondary-button');
         speak.disabled=!state.capabilities.includes('qa.ask') || result.date!==new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Minsk',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()); output.append(speak);
+        if(state.capabilities.includes('meetings.read'))output.append(button('К ближайшей встрече за 30 секунд',()=>void h.corridor(),'secondary-button'));
         output.append(node('h2','','Мои встречи'));
         if (!result.meetings.length) output.append(node('p','empty-copy','В доступном расписании личные встречи на эту дату не найдены.'));
         for (const m of result.meetings) {

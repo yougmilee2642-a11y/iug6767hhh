@@ -1,0 +1,24 @@
+{
+  "status": "pipeline_passed",
+  "model": {
+    "model": "scripted-photoprint-v2-double",
+    "fixture_sha256": "ab8ebde978984bc23a83a89bdd5a08eb1f4a4fd412252cebc95338b3d296ea9e",
+    "ollama_version": null
+  },
+  "overall": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "correct_tasks": 30,
+    "gold_tasks": 30,
+    "predicted_tasks": 30,
+    "owner_errors": 0,
+    "due_errors": 0,
+    "false_or_unresolved_tasks": 0,
+    "source_supported_claims": 17,
+    "claims": 17,
+    "claims_source_fraction": 1.0,
+    "honest_refusal_fraction": 1.0,
+    "rights_violations": 0,
+    "false_actions": 0
+  }
+}

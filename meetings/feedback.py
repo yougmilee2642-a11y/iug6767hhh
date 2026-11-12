@@ -13,7 +13,7 @@ from meetings import store
 from meetings.api import _sid, denied
 from meetings.auth import MeetError, MeetRoute, current_user, require
 
-TARGETS = ('meeting', 'prep', 'protocol_summary', 'protocol_item', 'task', 'qa_answer', 'utterance')
+TARGETS = ('meeting', 'prep', 'protocol_summary', 'protocol_item', 'task', 'qa_answer', 'utterance', 'assistant_message')
 
 
 class FeedbackIn(BaseModel):
@@ -45,6 +45,12 @@ def resolve(connection, user, target_type: str, target_id) -> tuple[str, int | N
     def gone():
         return denied(user, target_type, str(target_id)[:40], 'feedback.create')
 
+    if target_type == 'assistant_message':
+        row = connection.execute('SELECT conversation_id FROM assistant_messages WHERE id=? AND user_id=?',(_number(target_id),user['id'])).fetchone()
+        if not row: raise gone()
+        from meetings.assistant.service import history
+        history(connection,user,row['conversation_id'])
+        return str(_number(target_id)),None
     if target_type in ('meeting', 'prep', 'protocol_summary'):
         meeting_id = _number(target_id)
         if meeting_id is None or not store.can_read_meeting(connection, user['id'], meeting_id):
