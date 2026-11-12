@@ -128,7 +128,7 @@ def check_fragment(connection, actor, fragment_id, meeting_id):
     return dict(row)
 
 
-def retrieve(connection, actor, question, meeting_id):
+def retrieve(connection, actor, question, meeting_id, *, include_history=False):
     check_meeting(connection, actor, meeting_id)
     query = terms(question)
     scopes = named_scopes(question)
@@ -136,7 +136,7 @@ def retrieve(connection, actor, question, meeting_id):
         return []
     # ACL is part of SQL selection, before ranking, limiting and model context.
     eligible, costs = [], {}
-    for row in index.visible_fragments(connection, actor, meeting_id=meeting_id, model=True):
+    for row in index.visible_fragments(connection, actor, meeting_id=meeting_id, model=True, include_history=include_history):
         if any(source_is_injection(row[key]) for key in ('title','filename')):
             continue
         try:
@@ -266,7 +266,7 @@ def validated_claims(raw, selected, question):
     return claims
 
 
-def answer(actor, question, meeting_id, audit):
+def answer(actor, question, meeting_id, audit, *, include_history=False):
     from meetings.privacy import private_json, prohibited_intent, refusal, Masker, customer_names
     try:
         question_masked = store.safe_text(Masker(customer_names()).text(question))
@@ -282,7 +282,7 @@ def answer(actor, question, meeting_id, audit):
         return {'answer_id': None, 'status': 'refused', 'answer': refusal(reason), 'claims': [], 'sources': [],
                 'generated_at': iso(utc_now()), 'model': None, 'reason_code': reason}
     with store.db() as connection:
-        selected = retrieve(connection, actor, question, meeting_id)
+        selected = retrieve(connection, actor, question, meeting_id, include_history=include_history)
         secret_notice = False
         from meetings.access import predicate
         visible, parameters = predicate(connection, actor, 'document', 'd')
@@ -326,8 +326,15 @@ def answer(actor, question, meeting_id, audit):
         check_meeting(connection, actor, meeting_id)
         for previous in selected:
             current = check_fragment(connection, actor, previous['id'], meeting_id)
+            if not include_history:
+                clause, args = index.current_clause(connection, actor)
+                if not connection.execute('SELECT 1 FROM documents d WHERE d.id=? AND ' + clause,
+                                          [previous['document_id'], *args]).fetchone():
+                    raise MeetError(409, 'stale_sources', 'Появилась новая версия источника. Повторите вопрос.')
             if current != previous:
                 raise MeetError(409, 'stale_sources', 'Источники изменились. Повторите вопрос.')
+        from meetings.document_versions import warnings
+        result['warnings'] = warnings(connection, actor, selected)
         stored_claims = [dict(claim) for claim in claims]
         if stored_claims:
             # Storage-only proof binds the entire context, including surrounding
@@ -389,6 +396,8 @@ def load_answer(connection, actor, answer_id):
                         'Недостаточно доступных данных для ответа с проверяемым источником.',
               'claims': claims, 'sources': [source for claim in claims for source in claim['sources']],
               'generated_at': saved['generated_at'], 'model': saved['model']}
+    from meetings.document_versions import warnings
+    result['warnings'] = warnings(connection, actor, rows.values())
     return result
 
 

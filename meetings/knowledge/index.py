@@ -12,10 +12,24 @@ from meetings.knowledge.language import lexeme, terms
 from meetings.textutil import words
 
 
-def visible_fragments(c, actor, *, meeting_id=None, model=False):
+def current_clause(c, actor, alias='d'):
+    """Only readable successors suppress historical evidence, before ranking."""
+    if not alias.isidentifier():
+        raise ValueError('Unsupported document selector')
+    visible, params = predicate(c, actor, 'document', 'successor', model=True)
+    return ('NOT EXISTS (WITH RECURSIVE newer(id) AS (SELECT id FROM documents WHERE supersedes_id=' + alias + '.id '
+            'UNION SELECT child.id FROM documents child JOIN newer n ON child.supersedes_id=n.id) '
+            'SELECT 1 FROM documents successor JOIN newer n ON n.id=successor.id WHERE ' + visible + ')'), params
+
+
+def visible_fragments(c, actor, *, meeting_id=None, model=False, include_history=False):
     visible, params = predicate(c, actor, 'document', 'd', model=model)
     sql = ('SELECT f.*,d.title,d.created_at,d.filename FROM fragments f '
            'JOIN documents d ON d.id=f.document_id WHERE ' + visible)
+    if not include_history:
+        current, args = current_clause(c, actor)
+        sql += ' AND ' + current
+        params.extend(args)
     if meeting_id is not None:
         sql += ' AND EXISTS (SELECT 1 FROM meeting_documents md WHERE md.document_id=d.id AND md.meeting_id=?)'
         params.append(meeting_id)
@@ -54,10 +68,10 @@ def unavailable(user_id=None):
                             'result':'failed','error_code':'search_unavailable'})
 
 
-def search(c, actor, question, limit=50):
+def search(c, actor, question, limit=50, *, include_history=False):
     try:
         # Assistant search is a content projection. Secret files remain available
         # only through the explicit owner file path, never search snippets.
-        return ranked(c, visible_fragments(c, actor, model=True), question, require_all=True)[:limit]
+        return ranked(c, visible_fragments(c, actor, model=True, include_history=include_history), question, require_all=True)[:limit]
     except sqlite3.Error:
         raise unavailable(actor) from None

@@ -163,6 +163,11 @@ def m012_calendar_interchange(connection):
     upgrade(connection)
 
 
+def m013_document_versions(connection):
+    from meetings.migrations.document_versions import upgrade
+    upgrade(connection)
+
+
 MIGRATIONS = [
     (1, 'roles', m001_roles),
     (2, 'audit', m002_audit),
@@ -176,6 +181,7 @@ MIGRATIONS = [
     (10, 'decision_controls', m010_decision_controls),
     (11, 'crm_outbox', m011_crm_outbox),
     (12, 'calendar_interchange', m012_calendar_interchange),
+    (13, 'document_versions', m013_document_versions),
 ]
 LATEST = MIGRATIONS[-1][0]
 

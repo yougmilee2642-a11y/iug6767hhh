@@ -261,14 +261,20 @@ def user_name(connection, user_id):
     return row['name'] if row else None
 
 
-def document_out(connection, row) -> dict:
+def document_out(connection, row, actor=None) -> dict:
     count = connection.execute('SELECT COUNT(*) FROM fragments WHERE document_id=?', (row['id'],)).fetchone()[0]
     shared = [r[0] for r in connection.execute('SELECT user_id FROM document_access WHERE document_id=?', (row['id'],))]
-    return {'id': row['id'], 'title': row['title'], 'filename': row['filename'], 'kind': row['kind'],
+    from meetings.document_versions import freshness
+    viewer = actor if actor is not None else row['owner_id']
+    state = freshness(connection, viewer, row['id'])
+    predecessor = row['supersedes_id']
+    if predecessor and not can_read_document(connection, viewer, predecessor):
+        predecessor = None
+    return {**state, 'id': row['id'], 'title': row['title'], 'filename': row['filename'], 'kind': row['kind'],
             'owner_id': row['owner_id'], 'owner_name': user_name(connection, row['owner_id']),
             'shared_with': shared, 'fragments_count': count, 'created_at': row['created_at'],
             'department_id': row['department_id'], 'confidentiality': row['confidentiality'], 'doc_type': row['doc_type'],
-            'authored_at': row['authored_at'], 'version': row['version'], 'valid_until': row['valid_until'], 'supersedes_id': row['supersedes_id']}
+            'authored_at': row['authored_at'], 'version': row['version'], 'valid_until': row['valid_until'], 'supersedes_id': predecessor}
 
 
 def fragment_out(row, title=None) -> dict:

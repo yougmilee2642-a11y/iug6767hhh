@@ -112,6 +112,8 @@ def install(app):
     app.include_router(decisions_router())
     from meetings.connectors.api import router as crm_router
     app.include_router(crm_router())
+    from meetings.document_versions import router as document_versions_router
+    app.include_router(document_versions_router())
     extras = _optional_routers()
     for extra in extras:
         app.include_router(extra)
@@ -290,7 +292,7 @@ def _full_meeting(connection, user, row):
     if prep:
         prep['meeting_id'] = row['id']
     return {'meeting': store.meeting_out(connection, row),
-            'documents': [store.document_out(connection, d) for d in visible], 'hidden_documents': hidden,
+            'documents': [store.document_out(connection, d, user['id']) for d in visible], 'hidden_documents': hidden,
             'utterances': store.utterances(connection, row['id']), 'prep': _visible_prep(connection, user, prep),
             'protocol': store.protocol(connection, row['id']), 'tasks': tasks,
             # §7.2.1: open tasks of accessible previous meetings, live for this viewer, even before any briefing
@@ -336,6 +338,8 @@ def _visible_prep(connection, user, prep):
         if prep.get('meeting_id') else None
     if row is not None:
         result.update(_open_task_block(connection, user, row))
+    from meetings.document_versions import warnings
+    result['warnings'] = warnings(connection, user['id'], [{'document_id': did} for did, allowed in readable.items() if allowed])
     return result
 
 
@@ -554,29 +558,41 @@ def router():
     @api.post('/api/meet/documents')
     async def upload(request: Request, file: UploadFile = File(...), meeting_id: int | None = Form(default=None),
                      share_with: str = Form(default=''), title: str = Form(default=''),
-                     confidentiality: str = Form(default='confidential'), doc_type: str = Form(default='документ')):
+                     confidentiality: str = Form(default='confidential'), doc_type: str = Form(default='документ'),
+                     department_id: int | None = Form(default=None), authored_at: str = Form(default=''),
+                     valid_until: str = Form(default='')):
         user = current_user(request)
         require(user, 'documents.upload', action='document.upload')
         if confidentiality not in access.CLASSIFICATIONS:
             raise MeetError(422, 'invalid_classification', 'Неизвестный уровень конфиденциальности.')
         if user.get('level') == 'employee' and confidentiality != 'department':
             raise MeetError(422, 'department_document_only', 'Сотрудник загружает документ своего отдела с уровнем department.')
+        from meetings.document_versions import metadata_time
+        authored = metadata_time(authored_at) or store.now()
+        until = metadata_time(valid_until)
+        if until and store.parse_aware(until) <= store.parse_aware(authored):
+            raise MeetError(422, 'invalid_validity', 'Срок действия должен быть позже даты документа.')
+        department = department_id if department_id is not None else user.get('department_id')
+        if user.get('level') != 'director' and department != user.get('department_id'):
+            raise forbidden(user, 'documents.upload', 'department', department, 'document.upload')
         share = [int(v) for v in re.findall(r'\d+', share_with)]
         if share:
             require(user, 'documents.share', action='document.share')
         data = await file.read(docs.MAX_BYTES + 1)
-        filename = Path(file.filename or 'document.txt').name[:200]
+        filename = Path((file.filename or 'document.txt').replace('\\', '/')).name[:200]
         try:
             kind, fragments = docs.fragments(filename, data)
         except docs.DocumentError as error:
             raise MeetError(422, 'bad_document', str(error)) from None
         with store.db() as connection:
+            if department is not None and not connection.execute('SELECT 1 FROM departments WHERE id=?', (department,)).fetchone():
+                raise MeetError(422, 'invalid_department', 'Отдел не найден.')
             if meeting_id is not None:
                 _meeting(connection, user, meeting_id, 'meetings.edit', 'meeting.attach_document')
             cursor = connection.execute(
-                'INSERT INTO documents(owner_id,title,filename,kind,content,sha256,created_at,department_id,confidentiality,doc_type,authored_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+                'INSERT INTO documents(owner_id,title,filename,kind,content,sha256,created_at,department_id,confidentiality,doc_type,authored_at,valid_until) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
                 (user['id'], (title.strip() or filename.rsplit('.', 1)[0])[:200], filename, kind, data,
-                 hashlib.sha256(data).hexdigest(), store.now(), user.get('department_id'), confidentiality, doc_type[:80], store.now()))
+                 hashlib.sha256(data).hexdigest(), store.now(), department, confidentiality, doc_type[:80], authored, until))
             document_id = cursor.lastrowid
             connection.executemany('INSERT INTO fragments(document_id,idx,location,text) VALUES (?,?,?,?)',
                                    [(document_id, f['idx'], f['location'], f['text']) for f in fragments])
@@ -588,7 +604,7 @@ def router():
             store.audit(connection, user['id'], 'document_upload', document_id=document_id, filename=filename,
                         object_type='document', object_id=document_id)
             row = connection.execute('SELECT * FROM documents WHERE id=?', (document_id,)).fetchone()
-            return {'document': store.document_out(connection, row)}
+            return {'document': store.document_out(connection, row, user['id'])}
 
     @api.get('/api/meet/documents')
     def list_documents(request: Request):
@@ -596,7 +612,7 @@ def router():
         with store.db() as connection:
             ids = store.accessible_document_ids(connection, user['id'])
             rows = [connection.execute('SELECT * FROM documents WHERE id=?', (i,)).fetchone() for i in ids]
-            return {'documents': [store.document_out(connection, r) for r in rows]}
+            return {'documents': [store.document_out(connection, r, user['id']) for r in rows]}
 
     @api.get('/api/meet/documents/{document_id}')
     def get_document(document_id: int, request: Request):
@@ -606,7 +622,8 @@ def router():
             row = connection.execute('SELECT * FROM documents WHERE id=?', (document_id,)).fetchone()
             fragments = [store.fragment_out(f, row['title']) for f in connection.execute(
                 'SELECT * FROM fragments WHERE document_id=? ORDER BY idx', (document_id,))]
-            return {'document': store.document_out(connection, row), 'fragments': fragments}
+            store.audit(connection, user['id'], 'document_read', object_type='document', object_id=document_id)
+            return {'document': store.document_out(connection, row, user['id']), 'fragments': fragments}
 
     @api.get('/api/meet/documents/{document_id}/download')
     def download(document_id: int, request: Request):
@@ -636,14 +653,16 @@ def router():
             return {'fragment': store.fragment_out(row)}
 
     @api.get('/api/meet/search')
-    def search(request: Request, q: str = Query(default='', max_length=2000)):
+    def search(request: Request, q: str = Query(default='', max_length=2000), include_history: bool = False):
         user = current_user(request)
         require(user,'meetings.read',action='search')
         from meetings.knowledge import index
+        from meetings.document_versions import freshness
         with store.db() as connection:
             results = []
-            for row in index.search(connection, user['id'], q):
-                results.append({**store.fragment_out(row), 'snippet': row['text'][:240], 'source_at':row['created_at']})
+            for row in index.search(connection, user['id'], q, include_history=include_history):
+                results.append({**store.fragment_out(row), 'snippet': row['text'][:240], 'source_at':row['created_at'],
+                                **freshness(connection, user['id'], row['document_id'])})
             store.audit(connection, user['id'], 'search', query=store.safe_text(q, 100), results=len(results),
                         source_ids=[r['id'] for r in results[:50]])
             return {'results': results[:50]}

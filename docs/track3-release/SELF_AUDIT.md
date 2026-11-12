@@ -8,7 +8,7 @@
 
 | Требование | Статус | Доказательство | Риск/оставшаяся проверка |
 |---|---|---|---|
-| ОТ-01: запуск ≤15 минут | Частично | `clean_install.py`, V2_QUICKSTART; исходный чистый клон 65,88 s выявил пропуск PDF reader; runtime 12,68 s прошёл | Base/runtime Linux CI43162911735 passed; Windows startup failed, canonical-path candidate требует CI; кэш тёплый, модели не включены |
+| ОТ-01: запуск ≤15 минут | Частично | `clean_install.py`, V2_QUICKSTART; исходный чистый клон 65,88 s выявил пропуск PDF reader; runtime 12,68 s прошёл | Опубликованный574ab18/CI43166951277: Linux и Windows release/clean-install passed; новый срез E6 требует своего CI; кэш тёплый, модели не включены |
 | ОТ-02: серверные роли | Выполнено | `test_access_matrix.py`, SQL/classification matrix, HTTP семи уровней | Production identity/SSO отсутствует |
 | ОТ-03: синтетика | Выполнено | `test_fotoprint_seed.py`: генератор, хеши, 18 пользователей, 54 документа, 600 заказов/250 клиентов/400 обращений | Не представляет реальные данные/нагрузку |
 | ОТ-04: журнал | Выполнено | core denial-survives-rollback; privacy audit/logout/filters/CSV tests | Нет внешнего неизменяемого журнала/авторотации |
@@ -44,7 +44,7 @@
 | E3 | P0 mock CRM выполнен; Bitrix24 transport/Mary-адаптер/импорт-сверка не выполнены |
 | E4 | Mock, ICS export/import/subscriptions и EML download выполнены; смены/буферы/optional выполнены; внешние провайдеры и автоматические .eml-файлы не выполнены |
 | E5 | Унаследован voice MVP; v2-команды частично, микрофон/модели NOT RUN |
-| E6 | Форматы/цитаты/ACL и scoped FTS5/BM25 есть; версии/сводка/сравнение не выполнены |
+| E6 | Форматы/SQL ACL/FTS5, immutable версии, история, valid_until, diff и экстрактивные выдержки есть; semantic-summary и P2-противоречия/обязательства остаются; [границы](DOCUMENTS.md) |
 | E7 | Унаследованы аудио endpoints; jobs/storage/call analytics v2 не выполнены |
 | E8 | P0 подготовка/поручения/протокол выполнены; история/комментарии/эскалация/экспорт P1 |
 | E9 | P0 KPI/решения выполнены; отклонение→действие/брифинг не выполнены |

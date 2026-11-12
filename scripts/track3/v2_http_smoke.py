@@ -94,6 +94,24 @@ def run(unavailable=False):
                 clients[login] = httpx.Client(base_url=base, trust_env=False, timeout=15)
                 request(login, 'POST', '/login', json={'login': login, 'password': login + '-demo'})
                 assert request(login, 'GET', '/me')['level']
+            # Immutable documents through actual HTTP, persisted across the later restart.
+            edition = request('director', 'POST', '/documents', files={'file':('http-edition.txt',
+                'Поставка тестового картона состоится 20 ноября.'.encode())},
+                data={'authored_at':'2026-11-01T10:00:00+03:00','doc_type':'план'})['document']
+            edition_id = edition['id']
+            route = f'/documents/{edition_id}/versions'
+            body = {'file':('http-edition-v2.txt','Поставка тестового картона состоится 25 ноября.'.encode())}
+            cancelled_edition = request('director','POST',route+'/preview',files=body)['confirmation_id']
+            request('director','POST',f'/confirmations/{cancelled_edition}/cancel')
+            request('director','POST',route+'/confirm',expected=409,
+                    json={'confirmation_id':cancelled_edition,'idempotency_key':'cancel-document-http'})
+            edition_token = request('director','POST',route+'/preview',files=body)['confirmation_id']
+            edition_confirm = {'confirmation_id':edition_token,'idempotency_key':'single-document-http'}
+            edition2 = request('director','POST',route+'/confirm',json=edition_confirm)['document']
+            assert request('director','POST',route+'/confirm',json=edition_confirm)['already_confirmed']
+            assert request('director','GET',f"/documents/{edition2['id']}/summary")['claims']
+            assert request('director','GET',f"/documents/{edition_id}/compare/{edition2['id']}")['changes']
+            request('designer','GET',route,expected=404)
             roles = request('director', 'GET', '/demo-profiles')['users']; assert len(roles) == 16
             did = ids['documents']['v2_budget']; mid = ids['meetings']['delay']
             for login in ['designer','admin','auditor','prod_head']:
@@ -181,6 +199,9 @@ def run(unavailable=False):
             stop(); proc = start()
             assert request('operator', 'GET', '/me')['user']['login'] == 'operator'
             assert request('prod_head','GET',f"/crm/tasks/{task['id']}")['outbox']['external_ref']==crm_result['external_ref']
+            editions = request('director','GET',f'/documents/{edition_id}/versions')['versions']
+            assert [r['version'] for r in editions] == [1,2] and editions[0]['superseded']
+            assert clients['director'].get(f'/api/meet/documents/{edition_id}/download').content == 'Поставка тестового картона состоится 20 ноября.'.encode()
             assert clients['designer'].get(subscription['path']).status_code==200
             request('director','DELETE',f"/calendar/subscriptions/{subscription['id']}")
             assert clients['designer'].get(subscription['path']).status_code==404
@@ -191,7 +212,7 @@ def run(unavailable=False):
                     'model_failure_path': 'passed' if unavailable else 'not_run',
                     'observed_model_errors':observed_model_errors,
                     'requests':events, 'kpi_before_mutation':metrics, 'restart':'passed', 'calendar_interchange':'passed',
-                    'smart_calendar':{'slot_count':len(smart['slots']),'warnings':smart['warnings']}}
+                    'document_editions':'passed', 'smart_calendar':{'slot_count':len(smart['slots']),'warnings':smart['warnings']}}
         finally:
             stop()
             for client in clients.values(): client.close()

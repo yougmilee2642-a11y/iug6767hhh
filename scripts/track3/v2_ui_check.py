@@ -16,6 +16,53 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 
+
+def document_editions(page):
+    """Real HTTP/UI, no model inference; upload, cancel, confirm and source diff."""
+    page.get_by_role('button', name='Знания', exact=True).click()
+    panel = page.locator('details').filter(has=page.get_by_text('Документы · версии и источники', exact=True))
+    def expand():
+        if not panel.evaluate('element => element.open'):
+            panel.locator('summary').click()
+    expand()
+    page.get_by_label('Добавить документы', exact=True).set_input_files({
+        'name':'browser-edition.txt', 'mimeType':'text/plain',
+        'buffer':'Поставка тестового картона состоится 20 ноября. Участок готов.'.encode()})
+    page.get_by_role('button', name='Загрузить документы', exact=True).click()
+    page.get_by_text('Загружено документов: 1', exact=True).wait_for()
+    expand()
+    page.get_by_label('Фильтр документов по названию', exact=True).fill('browser-edition')
+    card = panel.locator('article').filter(has=page.get_by_role('heading', name='browser-edition · версия 1', exact=True))
+    card.get_by_role('button', name='Кратко', exact=True).click()
+    panel.get_by_text('Выдержки первых пяти подходящих фрагментов; это не полная смысловая сводка.', exact=True).wait_for()
+    card.get_by_role('button', name='Новая версия', exact=True).click()
+    editor = page.get_by_role('dialog').filter(has=page.get_by_role('heading', name='Загрузить новую версию', exact=True))
+    def prepare():
+        editor.get_by_label('Файл новой версии', exact=True).set_input_files({
+            'name':'browser-edition-v2.txt','mimeType':'text/plain',
+            'buffer':'Поставка тестового картона состоится 25 ноября. Участок готов.'.encode()})
+        editor.get_by_role('button', name='Предпросмотр', exact=True).click()
+    prepare()
+    preview = page.get_by_role('dialog').filter(has=page.get_by_role('heading', name='Подтвердить новую версию', exact=True))
+    with page.expect_response(lambda r:'/api/meet/confirmations/' in r.url and r.url.endswith('/cancel') and r.status==200):
+        preview.get_by_role('button', name='Отмена', exact=True).click()
+    card.get_by_role('button', name='Новая версия', exact=True).click()
+    prepare()
+    preview.get_by_role('button', name='Подтвердить', exact=True).click()
+    page.get_by_text('Новая версия сохранена', exact=True).wait_for()
+    expand()
+    current = panel.locator('article').filter(has=page.get_by_role('heading', name='browser-edition · версия 2', exact=True))
+    current.get_by_role('button', name='Версии / сравнить', exact=True).click()
+    page.get_by_role('button', name='Сравнить версии', exact=True).click()
+    panel.get_by_role('heading', name='Изменения по фрагментам', exact=True).wait_for()
+    assert panel.get_by_text('Поставка тестового картона состоится 20 ноября. Участок готов.', exact=True).count()
+    assert panel.get_by_text('Поставка тестового картона состоится 25 ноября. Участок готов.', exact=True).count()
+    page.get_by_label('Показать заменённые версии', exact=True).check()
+    card.wait_for()
+    page.get_by_role('button', name='Обзор', exact=True).click()
+    page.get_by_role('heading', name='Обзор', exact=True).wait_for()
+
+
 def run(artifacts):
     import httpx
     from playwright.sync_api import sync_playwright
@@ -63,6 +110,7 @@ def run(artifacts):
                                 page.get_by_role('heading', name=heading, exact=True).wait_for()
                                 assert not errors, {'login':login,'page_errors':errors}
                                 if login == 'director':
+                                    document_editions(page)
                                     page.get_by_label('Поиск по документам',exact=True).fill('картон')
                                     page.get_by_role('button',name='Найти',exact=True).click()
                                     page.get_by_role('heading',name='Результаты: картон',exact=True).wait_for()

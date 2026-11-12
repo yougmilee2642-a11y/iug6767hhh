@@ -69,3 +69,19 @@ GET {{base}}/calendar/subscriptions
 
 ### Отозвать свою ссылку: подставить её ID
 DELETE {{base}}/calendar/subscriptions/1
+
+
+### История версий доступного документа
+GET {{base}}/documents/1/versions
+
+### Дословные выдержки (без модели)
+GET {{base}}/documents/1/summary
+
+### Сравнить два доступных документа (замените id)
+GET {{base}}/documents/1/compare/2
+
+### QA с явно включённой историей
+POST {{base}}/qa
+Content-Type: application/json
+
+{"question":"Когда поставка картона?","include_history":true}

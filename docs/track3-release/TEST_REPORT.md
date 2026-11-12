@@ -149,3 +149,22 @@ CI43164400635: Windows сервер запустился, но smoke упал н
 - Secret отсутствует в snippets и model index. Открытие файла владельцем сохранено.
   Дата загрузки source_at возвращается поиском. Версии/valid_until не закрываются
   этими тестами и остаются E6.2/E6.4.
+
+## E6.2 / E6.4 / E6.5 · версии документов
+
+- Полный CPU: **1448 passed, 28 skipped, 0 failed**, 163,94 s. Новые21 проверки
+  покрывают версии/отмену/конкуренцию/ACL/актуальность/миграцию v12→13/метаданные.
+  Ни один старый тест не удалён. Raw: reports/v2-documents-python-final.log.
+- Node: **66 passed**, синтаксис новых/изменённых JS и compileall/diff passed.
+- Настоящий HTTP:7 уровней, immutable версии/отмена/replay/summary/diff/restart
+  passed. Режим без модели также passed: prepare/protocol/QA дают503
+  model_unavailable; версии/документы работают. Raw: v2-documents-*http.json.
+- Frozen photoprint-v2 pipeline:30/30 задач,36/36QA,17/17 claims с источником,
+  0 нарушений прав/ложных действий. Gold не менялся. Это double, не live-качество.
+- Локальный browser NOT RUN: Chromium упал до открытия страницы с socket()
+  Operation not permitted. Raw: reports/v2-documents-browser.json. Новый путь
+  upload→summary→preview/cancel→confirm→history/diff включён в v2_ui_check.py/CI.
+- Новых библиотек/весов нет. Semantic-summary и P2-противоречия/обязательства
+  не заявлены: кнопка «Кратко» возвращает явно помеченные дословные выдержки.
+- Предыдущий574ab18/CI43166951277 завершился SUCCESS целиком, включая Windows.
+  Новый срез требует отдельного CI; прежний успех на него не переносится.

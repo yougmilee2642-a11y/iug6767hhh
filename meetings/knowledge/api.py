@@ -9,6 +9,7 @@ from .common import ExtensionRoute, run
 class Question(BaseModel):
     model_config = ConfigDict(extra='forbid')
     question: str = Field(min_length=1, max_length=2000)
+    include_history: bool = Field(default=False, strict=True)
     meeting_id: int | None = Field(default=None, strict=True, gt=0, le=2**63 - 1)
 
 
@@ -20,7 +21,7 @@ def router():
         def operation(actor, audit):
             if not payload.question.strip():
                 raise MeetError(422, 'invalid_question', 'Введите вопрос.')
-            return service.answer(actor, payload.question.strip(), payload.meeting_id, audit)
+            return service.answer(actor, payload.question.strip(), payload.meeting_id, audit, include_history=payload.include_history)
         return run(request, response, 'qa.generate', operation)
 
     @api.get('/api/meet/qa/{answer_id}')

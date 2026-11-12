@@ -793,6 +793,7 @@ function renderPreparation(target) {
       }
       prep.append(gaps);
     }
+    (result.warnings || []).forEach(w=>prep.append(node('p','access-limited-note',w.message)));
     renderClaimGroup(prep, 'Краткая справка', result.brief || []);
     renderClaimGroup(prep, 'Предлагаемая повестка', result.agenda || []);
     renderClaimGroup(prep, 'Вопросы', result.questions || []);
@@ -1803,6 +1804,7 @@ function renderSearchResults(app) {
     const card = node('article', 'search-result panel');
     card.append(node('h2', '', result.document_title || result.title || 'Документ'));
     card.append(node('p', 'source-location', result.location || 'Фрагмент документа'));
+    if (result.stale) card.append(node('p','access-limited-note','Источник устарел. Проверьте версию и срок действия.'));
     card.append(node('p', '', result.snippet || result.text || ''));
     card.append(citationButton(result.id, result.snippet || result.text, 'fragment', 'Открыть фрагмент'));
     list.append(card);
