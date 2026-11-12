@@ -148,6 +148,11 @@ def m009_organization_and_domain(connection):
     upgrade(connection)
 
 
+def m010_decision_controls(connection):
+    from meetings.migrations.decision_controls import upgrade
+    upgrade(connection)
+
+
 MIGRATIONS = [
     (1, 'roles', m001_roles),
     (2, 'audit', m002_audit),
@@ -158,6 +163,7 @@ MIGRATIONS = [
     (7, 'knowledge_and_management', m007_knowledge_and_management),
     (8, 'management_indexes', m008_management_indexes),
     (9, 'organization_and_domain', m009_organization_and_domain),
+    (10, 'decision_controls', m010_decision_controls),
 ]
 LATEST = MIGRATIONS[-1][0]
 

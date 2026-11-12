@@ -1,0 +1,12 @@
+{
+  "notice": "Демонстрационные пороги прототипа, требуют согласования владельцем процесса.",
+  "thresholds": {
+    "on_time_orders": {"direction": "min", "ok": 97, "warning": 95},
+    "defect_rate": {"direction": "max", "ok": 2, "warning": 3},
+    "capacity_utilization": {"direction": "max", "ok": 90, "warning": 100},
+    "support_sla": {"direction": "min", "ok": 92, "warning": 85},
+    "mary_resolution": {"direction": "min", "ok": 68, "warning": 60},
+    "capacity_forecast_peak": {"direction": "max", "ok": 95, "warning": 100},
+    "overdue_tasks": {"direction": "max", "ok": 0, "warning": 2}
+  }
+}

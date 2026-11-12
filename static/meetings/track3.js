@@ -19,6 +19,7 @@ export function track3UI(h) {
   const can = (capability) => state.capabilities.includes(capability);
   const key = () => crypto.randomUUID();
   const field = (label, control) => {
+    control.setAttribute('aria-label',label);
     const wrap = node('label', 'meeting-field');
     wrap.append(node('span', 'field-label', label), control);
     return wrap;
@@ -155,11 +156,36 @@ export function track3UI(h) {
       const card = node('article', 'panel meet-kpi');
       card.append(node('h2', '', metric.label), node('strong', 'meet-kpi-value', metric.value == null ? 'Нет данных' : `${metric.value} ${metric.unit || ''}`));
       card.append(node('p', 'task-meta', `Формула: ${metric.formula || 'Не предоставлена'}`));
+      if (metric.status) card.append(node('p', metric.status === 'critical' ? 'warning-badge red' : metric.status === 'warning' ? 'warning-badge amber' : 'task-meta', `Демо-порог: ${{ok:'в норме',warning:'внимание',critical:'критично',no_data:'нет данных',informational:'справочно'}[metric.status] || metric.status}`));
+      if (metric.numerator != null && metric.denominator != null) card.append(node('p','task-meta',`Числитель ${metric.numerator} · знаменатель ${metric.denominator}`));
+      if (metric.as_of) card.append(node('p','task-meta',`Источник: ${date(metric.as_of)}`));
       if (metric.source) card.append(sourceButton(metric.source));
       grid.append(card);
     }
     if (!grid.childNodes.length) grid.append(node('p', 'empty-copy', 'Доступных показателей нет.'));
     parent.append(grid);
+    if ((overview.capacity_forecast || []).length) {
+      parent.append(node('h2','','Прогноз мощности · доступные будущие периоды'));
+      for (const point of overview.capacity_forecast) parent.append(node('p','',`${date(point.period_start)} — ${date(point.period_end)}: ${point.value ?? 'не рассчитано'} % (${point.occupied_hours}/${point.available_hours} часов)`));
+    }
+    if ((overview.delay_reasons || []).length) {
+      parent.append(node('h2','','Причины просрочки завершённых заказов'));
+      for (const reason of overview.delay_reasons) {
+        parent.append(node('p','',`${reason.reason}: ${reason.count}/${reason.total_late} · ${reason.percent} %`));
+        if (reason.source) parent.append(sourceButton(reason.source));
+      }
+    }
+    if ((overview.decision_controls || []).length) {
+      parent.append(node('h2','','Решения на контроле'));
+      for (const decision of overview.decision_controls) {
+        const row=node('article','panel task-card');
+        row.append(node('p','',decision.text),node('p','task-meta',`Ответственный: ${decision.owner_name || 'не уточнён'} · срок: ${decision.due ? date(decision.due):'не уточнён'} · ${{open:'открыто',done:'завершено',cancelled:'отменено'}[decision.status]}`));
+        row.append(button('Открыть решение в протоколе',()=>openMeeting(decision.meeting_id,'protocol'),'task-meeting-link'));
+        if (decision.source_quote?.utterance_id) row.append(button('Реплика решения',()=>h.openSource('utterance',decision.source_quote.utterance_id,decision.source_quote.text),'citation-chip'));
+        if (can('protocol.confirm')) row.append(button('Изменить контроль решения',()=>void controlDecision({id:decision.protocol_item_id,text:decision.text},decision.meeting_id,decision)));
+        parent.append(row);
+      }
+    }
     claims(parent, overview.summary);
     parent.append(node('h2', '', 'Просроченные задачи'));
     if (!(overview.overdue_tasks || []).length) parent.append(node('p', 'empty-copy', 'Просроченных задач в доступных данных нет.'));
@@ -169,6 +195,38 @@ export function track3UI(h) {
       row.append(button(`Открыть задачу во встрече «${task.meeting_title || task.meeting_id}»`, () => void openTask(task), 'task-meeting-link'));
       parent.append(row);
     }
+  }
+
+  async function controlDecision(item, meetingId, existing = null) {
+    const origin = document.activeElement; const current = generation;
+    try {
+      if (!existing) existing = (await request('/decisions')).decisions.find(row => row.protocol_item_id === item.id) || null;
+      if (current !== generation || !state.user) return;
+      const form = node('form','meet-form-grid');
+      const people = [{value:'',label:'Ответственный не уточнён'}, ...state.users.filter(user=>user.active && !['admin','auditor'].includes(user.level)).map(user=>({value:String(user.id),label:user.name}))];
+      if (existing?.owner_user_id && !people.some(person=>person.value===String(existing.owner_user_id))) people.push({value:String(existing.owner_user_id),label:(existing.owner_name || 'Прежний ответственный')+' · неактивен'});
+      const owner = select(people,String(existing?.owner_user_id || ''));
+      const due = input({label:'Срок контроля',type:'date',value:existing?.due || ''});
+      const status = select([{value:'open',label:'Открыто'}, {value:'done',label:'Завершено'}, {value:'cancelled',label:'Отменено'}],existing?.status || 'open');
+      form.append(node('p','',item.text),field('Ответственный за решение',owner),due.wrap,field('Статус контроля',status));
+      const editor = dialog('Контроль решения',form,async()=>{
+        const preview = await request(`/decisions/${item.id}/preview`,{method:'POST',body:{owner_user_id:owner.value ? Number(owner.value):null,due:due.input.value || null,status:status.value}});
+        editor.close(); editor.addEventListener('close',()=>{
+          if (generation !== current || !state.user) return;
+          const content = node('div'); const change=preview.preview.after;
+          content.append(node('p','',preview.preview.text),node('p','',`Ответственный: ${people.find(person=>person.value===String(change.owner_user_id))?.label || 'не уточнён'}`),node('p','',`Срок: ${change.due ? date(change.due) : 'не уточнён'}`),node('p','',`Статус: ${{open:'открыто',done:'завершено',cancelled:'отменено'}[change.status]}`));
+          const quote=preview.preview.source_quote;
+          content.append(button('Реплика-основание',()=>h.openSource('utterance',quote.utterance_id,quote.text),'citation-chip'));
+          const idempotency=key();
+          dialog('Подтвердить контроль решения',content,async()=>{
+            await request(`/decisions/${item.id}/confirm`,{method:'POST',body:{confirmation_id:preview.confirmation_id,idempotency_key:idempotency}});
+            if (state.page==='overview') await loadOverview(); else await h.refreshMeeting(meetingId);
+            toast('Контроль решения сохранён');
+          },()=>cancelConfirmation(preview.confirmation_id),'Подтвердить',origin);
+        },{once:true});
+      },null,'Предпросмотр',origin);
+      form.addEventListener('submit',event=>event.preventDefault());
+    } catch(error) { if (current===generation && state.user) showNotice(error.message); }
   }
 
   async function openTask(task) {
@@ -483,5 +541,5 @@ export function track3UI(h) {
     return new Date([...candidates][0]).toISOString();
   }
 
-  return { can, reset, discardForeignDrafts, dialog, planning, feedback, sourceButton, renderOverview, renderKnowledge, openKnowledge, editTask, loadOverview, zonedISO };
+  return { can, reset, discardForeignDrafts, dialog, planning, feedback, sourceButton, renderOverview, renderKnowledge, openKnowledge, editTask, controlDecision, loadOverview, zonedISO };
 }

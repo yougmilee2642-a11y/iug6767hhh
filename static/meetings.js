@@ -1378,14 +1378,24 @@ async function openSource(kind, id, quote, source = {}) {
         if (task.meeting_id) row.append(makeButton('Открыть задачу во встрече', () => { closeSource(); void openMeeting(task.meeting_id, 'tasks'); }, 'task-meeting-link'));
         content.append(row);
       }
-      const labels = { numerator: 'Числитель', denominator: 'Знаменатель', completed_orders: 'Завершённые заказы', on_time_orders: 'Заказы в срок', produced_units: 'Произведено единиц', defective_units: 'Бракованных единиц', occupied_capacity: 'Занятая мощность', available_capacity: 'Доступная мощность' };
+      for (const decision of data?.decisions || []) {
+        const row = node('article','claim-item');
+        row.append(node('p','',decision.text),node('p','task-meta',`Ответственный: ${decision.owner_name || 'не уточнён'} · срок: ${dateLabel(decision.due)}`));
+        row.append(makeButton('Открыть решение в протоколе',()=>{ closeSource(); void openMeeting(decision.meeting_id,'protocol'); },'task-meeting-link'));
+        content.append(row);
+      }
+      if (data?.metric) content.append(node('p','',`${data.metric.label}: ${data.metric.value ?? 'Нет данных'} ${data.metric.unit || ''}`),node('p','task-meta',`Формула: ${data.metric.formula}`));
+      const labels = { numerator: 'Числитель', denominator: 'Знаменатель', completed_orders: 'Завершённые заказы', on_time_orders: 'Заказы в срок', produced_units: 'Произведено единиц', defective_units: 'Бракованных единиц', occupied_capacity: 'Занятая мощность', available_capacity: 'Доступная мощность', order_no:'Заказ', status:'Статус', promised_at:'Обещанный срок', completed_at:'Завершён', first_response_seconds:'Первый ответ, секунд', sla_seconds:'SLA, секунд', closed_by:'Закрыто кем', occupied_hours:'Занятые часы', available_hours:'Доступные часы', section:'Участок', forecast:'Прогноз (0/1)' };
       const snapshots = data?.snapshots || [data];
       for (const snapshot of [data, ...snapshots.filter((item) => item !== data)]) {
         if (!snapshot) continue;
         if (snapshot.source_id) content.append(node('h3', '', `Снимок ${snapshot.source_id}`));
         if (snapshot.period_start) content.append(node('p', 'task-meta', `Период: ${dateLabel(snapshot.period_start)} — ${dateLabel(snapshot.period_end)}`));
         if (snapshot.as_of) content.append(node('p', 'task-meta', `Актуальность: ${dateLabel(snapshot.as_of)}`));
-        for (const [key, label] of Object.entries(labels)) if (Object.hasOwn(snapshot, key)) content.append(node('p', '', `${label}: ${snapshot[key] ?? 'Нет данных'}`));
+        for (const [key, label] of Object.entries(labels)) if (Object.hasOwn(snapshot, key)) {
+          const value = key.endsWith('_at') && snapshot[key] ? dateLabel(snapshot[key]) : snapshot[key];
+          content.append(node('p', '', `${label}: ${value ?? 'Нет данных'}`));
+        }
       }
     }
   } catch (error) {
@@ -1560,6 +1570,7 @@ function renderProtocolItem(item) {
     card.append(quotes);
   }
   card.append(ui.feedback('protocol_item', item.id, state.meetingData.meeting.id));
+  if (item.kind === 'decision' && ui.can('protocol.confirm')) card.append(makeButton('Контроль решения',()=>void ui.controlDecision(item,state.meetingData.meeting.id)));
   if (item.confirmed) {
     card.append(node('p', 'confirmed-stamp', `Подтверждено: ${item.confirmed_by || 'пользователь'} · ${dateLabel(item.confirmed_at)}`));
     if (item.task_id) card.append(makeButton('Открыть связанную задачу', async () => {

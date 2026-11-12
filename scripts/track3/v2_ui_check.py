@@ -1,6 +1,7 @@
 """Photoprint role forms against actual product HTTP; synthetic QA double only."""
 import argparse
 import json
+from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
 import shutil
@@ -21,7 +22,7 @@ def run(artifacts):
     from scripts.track3.seed_fotoprint import seed
     observations = []
     with tempfile.TemporaryDirectory(prefix='fotoprint-v2-browser-') as temp:
-        path = Path(temp) / 'ui.db'; seed(str(path))
+        path = Path(temp) / 'ui.db'; ids = seed(str(path))
         with socket.socket() as sock:
             sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
         base = f'http://127.0.0.1:{port}'
@@ -38,6 +39,14 @@ def run(artifacts):
                     except httpx.HTTPError: pass
                     time.sleep(.1)
                 else: raise RuntimeError('Server startup timeout')
+                # A human-authored decision fixture over real APIs; no model extraction.
+                with httpx.Client(base_url=base,trust_env=False,timeout=15) as fixture:
+                    fixture.post('/api/meet/login',json={'login':'prod_head','password':'prod_head-demo'}).raise_for_status()
+                    result = fixture.post('/api/meet/meetings',json={'title':'Браузерная проверка контроля решения','access_user_ids':[ids['users']['operator']]}); result.raise_for_status()
+                    decision_meeting = result.json()['meeting']['id']
+                    result = fixture.put(f'/api/meet/meetings/{decision_meeting}/transcript',json={'text':'Марина: Решили проверить резерв картона перед запуском Premium.'}); result.raise_for_status()
+                    utterance_id = result.json()['utterances'][0]['id']
+                    result = fixture.put(f'/api/meet/meetings/{decision_meeting}/protocol',json={'items':[{'kind':'decision','text':'Проверить резерв картона перед запуском Premium','quotes':[{'utterance_id':utterance_id}]}]}); result.raise_for_status()
                 with sync_playwright() as pw:
                     browser = pw.chromium.launch(executable_path=shutil.which('chromium') or pw.chromium.executable_path,
                                                  headless=True, args=['--no-sandbox'])
@@ -53,6 +62,19 @@ def run(artifacts):
                                 page.get_by_role('button', name='Войти', exact=True).click()
                                 page.get_by_role('heading', name=heading, exact=True).wait_for()
                                 assert not errors, {'login':login,'page_errors':errors}
+                                if login == 'prod_head':
+                                    page.get_by_role('button',name='Встречи',exact=True).click()
+                                    page.locator('.meeting-card').filter(has_text='Браузерная проверка контроля решения').get_by_role('button',name='Открыть встречу',exact=True).click()
+                                    page.get_by_role('button',name='3 · Протокол',exact=True).click()
+                                    page.get_by_role('button',name='Контроль решения',exact=True).click()
+                                    editor = page.get_by_role('dialog'); editor.wait_for()
+                                    editor.get_by_label('Ответственный за решение',exact=True).select_option(str(ids['users']['operator']))
+                                    editor.get_by_label('Срок контроля',exact=True).fill((datetime.now(timezone.utc)-timedelta(days=1)).date().isoformat())
+                                    editor.get_by_role('button',name='Предпросмотр',exact=True).click()
+                                    preview = page.get_by_role('dialog').filter(has=page.get_by_role('heading',name='Подтвердить контроль решения',exact=True))
+                                    preview.wait_for(); preview.get_by_role('button',name='Подтвердить',exact=True).click(); preview.wait_for(state='hidden')
+                                    page.get_by_role('button',name='Обзор',exact=True).click()
+                                    page.get_by_role('heading',name='Решения на контроле',exact=True).wait_for()
                                 if login == 'operator':
                                     page.get_by_role('button', name='Задачи', exact=True).click()
                                     card = page.locator('.task-card').first; card.wait_for()

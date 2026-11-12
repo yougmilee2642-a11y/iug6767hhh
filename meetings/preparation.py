@@ -7,7 +7,7 @@ from meetings import access, store, textutil
 
 
 def task_source(connection, task):
-    source_at = store.stored_utc(task.get('confirmed_at') or task['created_at'])
+    source_at = store.stored_utc(task.get('updated_at') or task.get('confirmed_at') or task['created_at'])
     return {'kind':'task','id':f"T{task['id']}", 'title':task['text'],'source_at':source_at,
             'quote':(task.get('source_quote') or {}).get('text'), 'locator':(task.get('source_quote') or {}).get('utterance_id')}
 

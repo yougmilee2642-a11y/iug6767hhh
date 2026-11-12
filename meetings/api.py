@@ -108,6 +108,8 @@ def install(app):
     from meetings.feedback import router as feedback_router
     app.include_router(calendar_router())
     app.include_router(feedback_router())
+    from meetings.decisions import router as decisions_router
+    app.include_router(decisions_router())
     extras = _optional_routers()
     for extra in extras:
         app.include_router(extra)

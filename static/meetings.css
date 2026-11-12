@@ -469,3 +469,6 @@ body.meetings-page {
 .v2-functional-panel { min-width: 0; overflow-x: auto; }
 .v2-functional-panel dialog { max-width: min(90vw, 800px); }
 .v2-functional-panel pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* TODO(design): exact numeric evidence must wrap inside existing KPI cards. */
+.meetings-page .meet-kpi { overflow-wrap: anywhere; }

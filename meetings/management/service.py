@@ -166,13 +166,22 @@ def build(connection, actor, cutoff, generated):
             manifests[source['id']] = {'metric': metric, 'numerator': top, 'denominator': bottom,
                                        'period_start': snapshots[0]['period_start'], 'period_end': snapshots[0]['period_end'],
                                        'snapshots': snapshots}
+    from meetings.management import domain
+    extra_metrics, extra_manifests, extra_warnings, extra_freshness, domain_data = domain.build(
+        connection,actor,cutoff,generated,aggregate_source,tasks)
+    metrics.extend(extra_metrics); manifests.update(extra_manifests); warnings.extend(extra_warnings)
+    if extra_freshness is not None: freshness = min(freshness,extra_freshness) if freshness else extra_freshness
+    if extra_metrics:
+        for metric in metrics:
+            metric.setdefault('as_of',metric['source']['source_at'])
+            metric.setdefault('status',domain.status(metric['key'],metric['value']))
     if cutoff.astimezone(MINSK).date() != generated.astimezone(MINSK).date():
         warnings.append('Статусы задач взяты из текущего реестра; as_of задаёт дату просрочки и срез витрины, а не историю статусов.')
     summary = [{'text': f"{metric['label']}: {metric['value']} {metric['unit']}.", 'sources': [metric['source']]}
                for metric in metrics if metric['value'] is not None]
     result = {'as_of': iso(freshness) if freshness else None, 'generated_at': iso(generated), 'metrics': metrics,
               'overdue_tasks': [store.task_out(connection, task) for task in late_rows], 'summary': summary,
-              'warnings': list(dict.fromkeys(warnings))}
+              'warnings': list(dict.fromkeys(warnings)), **domain_data}
     return result, manifests
 
 
@@ -207,9 +216,10 @@ def resolve(actor, kind, source_id, audit):
     with store.db() as connection:
         connection.execute('BEGIN')
         if kind == 'task':
-            if not re.fullmatch(r'[1-9]\d{0,18}', source_id) or int(source_id) > 2**63 - 1:
+            task_key = source_id[1:] if source_id.startswith('T') else source_id
+            if not re.fullmatch(r'[1-9]\d{0,18}', task_key) or int(task_key) > 2**63 - 1:
                 raise not_found()
-            task = connection.execute('SELECT * FROM tasks WHERE id=?', (int(source_id),)).fetchone()
+            task = connection.execute('SELECT * FROM tasks WHERE id=?', (int(task_key),)).fetchone()
             if not task or not store.can_read_meeting(connection, actor, task['meeting_id']):
                 raise not_found()
             source = {'kind': 'task', 'id': source_id, 'title': task['text'], 'source_at': source_timestamp(task['updated_at']),
