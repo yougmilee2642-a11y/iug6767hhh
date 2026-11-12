@@ -15,9 +15,10 @@
 | Финальный небраузерный Python | 1660 passed, 28 skipped, 0 failed, 337.41с на fafc326; reports/v2-final-full.log |
 | Финальный JS | 66 passed, 0 failed; reports/v2-final-node.log |
 | Настоящий HTTP | Passed: восемь ролей, источники/чужой404, cancel/confirm/replay, series/insights/weekly, закрытая SMTP, restart; reports/v2-final-http.json |
-| Чистая runtime установка 110741f | Passed, 29.898с: clone/venv/pip check, seed дважды, HTTP8ролей/restart/model503, inventory; reports/v2-radar-runtime.json |
+| Предыдущая чистая runtime установка 110741f | Passed, 29.898с: clone/venv/pip check, seed дважды, HTTP8ролей/restart/model503, inventory; reports/v2-radar-runtime.json |
+| Чистые установки итогового кода c8f635c | Runtime29.533с / base30.632с — passed, без моделей, pip-cache неконтролируемый; reports/v2-final-runtime.json и v2-final-base.json |
 | Frozen v2 evaluator | Pipeline passed на double:30/30 задач,17/17 claims с источником,0 ошибок владельца/срока/прав/ложных действий; reports/v2-final-eval.json |
-| Браузер, Linux/Windows | Финальный CI отдельно; локальный Chromium ограничен средой (socket EPERM), локальный browser NOT RUN |
+| Браузер, Linux/Windows | CI по опубликованному SHA в [PR13](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/13); локальный Chromium ограничен средой (socket EPERM), локальный browser NOT RUN |
 | Ollama / ASR / TTS / диаризация | NOT RUN; LIVE_CHECKS.md, только скрипты для хоста |
 | Настоящие Bitrix / Google / Telegram / SMTP | NOT RUN; транспортные MockTransport/SMTP doubles |
 | Независимая установка человеком | NOT RUN; агентская/CI установка не является независимой |

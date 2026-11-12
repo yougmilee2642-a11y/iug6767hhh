@@ -7,8 +7,9 @@ preview/confirm SMTP-приглашения. Реальные аккаунты �
 
 Общий локальный срез fafc326: 1660 Python passed / 28 skipped / 0 failed,
 66 JS passed, HTTP8ролей/restart и evaluator double passed (TEST_REPORT.md);
-финальный CI и merge в main ещё проверяются. Не считать старую публикацию
-доказательством приёмки новых функций.
+CI и слияние проверяются по опубликованному SHA в [PR13](https://github.com/yougmilee2642-a11y/iug6767hhh/pull/13).
+Чистые runtime/base установки c8f635c прошли за29.533/30.632с.
+Старый зелёный прогон не является приёмкой новых изменений.
 
 [Самоаудит](SELF_AUDIT.md) · [Тесты](TEST_REPORT.md) · [Запуск](V2_QUICKSTART.md)
 · [Расчёты](ADVANCED_REPORTS.md) · [Доставка](DELIVERY.md) · [API](API.md).
