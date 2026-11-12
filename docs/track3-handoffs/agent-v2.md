@@ -527,3 +527,9 @@
   HTTP7 ролей/версии/briefing/voice text/restart/provider503 passed6,34s.
   Raw v2-document-briefing-*. Полный набор завершился без падений; новый
   GitHub head нуждается в отдельном CI, main/реальные модели не затрагивались.
+
+- Итоговый e58a904/tree da3191d == GitHub e496e4e прошёл чистые runtime34,330s
+  и base37,937s: pip-check, seed twice,7 ролей/versions/briefing/restart/503,
+  inventory. Временные новые клоны/venv, параллельно, кэш неконтролируемый.
+  Первичные v2-document-briefing-{runtime,base}-install.json сохранены.
+  Новый CI/Windows/браузер не объявляются passed до проверки нового head.

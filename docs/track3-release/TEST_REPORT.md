@@ -242,3 +242,12 @@ voice text/restart/provider503 passed6,34s. Первичные v2-document-brief
 без падений. Отдельный HTTP затем запускался только после ast.parse и прошёл.
 Брифинг/voice работают без модели; ASR/TTS/LLM не запускались. Старые raw-отчёты
 сохранены и не объявляются проверкой нового дерева.
+
+## Чистая установка итогового E6+E9
+
+Из нового локального клонаe58a904 (tree da3191d, идентичен GitHub e496e4e):
+Linux runtime34,330s/base37,937s, оба passed. Venv/pip-check/seed twice/HTTP
+семи ролей/versions/briefing/restart/provider503/inventory прошли. Запуски
+параллельны; кэш неконтролируемый, модели не скачивались. Первичные JSON:
+`v2-document-briefing-runtime-install.json`, `v2-document-briefing-base-install.json`.
+Это не независимая установка человеком и не результат Windows нового head.
