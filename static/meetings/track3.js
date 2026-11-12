@@ -211,7 +211,10 @@ export function track3UI(h) {
 
   function renderOverview(parent) {
     const day = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: state.timezone }).format(new Date());
-    heading(parent, 'Обзор', day.charAt(0).toUpperCase() + day.slice(1));
+    const hour = Number(new Intl.DateTimeFormat('ru-RU', { hour: 'numeric', hour12: false, timeZone: state.timezone }).format(new Date()));
+    const hello = hour >= 5 && hour < 12 ? 'Доброе утро' : hour >= 12 && hour < 18 ? 'Добрый день' : hour >= 18 && hour < 23 ? 'Добрый вечер' : 'Доброй ночи';
+    const name = String(state.user?.name || '').trim().split(/\s+/)[0];
+    heading(parent, 'Обзор', `${hello}${name ? `, ${name}` : ''} · ${day.charAt(0).toUpperCase() + day.slice(1)}`);
     if (can('meetings.create')) {
       const create = button('Новая встреча', () => { state.showCreateMeeting = true; h.navigate('meetings'); }, 'primary-button accent-button');
       parent.lastElementChild.append(create);

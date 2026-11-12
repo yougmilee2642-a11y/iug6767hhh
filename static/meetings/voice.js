@@ -36,7 +36,7 @@ export function voiceAssistant(h) {
   typed.placeholder = 'Или напишите вопрос';
   typed.setAttribute('aria-label', 'Вопрос помощнику текстом');
   form.append(typed, makeButton('Спросить', null, 'secondary-button', 'submit'));
-  form.addEventListener('submit', (event) => { event.preventDefault(); if (typed.value.trim()) void ask(typed.value); });
+  form.addEventListener('submit', (event) => { event.preventDefault(); const text = typed.value.trim(); if (text) { typed.value = ''; void ask(text); } });
   const wakeBox = node('div', 'voice-wake');
   const wakeConsent = node('label', 'voice-loud');
   const wakeConsentBox = node('input', '');
@@ -76,6 +76,21 @@ export function voiceAssistant(h) {
 
   function setStatus(text) { status.textContent = text; }
 
+  // Приветствие при открытии и подсказки — как у голосового помощника, а не пустая форма.
+  const SUGGESTIONS = ['Что важного сегодня?', 'Сколько просроченных задач?', 'Что ты умеешь?'];
+  function partOfDay() {
+    const hour = Number(new Intl.DateTimeFormat('ru-RU', { hour: 'numeric', hour12: false, timeZone: 'Europe/Minsk' }).format(new Date()));
+    return hour >= 5 && hour < 12 ? 'Доброе утро' : hour < 18 && hour >= 12 ? 'Добрый день' : hour >= 18 && hour < 23 ? 'Добрый вечер' : 'Доброй ночи';
+  }
+  function intro() {
+    if (result.childNodes.length || heard.textContent) return;
+    const name = String(state.user?.name || '').trim().split(/\s+/)[0];
+    result.append(node('p', 'voice-phrase voice-hello', `${partOfDay()}${name ? `, ${name}` : ''}! Я Фокус. Спросите голосом или текстом.`));
+    const chips = node('div', 'voice-suggestions');
+    for (const text of SUGGESTIONS) chips.append(makeButton(text, () => void ask(text), 'voice-suggestion'));
+    result.append(chips);
+  }
+
   function mount(container) {
     if (!state.user || !state.capabilities.includes('qa.ask')) { talk.remove(); panel.hidden = true; return; }
     talk.textContent = capture ? 'Отправить вопрос' : 'Спросить голосом';
@@ -92,6 +107,7 @@ export function voiceAssistant(h) {
   async function toggle() {
     if (capture) { await finishCapture(); return; }
     panel.hidden = false;
+    intro();
     stopSpeaking();
     if (wake) { setStatus('Фокус уже слушает: скажите «Привет, Фокус» и вопрос.'); return; }
     if (state.voiceCapture?.recording) { setStatus('Идёт запись встречи. Остановите её, чтобы спросить Фокус.'); return; }
@@ -120,7 +136,7 @@ export function voiceAssistant(h) {
       };
       capture.timer = setTimeout(() => void finishCapture(), MAX_SECONDS * 1000 + 500);
       setStatus(`Слушаю… Нажмите «Отправить вопрос» или Alt+V. До ${MAX_SECONDS} секунд.`);
-      heard.textContent = ''; result.replaceChildren();
+      heard.textContent = '';
     } catch {
       stream?.getTracks().forEach((track) => track.stop());
       await context?.close().catch(() => {});
@@ -182,7 +198,7 @@ export function voiceAssistant(h) {
     const mine = ++sequence;
     panel.hidden = false;
     stopSpeaking();
-    heard.textContent = `Вопрос: ${text}`;
+    heard.textContent = timing.quiet ? '' : `Вы: ${text}`;
     result.replaceChildren();
     setStatus('Ищу ответ…');
     const started = performance.now();
@@ -206,7 +222,7 @@ export function voiceAssistant(h) {
     const ttsStarted = performance.now();
     try {
       const response = await fetch('/api/speech', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: reply.spoken }), credentials: 'same-origin' });
+        body: JSON.stringify({ text: reply.spoken, voice: 'focus' }), credentials: 'same-origin' });
       if (!response.ok) throw new Error('tts');
       const audio = await response.blob();
       if (mine !== sequence) return;
@@ -333,8 +349,11 @@ export function voiceAssistant(h) {
       if (reply.question) {
         await ask(reply.question, { asrMs: Math.round(performance.now() - started) });
       } else {
-        current.mode = 'question'; current.waitMs = 0;
         heard.textContent = ''; result.replaceChildren();
+        // Отзывается голосом («Добрый день, Марина! Слушаю.»), затем ждёт вопрос.
+        await ask('Фокус', { quiet: true });
+        if (wake !== current) return;
+        current.mode = 'question'; current.waitMs = 0;
         setStatus('Слушаю вопрос…');
       }
     } catch (error) {
@@ -362,6 +381,7 @@ export function voiceAssistant(h) {
     result.replaceChildren();
     const phrase = node('p', `voice-phrase${reply.speak ? '' : ' voice-phrase-silent'}`, reply.display);
     result.append(phrase);
+    if (reply.route === 'chat' || reply.route === 'restricted') return;
     if (reply.route === 'action') {
       result.append(makeButton(reply.open_page === 'calendar' ? 'Открыть встречи' : 'Открыть задачи', () => {
         h.navigate(reply.open_page === 'calendar' ? 'meetings' : 'tasks');

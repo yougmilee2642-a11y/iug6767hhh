@@ -94,7 +94,7 @@ def audience(connection, actor, meeting_id):
 # ---------- spoken phrases ----------
 def knowledge_phrase(result):
     if result['status'] != 'grounded' or not result['claims']:
-        return 'В доступных документах оснований для ответа не найдено.'
+        return 'Не нашёл ответа: в доступных документах оснований для ответа не найдено.'
     first = result['claims'][0]
     origin = first['sources'][0]
     try:
@@ -206,13 +206,31 @@ def ask(actor_user, text, meeting_id, speak_private, details):
         message = refusal(prohibited)
         return {'route':'restricted', 'status':'refused', 'open_page':None, 'answer':None,
                 'spoken':message, 'display':message, 'speak':True, 'silent_reason':None}
+    from meetings import voice_chat
+    now = utc_now()
+    chat = voice_chat.small_talk(text, actor_user, now)
+    if chat:
+        # Prewritten phrases only: no company data, so they may always be spoken aloud.
+        details['route'] = 'chat'
+        return {'route': 'chat', 'status': 'ok', 'open_page': None, 'answer': None,
+                'spoken': chat, 'display': chat, 'speak': True, 'silent_reason': None}
+    greeted, rest = voice_chat.split_greeting(text)
+    if rest:
+        text = rest
+    hello = f'{voice_chat.greeting(actor_user, now)} ' if greeted else ''
     kind = route(text)
     details['route'] = kind
     if kind == 'action':
         details['result'] = 'refused'
-        return action_reply(text)
+        reply = action_reply(text)
+        if hello:
+            reply.update(spoken=hello + reply['spoken'], display=hello + reply['display'])
+        return reply
     handler = {'overview':answer_overview,'briefing':answer_briefing}.get(kind,answer_knowledge)
     result, phrase, private = handler(actor_user, text, meeting_id, details)
+    if kind == 'knowledge' and result.get('status') != 'grounded':
+        phrase = f'{phrase} {voice_chat.suggestion()}'
+    phrase = hello + phrase
     speak = not private or speak_private
     details['spoken'] = speak
     details['private'] = private

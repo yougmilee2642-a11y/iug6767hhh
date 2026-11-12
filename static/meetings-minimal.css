@@ -295,3 +295,13 @@ body.meetings-page {
 .question-examples-title { margin-right: 4px; color: var(--f-muted); font-size: 14px; }
 .question-example { min-height: 34px; padding: 6px 14px; border: 1px solid var(--f-line-strong); border-radius: var(--f-radius-sm); background: transparent; color: var(--f-ink); font-size: 15px; text-align: left; }
 .question-example:hover { border-color: var(--f-action); color: var(--f-action-hover); }
+
+/* Голосовой помощник: приветствие и подсказки */
+.voice-panel { border-radius: var(--f-radius); background: var(--f-paper); }
+.voice-panel-head h2 { font-size: 20px; }
+.voice-phrase { border-radius: var(--f-radius-sm); }
+.voice-hello { background: var(--f-sunk); }
+.voice-heard { color: var(--f-muted); font-weight: 400; }
+.voice-suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+.voice-suggestion { min-height: 32px; padding: 4px 12px; border: 1px solid var(--f-line-strong); border-radius: 999px; background: transparent; color: var(--f-ink); font-size: 14px; }
+.voice-suggestion:hover { border-color: var(--f-action); color: var(--f-action-hover); }
