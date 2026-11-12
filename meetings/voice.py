@@ -180,6 +180,13 @@ def answer_overview(actor_user, text, meeting_id, details):
 
 
 def ask(actor_user, text, meeting_id, speak_private, details):
+    from meetings.privacy import prohibited_intent, refusal
+    prohibited = prohibited_intent(text)
+    if prohibited:
+        details.update(route='restricted', result='denied', error_code=prohibited)
+        message = refusal(prohibited)
+        return {'route':'restricted', 'status':'refused', 'open_page':None, 'answer':None,
+                'spoken':message, 'display':message, 'speak':True, 'silent_reason':None}
     kind = route(text)
     details['route'] = kind
     if kind == 'action':

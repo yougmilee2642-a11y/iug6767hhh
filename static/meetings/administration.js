@@ -71,11 +71,25 @@ export function administrationUI(h) {
     }); });
     section.append(form);
   }
-  async function renderAudit(app) {
+  async function renderAudit(app, filters = '') {
     const identity = state.user.id, epoch = state.epoch;
     const section = panel(app, 'Журнал действий');
+    const form = node('form', 'create-meeting-form');
+    const previous = new URLSearchParams(filters);
+    const controls = [];
+    for (const [key,label] of [['user_id','ID пользователя'],['action','Действие'],['object_type','Тип объекта'],['object_id','ID объекта'],['result','Результат'],['start_at','С · ISO с часовым поясом'],['end_at','По · ISO с часовым поясом']]) {
+      const control = input({label, value:previous.get(key) || ''}); form.append(control.wrap); controls.push([key,control.input]);
+    }
+    form.append(button('Применить фильтры', null, 'secondary-button', 'submit'));
+    form.addEventListener('submit', event => { event.preventDefault(); const query = new URLSearchParams();
+      for (const [key,control] of controls) if (control.value.trim()) query.set(key,control.value.trim());
+      section.remove(); void renderAudit(app, query.toString());
+    });
+    const download = node('a', 'download-link', 'Скачать CSV · текущие фильтры');
+    download.href = '/api/meet/audit?limit=200&export=true&' + filters;
+    section.append(form, download);
     try {
-      const data = await request('/audit?limit=200');
+      const data = await request('/audit?limit=200&' + filters);
       if (!current(identity, epoch) || !section.isConnected) return;
       const table = node('table', '');
       const head = node('tr', ''); for (const label of ['Когда','Пользователь','Действие','Объект','Результат']) head.append(node('th', '', label)); table.append(head);

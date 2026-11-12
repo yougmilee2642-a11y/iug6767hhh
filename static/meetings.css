@@ -93,7 +93,8 @@ body.meetings-page {
 .search-button { border-color: var(--f-ink); background: var(--f-ink); color: #fff; }
 .search-button:hover { background: var(--f-ink-strong); }
 .logout-button:hover, .retry-button:hover, .demo-account-button:hover { border-color: var(--f-ink); }
-.meetings-account { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex: 0 0 auto; margin-left: auto; }
+/* TODO(design): role controls wrap within the header at every viewport. */
+.meetings-account { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex: 0 1 auto; min-width: 0; max-width: 100%; flex-wrap: wrap; margin-left: auto; }
 .account-name { max-width: 230px; color: var(--f-muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .logout-button { min-height: 36px; padding: 4px 14px; font-size: 14px; }
 

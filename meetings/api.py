@@ -1,6 +1,8 @@
 """HTTP API for CallWise Meetings. Access is checked on the server for every read, search, download
 and before building any model context. Inaccessible resources answer 404 (existence is not revealed)."""
 import hashlib
+import csv
+import io
 import importlib
 import importlib.util
 import os
@@ -21,7 +23,7 @@ from meetings import confirmations
 from meetings import documents as docs
 from meetings import extract, store, access
 from meetings.auth import (COOKIE, ROLE_LABELS, TTL, MeetError, capabilities, check_password, current_user,
-                           MeetRoute, ensure_demo_users, make_cookie, require, forbidden)
+                           MeetRoute, ensure_demo_users, make_cookie, require, forbidden, user_from_request)
 from meetings.auth import has_capability as auth_has
 from meetings.llm import get_llm
 from providers.local_settings import LocalAIError
@@ -450,7 +452,11 @@ def router():
         return response
 
     @api.post('/api/meet/logout')
-    def logout():
+    def logout(request: Request):
+        user = user_from_request(request)
+        if user:
+            with store.db() as connection:
+                store.audit(connection, user['id'], 'logout')
         response = JSONResponse({'ok': True})
         response.delete_cookie(COOKIE)
         return response
@@ -471,7 +477,9 @@ def router():
                 'SELECT id,login,name,role,access_role,level,department_id,active FROM users ORDER BY id')]}
 
     @api.get('/api/meet/audit')
-    def audit_log(request: Request, limit: int = 50, scope: str = 'mine'):
+    def audit_log(request: Request, limit: int = 50, scope: str = 'mine', user_id: int | None = None,
+                  action: str | None = None, object_type: str | None = None, object_id: str | None = None,
+                  result: str | None = None, start_at: str | None = None, end_at: str | None = None, export: bool = False):
         """Audit for the manager role. scope=mine — own actions; scope=my_objects — denied attempts of other
         users on meetings/documents (and their fragments, utterances, tasks) that this user OWNS.
         Ids and codes only — no titles or content."""
@@ -488,22 +496,48 @@ def router():
         if user.get('level') == 'head':
             scope = 'department'
         limit = max(1, min(limit, 200))
+        conditions, args = [], []
+        filters = {'user_id':user_id, 'action':action, 'object_type':object_type, 'object_id':object_id, 'result':result}
+        for field, value in filters.items():
+            if value is not None:
+                if isinstance(value, str) and len(value) > 100:
+                    raise MeetError(422, 'invalid_filter', 'Значение фильтра длиннее 100 символов.')
+                conditions.append(field + '=?'); args.append(value)
+        for value, comparison in ((start_at, '>='), (end_at, '<=')):
+            if value:
+                try:
+                    stamp = store.iso_utc(store.parse_aware(value))
+                except store.TimeError as error:
+                    raise time_error(error) from None
+                conditions.append('julianday(at)' + comparison + 'julianday(?)'); args.append(stamp)
+        if scope == 'mine':
+            conditions.append('user_id=?'); args.append(user['id'])
+        elif scope == 'department':
+            conditions.append('department_id=?'); args.append(user['department_id'])
+        elif scope == 'my_objects':
+            conditions.extend(["action='access_denied'", "result='denied'", '(user_id IS NULL OR user_id!=?)'])
+            args.append(user['id'])
+        where = ' AND '.join(conditions) or '1'
         with store.db() as connection:
-            if scope in ('all', 'department'):
-                rows = connection.execute('SELECT * FROM audit ' + ('WHERE department_id=? ' if scope == 'department' else '') +
-                                          'ORDER BY id DESC LIMIT ?', ([user['department_id'], limit] if scope == 'department' else [limit]))
-                return {'events': [store.audit_out(r) for r in rows], 'scope': scope}
-            if scope == 'mine':
-                rows = connection.execute('SELECT * FROM audit WHERE user_id=? ORDER BY id DESC LIMIT ?', (user['id'], limit))
-                return {'events': [store.audit_out(r) for r in rows], 'scope': scope}
+            rows = connection.execute('SELECT * FROM audit WHERE ' + where + ' ORDER BY id DESC LIMIT ?',
+                                      [*args, 2000 if scope == 'my_objects' else limit])
             events = []
-            for row in connection.execute("SELECT * FROM audit WHERE action='access_denied' AND result='denied' "
-                                          "AND (user_id IS NULL OR user_id!=?) ORDER BY id DESC LIMIT 2000", (user['id'],)):
-                if _owned_object(connection, user['id'], row['object_type'], row['object_id']):
+            for row in rows:
+                if scope != 'my_objects' or _owned_object(connection, user['id'], row['object_type'], row['object_id']):
                     events.append(store.audit_out(row))
                     if len(events) >= limit:
                         break
-            return {'events': events, 'scope': scope}
+            if export:
+                output = io.StringIO(newline=''); writer = csv.writer(output)
+                fields = ['id','at','user_id','action','object_type','object_id','result','error_code','request_id']
+                writer.writerow(fields)
+                for event in events:
+                    values = [str(event.get(k) if event.get(k) is not None else '') for k in fields]
+                    writer.writerow(["'" + value if value.lstrip().startswith(('=','+','-','@')) else value for value in values])
+                store.audit(connection, user['id'], 'audit_export', object_type='audit', rows=len(events), scope=scope)
+                return Response(('\ufeff' + output.getvalue()).encode('utf-8'), media_type='text/csv; charset=utf-8',
+                                headers={'Content-Disposition':'attachment; filename="audit.csv"', 'Cache-Control':'no-store'})
+            return {'events':events, 'scope':scope}
 
     # ----- documents -----
     @api.post('/api/meet/documents')
