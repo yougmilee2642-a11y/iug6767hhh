@@ -544,7 +544,7 @@ class BrowserTests(unittest.TestCase):
             page.goto(f'http://127.0.0.1:{self.server.server_port}/static/meetings.html')
             expect(page.get_by_role('heading',name='Обзор',exact=True)).to_be_visible()
             page.get_by_role('button',name='Задачи',exact=True).click()
-            expect(page.locator('.task-card .task-meta').filter(has_text='Срок:')).to_contain_text('1 нояб.')
+            expect(page.locator('.task-row-due')).to_contain_text('1 нояб.')
         finally:
             other.close()
 

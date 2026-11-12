@@ -61,8 +61,8 @@ with sync_playwright() as p:
     expect(page.get_by_role('dialog')).to_contain_text('Открыта → В работе')
     page.get_by_role('button',name='Подтвердить',exact=True).click()
     expect(page.get_by_role('dialog')).to_have_count(0)
-    expect(page.locator('.task-in_progress .task-card')).to_have_count(1)
-    expect(page.locator('.task-in_progress .task-card')).to_contain_text('после согласования')
+    expect(page.locator('.task-row.status-in_progress')).to_have_count(1)
+    expect(page.locator('.task-row.status-in_progress')).to_contain_text('после согласования')
     stored=context.request.get(base+'/api/meet/tasks').json()['tasks'][0]
     assert stored['due_text']=='после согласования',stored
     page.get_by_role('button',name='1 · Подготовка').click()

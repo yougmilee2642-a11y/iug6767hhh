@@ -205,14 +205,14 @@ def run(artifacts):
                                     calendar.get_by_role('button',name='Отозвать ссылки подписки',exact=True).click()
                                     page.get_by_text('Ссылки подписки отозваны.',exact=True).wait_for()
                                     page.get_by_role('button',name='Задачи',exact=True).click()
-                                    card=page.locator('.task-card').first;card.wait_for()
+                                    card=page.locator('.task-row').first;card.wait_for()
                                     card.get_by_role('button',name='Отправить в Битрикс24 · mock',exact=True).click()
                                     crm_dialog=page.get_by_role('dialog').filter(has=page.get_by_role('heading',name='Что уйдёт в Битрикс24 · mock',exact=True))
                                     crm_dialog.wait_for()
                                     with page.expect_response(lambda response:response.url.endswith('/api/meet/crm/confirm') and response.status==200):
                                         crm_dialog.get_by_role('button',name='Подтвердить',exact=True).click()
                                     crm_dialog.wait_for(state='hidden')
-                                    page.locator('.task-card').first.get_by_role('button',name='Статус CRM · mock',exact=True).click()
+                                    page.locator('.task-row').first.get_by_role('button',name='Статус CRM · mock',exact=True).click()
                                     status_dialog=page.get_by_role('dialog').filter(has=page.get_by_role('heading',name='Отправка в Битрикс24 · mock',exact=True))
                                     status_dialog.wait_for()
                                     assert 'Отправлено в локальную имитацию' in status_dialog.inner_text()
@@ -243,7 +243,7 @@ def run(artifacts):
                                     page.get_by_role('heading',name='Решения на контроле',exact=True).wait_for()
                                 if login == 'operator':
                                     page.get_by_role('button', name='Задачи', exact=True).click()
-                                    card = page.locator('.task-card').first; card.wait_for()
+                                    card = page.locator('.task-row').first; card.wait_for()
                                     card.get_by_role('button',name='Изменить задачу',exact=True).click()
                                     dialog = page.get_by_role('dialog'); dialog.wait_for()
                                     assert dialog.get_by_label('Приоритет',exact=True).is_disabled(), 'Employee priority must be read-only'
