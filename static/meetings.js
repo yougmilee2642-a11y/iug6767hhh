@@ -1,6 +1,7 @@
 import { track3UI } from './meetings/track3.js';
 import { protocolPayload } from './meetings/protocol.js';
 import { voiceAssistant } from './meetings/voice.js';
+import { administrationUI } from './meetings/administration.js';
 
 const API = '/api/meet';
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -8,6 +9,7 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
 const state = {
   user: null,
+  demoProfiles: [],
   capabilities: [],
   timezone: 'Europe/Minsk',
   epoch: 0,
@@ -43,6 +45,7 @@ let searchSequence = 0;
 const ui = track3UI({ node, makeButton, makeInput, makeTextarea, makeSelect, request, runAction, state,
   dateLabel, render, openMeeting, openSource, showNotice, toast, refreshMeeting, markSaved, draftCheckpoint,
   navigate: setPage });
+const administration = administrationUI({ node, makeButton, makeInput, request, runAction, state, dateLabel });
 const assistant = voiceAssistant({ node, makeButton, request, state, openSource, dateLabel, navigate: (page) => {
   if (page === 'tasks') void openTasks(); else setPage(page);
 } });
@@ -349,6 +352,10 @@ function updateAccount() {
   if (!state.user) return;
   assistant.mount(account);
   account.append(node('span', 'account-name', state.user.name || state.user.login));
+  if (state.user.level) account.append(node('span', 'account-name', `${state.user.level} · ${state.user.department?.code || ''}`));
+  for (const [capability, label, page] of [['users.manage','Пользователи','administration'], ['audit.read','Журнал','audit'], ['delegation.grant','Делегировать','delegation']]) {
+    if (state.capabilities.includes(capability)) account.append(makeButton(label, () => setPage(page)));
+  }
   account.append(makeButton('Выйти', () => void logout(), 'logout-button'));
 }
 
@@ -383,7 +390,10 @@ function render() {
     renderLogin(app);
     return;
   }
-  if (state.page === 'meeting' && state.meetingData) renderMeeting(app);
+  if (state.page === 'administration') void administration.renderAdministration(app);
+  else if (state.page === 'delegation') void administration.renderDelegation(app);
+  else if (state.page === 'audit') void administration.renderAudit(app);
+  else if (state.page === 'meeting' && state.meetingData) renderMeeting(app);
   else if (state.page === 'overview') ui.renderOverview(app);
   else if (state.page === 'knowledge') ui.renderKnowledge(app);
   else if (state.page === 'tasks') renderTaskBoard(app, state.tasks, false);
@@ -436,12 +446,20 @@ function renderLogin(app) {
     await runAction(submit, async () => {
       await request('/login', { method: 'POST', body: payload });
       await loadSignedInData();
-      state.page = 'overview';
+      state.page = landingPage();
       clearNotice();
       render();
     });
   });
   shell.append(form);
+  if (state.demoProfiles.length) {
+    const label = node('label', 'meeting-field'); label.append(node('span', 'field-label', 'Войти как…'));
+    const select = node('select', ''); select.setAttribute('aria-label', 'Демо-роль');
+    select.append(node('option', '', 'Выберите демо-профиль'));
+    for (const person of state.demoProfiles) { const option = node('option', '', `${person.name} · ${person.level}`); option.value = person.login; select.append(option); }
+    select.addEventListener('change', () => { if (select.value) { login.input.value = select.value; password.input.value = select.value + '-demo'; } });
+    label.append(select); shell.append(label);
+  }
   const demo = node('div', 'demo-accounts');
   demo.append(node('span', 'field-label', 'Демо-доступ'));
   const irina = makeButton('Ирина · irina / irina-demo', () => {
@@ -467,11 +485,16 @@ async function loadSignedInData() {
   state.documents = documents.documents || [];
 }
 
+function landingPage() { return state.user?.level === 'admin' ? 'administration' : state.user?.level === 'auditor' ? 'audit' : 'overview'; }
+
 async function loginBootstrap() {
   updateNavigation();
   $('#app').textContent = 'Загружаю рабочее пространство…';
-  try { await loadSignedInData(); state.page = 'overview'; render(); }
+  try { await loadSignedInData(); state.page = landingPage(); render(); }
   catch (error) {
+    if (error.status === 401) {
+      try { state.demoProfiles = (await request('/demo-profiles')).users || []; } catch { state.demoProfiles = []; }
+    }
     render();
     if (error.status !== 401 && error.code !== 'stale_session') showNotice(error.message, loginBootstrap);
   }
@@ -654,20 +677,28 @@ function renderPreparation(target) {
   docs.append(node('p', 'muted-copy', 'Прикрепите документ или выберите уже доступный файл.'));
   const upload = node('form', 'upload-form');
   const fileLabel = node('label', 'file-picker');
-  fileLabel.append(node('span', 'field-label', 'Загрузить TXT, DOCX или PDF'));
+  fileLabel.append(node('span', 'field-label', 'Загрузить TXT, DOCX, PDF, XLSX, CSV, PPTX, MD, HTML или EML'));
   const file = node('input', '');
   file.type = 'file';
-  file.accept = '.txt,.docx,.pdf,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  file.accept = '.txt,.docx,.pdf,.xlsx,.csv,.pptx,.md,.html,.eml';
   file.required = true;
   fileLabel.append(file);
   upload.append(fileLabel);
   const submit = makeButton('Загрузить и прикрепить', null, 'secondary-button', 'submit');
-  upload.append(submit);
+  const classification = makeSelect([
+    {value:'public', label:'Вся компания'}, {value:'internal', label:'Сотрудники'},
+    {value:'department', label:'Свой отдел'}, {value:'confidential', label:'Явный доступ'},
+    {value:'secret', label:'Закрыто для ассистента'},
+  ], state.user?.level === 'employee' ? 'department' : 'confidential');
+  const classificationLabel = node('label', 'meeting-field');
+  classificationLabel.append(node('span', 'field-label', 'Конфиденциальность'), classification);
+  upload.append(classificationLabel, submit);
   upload.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!file.files?.[0]) return;
     const payload = new FormData();
     payload.append('file', file.files[0]);
+    payload.append('confidentiality', classification.value);
     payload.append('meeting_id', meeting.id);
     const shareIds = (meeting.access_user_ids || []).map(String);
     if (shareIds.length) payload.append('share_with', shareIds.join(','));

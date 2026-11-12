@@ -463,3 +463,8 @@ body.meetings-page {
 .voice-form input:focus { outline: 2px solid var(--f-ink); outline-offset: 1px; }
 .voice-wake { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--f-line); }
 @media (max-width: 640px) { .voice-panel { right: 16px; left: 16px; bottom: 16px; width: auto; } .voice-talk-button { padding: 8px 12px; } }
+
+/* TODO(design): contain functional administration tables and preview data. */
+.v2-functional-panel { min-width: 0; overflow-x: auto; }
+.v2-functional-panel dialog { max-width: min(90vw, 800px); }
+.v2-functional-panel pre { white-space: pre-wrap; overflow-wrap: anywhere; }

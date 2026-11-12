@@ -108,7 +108,7 @@ def verified_excerpt(quote, text):
 
 
 def check_meeting(connection, actor, meeting_id):
-    if meeting_id is not None and not store.can_read_meeting(connection, actor, meeting_id):
+    if meeting_id is not None and not store.can_read_meeting(connection, actor, meeting_id, model=True):
         raise not_found()
 
 
@@ -116,7 +116,7 @@ def check_fragment(connection, actor, fragment_id, meeting_id):
     check_meeting(connection, actor, meeting_id)
     row = connection.execute('SELECT f.*,d.title,d.created_at FROM fragments f JOIN documents d '
                              'ON d.id=f.document_id WHERE f.id=?', (fragment_id,)).fetchone()
-    if not row or not store.can_read_document(connection, actor, row['document_id']):
+    if not row or not store.can_read_document(connection, actor, row['document_id'], model=True):
         raise not_found()
     if meeting_id is not None and not connection.execute(
             'SELECT 1 FROM meeting_documents WHERE meeting_id=? AND document_id=?',
@@ -132,10 +132,9 @@ def retrieve(connection, actor, question, meeting_id):
     if not query:
         return []
     # ACL is part of SQL selection, before ranking, limiting and model context.
-    sql = ('SELECT f.*,d.title,d.created_at FROM fragments f JOIN documents d ON d.id=f.document_id '
-           'WHERE (d.owner_id=? OR EXISTS (SELECT 1 FROM document_access a '
-           'WHERE a.document_id=d.id AND a.user_id=?))')
-    params = [actor, actor]
+    from meetings.access import predicate
+    visible, params = predicate(connection, actor, 'document', 'd', model=True)
+    sql = ('SELECT f.*,d.title,d.created_at FROM fragments f JOIN documents d ON d.id=f.document_id WHERE ' + visible)
     if meeting_id is not None:
         sql += ' AND EXISTS (SELECT 1 FROM meeting_documents md WHERE md.document_id=d.id AND md.meeting_id=?)'
         params.append(meeting_id)
@@ -268,6 +267,19 @@ def validated_claims(raw, selected, question):
 def answer(actor, question, meeting_id, audit):
     with store.db() as connection:
         selected = retrieve(connection, actor, question, meeting_id)
+        secret_notice = False
+        from meetings.access import predicate
+        visible, parameters = predicate(connection, actor, 'document', 'd')
+        for restricted in connection.execute(
+                "SELECT d.title,d.id FROM documents d WHERE d.confidentiality='secret' AND " + visible, parameters):
+            if meeting_id is not None and not connection.execute(
+                    'SELECT 1 FROM meeting_documents WHERE meeting_id=? AND document_id=?',
+                    (meeting_id, restricted['id'])).fetchone():
+                continue
+            if relevance(restricted['title'], terms(question)) >= 0.5:
+                secret_notice = True
+        if secret_notice:
+            selected = []
     audit['source_ids'] = [f"F{row['id']}" for row in selected]
     claims, model = [], None
     if selected:
@@ -291,6 +303,8 @@ def answer(actor, question, meeting_id, audit):
                         'Недостаточно доступных данных для ответа с проверяемым источником.',
               'claims': claims, 'sources': [s for claim in claims for s in claim['sources']],
               'generated_at': iso(utc_now()), 'model': model}
+    if secret_notice:
+        result['answer'] = 'Документ есть, но закрыт для ассистента; откройте файл вручную.'
     with store.db() as connection:
         connection.execute('BEGIN IMMEDIATE')
         check_meeting(connection, actor, meeting_id)

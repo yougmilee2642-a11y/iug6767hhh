@@ -142,6 +142,12 @@ def m008_management_indexes(connection):
     connection.execute('CREATE INDEX IF NOT EXISTS production_metrics_scope_asof ON production_metrics(scope, as_of)')
 
 
+def m009_organization_and_domain(connection):
+    """V2 organization, source snapshots and classification, preserving all released rows."""
+    from meetings.migrations.v2_domain import upgrade
+    upgrade(connection)
+
+
 MIGRATIONS = [
     (1, 'roles', m001_roles),
     (2, 'audit', m002_audit),
@@ -151,6 +157,7 @@ MIGRATIONS = [
     (6, 'feedback', m006_feedback),
     (7, 'knowledge_and_management', m007_knowledge_and_management),
     (8, 'management_indexes', m008_management_indexes),
+    (9, 'organization_and_domain', m009_organization_and_domain),
 ]
 LATEST = MIGRATIONS[-1][0]
 

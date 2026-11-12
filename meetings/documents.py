@@ -17,8 +17,8 @@ class DocumentError(ValueError):
 
 def kind_of(filename: str) -> str:
     extension = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-    if extension not in ('txt', 'docx', 'pdf'):
-        raise DocumentError('Поддерживаются только TXT, DOCX и текстовый PDF.')
+    if extension not in ('txt', 'docx', 'pdf', 'xlsx', 'csv', 'pptx', 'md', 'html', 'eml'):
+        raise DocumentError('Поддерживаются TXT, DOCX, текстовый PDF, XLSX, CSV, PPTX, MD, HTML и EML.')
     return extension
 
 
@@ -78,6 +78,19 @@ def fragments(filename: str, data: bytes) -> tuple[str, list[dict]]:
     if len(data) > MAX_BYTES:
         raise DocumentError('Файл больше 5 МБ.')
     kind = kind_of(filename)
+    if kind in ('docx', 'xlsx', 'pptx') and not data.startswith(b'PK\x03\x04'):
+        raise DocumentError('Сигнатура файла не соответствует офисному документу.')
+    if kind == 'pdf' and not data.startswith(b'%PDF-'):
+        raise DocumentError('Сигнатура файла не соответствует PDF.')
+    if kind not in ('docx', 'xlsx', 'pptx', 'pdf') and (
+            data.startswith((b'PK\x03\x04', b'%PDF-', b'\x89PNG', b'\xff\xd8\xff', b'GIF8', b'RIFF', b'MZ')) or b'\x00' in data):
+        raise DocumentError('Бинарный файл не является текстовым документом.')
+    if kind not in ('txt', 'docx', 'pdf'):
+        from meetings.document_formats import fragments as read_structured, FormatError
+        try:
+            return kind, read_structured(kind, data)
+        except FormatError as error:
+            raise DocumentError(str(error)) from None
     blocks = {'txt': _txt, 'docx': _docx, 'pdf': _pdf}[kind](data)
     result, buffer, page, start, paragraph_no = [], [], None, 1, 0
 
@@ -103,7 +116,11 @@ def fragments(filename: str, data: bytes) -> tuple[str, list[dict]]:
         paragraph_no += 1
         # Very long paragraphs are split on sentence boundaries to keep citations precise.
         while len(text) > FRAGMENT_CHARS * 1.5:
-            cut = text.rfind('. ', 0, FRAGMENT_CHARS) + 1 or FRAGMENT_CHARS
+            cut = text.rfind('. ', 0, FRAGMENT_CHARS) + 1
+            if not cut:
+                if len(text) > 20000:
+                    raise DocumentError('Слишком длинный неделимый абзац; разделите документ.')
+                break
             buffer.append(text[:cut].strip())
             flush()
             buffer, start = [], paragraph_no

@@ -19,9 +19,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from meetings import confirmations
 from meetings import documents as docs
-from meetings import extract, store
+from meetings import extract, store, access
 from meetings.auth import (COOKIE, ROLE_LABELS, TTL, MeetError, capabilities, check_password, current_user,
-                           MeetRoute, ensure_demo_users, make_cookie, require)
+                           MeetRoute, ensure_demo_users, make_cookie, require, forbidden)
 from meetings.auth import has_capability as auth_has
 from meetings.llm import get_llm
 from providers.local_settings import LocalAIError
@@ -52,7 +52,7 @@ def model_error(error: LocalAIError):
 
 # Routers of other track-3 modules are registered here (not in app.py). A module that is not delivered yet is
 # skipped; a delivered module that fails to import is a real error and is not hidden.
-OPTIONAL_ROUTERS = ('meetings.knowledge', 'meetings.management')
+OPTIONAL_ROUTERS = ('meetings.knowledge', 'meetings.management', 'meetings.administration')
 
 
 def _optional_routers():
@@ -126,6 +126,8 @@ class MeetingIn(BaseModel):
     timezone: str | None = Field(default=None, max_length=60)  # required when scheduled_at has no offset
     participants: list[str] = Field(default_factory=list, max_length=50)
     access_user_ids: list[int] = Field(default_factory=list, max_length=50)
+    department_id: int | None = Field(default=None, gt=0)
+    confidentiality: str | None = Field(default=None, pattern='^(public|internal|department|confidential|secret)$')
 
 
 class MeetingPatch(BaseModel):
@@ -216,6 +218,8 @@ def _meeting(connection, user, meeting_id, capability: str | None = None, action
         raise denied(user, 'meeting', meeting_id, action)
     if capability:
         require(user, capability, 'meeting', meeting_id, action)
+    if capability and not access.object_decision(connection, user['id'], 'meeting', meeting_id, capability).allowed:
+        raise forbidden(user, capability, 'meeting', meeting_id, action)
     return connection.execute('SELECT * FROM meetings WHERE id=?', (meeting_id,)).fetchone()
 
 
@@ -252,10 +256,10 @@ def _iso_date(value):
         raise MeetError(422, 'invalid_date', 'Срок должен быть датой в формате ГГГГ-ММ-ДД.') from None
 
 
-def _meeting_documents(connection, user, meeting_id):
+def _meeting_documents(connection, user, meeting_id, *, model=False):
     rows = connection.execute('SELECT d.* FROM documents d JOIN meeting_documents md ON md.document_id=d.id '
                               'WHERE md.meeting_id=? ORDER BY d.id', (meeting_id,)).fetchall()
-    visible = [r for r in rows if store.can_read_document(connection, user['id'], r['id'])]
+    visible = [r for r in rows if store.can_read_document(connection, user['id'], r['id'], model=model)]
     return visible, len(rows) - len(visible)
 
 
@@ -294,7 +298,7 @@ def _visible_prep(connection, user, prep):
             if document_id is None:
                 return False
             if document_id not in readable:
-                readable[document_id] = store.can_read_document(connection, user['id'], document_id)
+                readable[document_id] = store.can_read_document(connection, user['id'], document_id, model=True)
             if not readable[document_id]:
                 return False
         return True
@@ -344,7 +348,9 @@ def _owned_object(connection, user_id, object_type, object_id) -> bool:
 def _user_out(user: dict) -> dict:
     access_role = user.get('access_role') or 'reader'
     return {'id': user['id'], 'login': user['login'], 'name': user['name'], 'role': user['role'],
-            'access_role': access_role, 'capabilities': capabilities({'access_role': access_role})}
+            'access_role': access_role, 'level': user.get('level'), 'capabilities': capabilities(user),
+            'department': {'id': user.get('department_id'), 'code': user.get('department_code'), 'name': user.get('department_name')},
+            'delegations': user.get('_delegations', [])}
 
 
 def _related_meetings(connection, user, row, depth=5) -> list:
@@ -415,16 +421,30 @@ def router():
         return FileResponse(ROOT / 'static' / 'meetings.html')
 
     # ----- auth -----
+    @api.get('/api/meet/demo-profiles')
+    def demo_profiles():
+        if os.getenv('MEETINGS_DEMO') != '1':
+            return {'enabled': False, 'users': []}
+        fixture = json.loads((ROOT / 'demo/track3/v2/manifest.json').read_text(encoding='utf-8'))
+        with store.db() as c:
+            imported = c.execute("SELECT 1 FROM demo_imports WHERE dataset='photoprint-v2'").fetchone()
+            if not imported:
+                return {'enabled': True, 'users': []}
+            logins = [u['login'] for u in fixture['users']]
+            return {'enabled': True, 'users': [dict(r) for r in c.execute(
+                'SELECT login,name,level FROM users WHERE active=1 AND login IN (' + ','.join('?' for _ in logins) + ') ORDER BY id', logins)]}
+
     @api.post('/api/meet/login')
     def login(payload: Login, request: Request):
         with store.db() as connection:
             row = connection.execute('SELECT * FROM users WHERE login=?', (payload.login.strip().lower(),)).fetchone()
-            if not row or not check_password(payload.password, row['password_hash']):
-                store.audit(connection, None, 'login_failed', login=payload.login[:50], result='denied',
-                            error_code='bad_credentials')
-                raise MeetError(401, 'bad_credentials', 'Неверный логин или пароль.')
+            if not row or not row['active'] or not check_password(payload.password, row['password_hash']):
+                raise MeetError(401, 'bad_credentials', 'Неверный логин или пароль.', audit={
+                    'user_id': None, 'action': 'login_failed', 'result': 'denied', 'error_code': 'bad_credentials'})
             store.audit(connection, row['id'], 'login')
-        response = JSONResponse({'user': _user_out(dict(row))})
+        with store.db() as connection:
+            logged_in = access.load_user(connection, row['id'])
+        response = JSONResponse({'user': _user_out(logged_in)})
         response.set_cookie(COOKIE, make_cookie(row['id']), max_age=TTL, httponly=True, samesite='strict',
                             secure=request.url.scheme == 'https')
         return response
@@ -439,15 +459,16 @@ def router():
     def me(request: Request):
         user = _user_out(current_user(request))
         return {'user': user, 'capabilities': user['capabilities'],
-                'role': {'key': user['access_role'], 'label': ROLE_LABELS.get(user['access_role'], '')},
-                'timezone': store.DISPLAY_ZONE}
+                'role': {'key': user.get('level') or user['access_role'], 'label': ROLE_LABELS.get(user.get('level') or user['access_role'], '')},
+                'timezone': store.DISPLAY_ZONE, 'level': user.get('level'), 'department': user.get('department'),
+                'delegations': user.get('delegations', [])}
 
     @api.get('/api/meet/users')
     def users(request: Request):
         current_user(request)
         with store.db() as connection:
             return {'users': [dict(r) for r in connection.execute(
-                'SELECT id,login,name,role,access_role FROM users ORDER BY id')]}
+                'SELECT id,login,name,role,access_role,level,department_id,active FROM users ORDER BY id')]}
 
     @api.get('/api/meet/audit')
     def audit_log(request: Request, limit: int = 50, scope: str = 'mine'):
@@ -456,10 +477,22 @@ def router():
         Ids and codes only — no titles or content."""
         user = current_user(request)
         require(user, 'audit.read', action='audit.read')
-        if scope not in ('mine', 'my_objects'):
+        if user.get('level') in ('director', 'auditor') and scope == 'mine':
+            scope = 'all'
+        if not user.get('level') and scope not in ('mine', 'my_objects'):
             raise MeetError(422, 'invalid_scope', 'scope: mine или my_objects.')
+        if scope not in ('mine', 'my_objects', 'all', 'department'):
+            raise MeetError(422, 'invalid_scope', 'scope: mine, my_objects, department или all.')
+        if scope == 'all' and user.get('level') not in ('director', 'auditor'):
+            raise forbidden(user, 'audit.read', 'audit', None, 'audit.all')
+        if user.get('level') == 'head':
+            scope = 'department'
         limit = max(1, min(limit, 200))
         with store.db() as connection:
+            if scope in ('all', 'department'):
+                rows = connection.execute('SELECT * FROM audit ' + ('WHERE department_id=? ' if scope == 'department' else '') +
+                                          'ORDER BY id DESC LIMIT ?', ([user['department_id'], limit] if scope == 'department' else [limit]))
+                return {'events': [store.audit_out(r) for r in rows], 'scope': scope}
             if scope == 'mine':
                 rows = connection.execute('SELECT * FROM audit WHERE user_id=? ORDER BY id DESC LIMIT ?', (user['id'], limit))
                 return {'events': [store.audit_out(r) for r in rows], 'scope': scope}
@@ -475,9 +508,14 @@ def router():
     # ----- documents -----
     @api.post('/api/meet/documents')
     async def upload(request: Request, file: UploadFile = File(...), meeting_id: int | None = Form(default=None),
-                     share_with: str = Form(default=''), title: str = Form(default='')):
+                     share_with: str = Form(default=''), title: str = Form(default=''),
+                     confidentiality: str = Form(default='confidential'), doc_type: str = Form(default='документ')):
         user = current_user(request)
         require(user, 'documents.upload', action='document.upload')
+        if confidentiality not in access.CLASSIFICATIONS:
+            raise MeetError(422, 'invalid_classification', 'Неизвестный уровень конфиденциальности.')
+        if user.get('level') == 'employee' and confidentiality != 'department':
+            raise MeetError(422, 'department_document_only', 'Сотрудник загружает документ своего отдела с уровнем department.')
         share = [int(v) for v in re.findall(r'\d+', share_with)]
         if share:
             require(user, 'documents.share', action='document.share')
@@ -491,9 +529,9 @@ def router():
             if meeting_id is not None:
                 _meeting(connection, user, meeting_id, 'meetings.edit', 'meeting.attach_document')
             cursor = connection.execute(
-                'INSERT INTO documents(owner_id,title,filename,kind,content,sha256,created_at) VALUES (?,?,?,?,?,?,?)',
+                'INSERT INTO documents(owner_id,title,filename,kind,content,sha256,created_at,department_id,confidentiality,doc_type,authored_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
                 (user['id'], (title.strip() or filename.rsplit('.', 1)[0])[:200], filename, kind, data,
-                 hashlib.sha256(data).hexdigest(), store.now()))
+                 hashlib.sha256(data).hexdigest(), store.now(), user.get('department_id'), confidentiality, doc_type[:80], store.now()))
             document_id = cursor.lastrowid
             connection.executemany('INSERT INTO fragments(document_id,idx,location,text) VALUES (?,?,?,?)',
                                    [(document_id, f['idx'], f['location'], f['text']) for f in fragments])
@@ -534,6 +572,9 @@ def router():
             store.audit(connection, user['id'], 'document_download', document_id=document_id,
                         object_type='document', object_id=document_id)
         media = {'txt': 'text/plain; charset=utf-8', 'pdf': 'application/pdf',
+                 'md': 'text/markdown; charset=utf-8', 'html': 'text/html; charset=utf-8', 'csv': 'text/csv; charset=utf-8',
+                 'eml': 'message/rfc822', 'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                 'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
                  'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}[row['kind']]
         return Response(row['content'], media_type=media, headers={
             'Content-Disposition': f"attachment; filename*=UTF-8''{urlquote(row['filename'])}"})
@@ -579,11 +620,19 @@ def router():
         if payload.access_user_ids:
             require(user, 'meetings.share', action='meeting.share')
         scheduled = _scheduled(payload.scheduled_at, payload.timezone)
+        department = payload.department_id or user.get('department_id')
+        if user.get('level') and user['level'] != 'director':
+            if (user['level'] == 'employee' and department not in user.get('_delegated_departments', [])) or (
+                    user['level'] in ('head', 'lead') and department != user['department_id'] and department not in user.get('_delegated_departments', [])):
+                raise forbidden(user, 'meetings.create', 'department', department, 'meeting.create')
         with store.db() as connection:
+            if department is not None and not connection.execute('SELECT 1 FROM departments WHERE id=?', (department,)).fetchone():
+                raise MeetError(422, 'invalid_department', 'Отдел не найден.')
             cursor = connection.execute(
-                'INSERT INTO meetings(owner_id,title,topic,scheduled_at,participants,created_at) VALUES (?,?,?,?,?,?)',
+                'INSERT INTO meetings(owner_id,title,topic,scheduled_at,participants,created_at,department_id,confidentiality) VALUES (?,?,?,?,?,?,?,?)',
                 (user['id'], payload.title.strip(), payload.topic.strip(), scheduled,
-                 json.dumps([p.strip() for p in payload.participants if p.strip()], ensure_ascii=False), store.now()))
+                 json.dumps([p.strip() for p in payload.participants if p.strip()], ensure_ascii=False), store.now(),
+                 department, payload.confidentiality or ('department' if user.get('level') else 'confidential')))
             for user_id in _valid_users(connection, payload.access_user_ids):
                 if user_id != user['id']:
                     connection.execute('INSERT OR IGNORE INTO meeting_access VALUES (?,?)', (cursor.lastrowid, user_id))
@@ -664,7 +713,9 @@ def router():
         user = current_user(request)
         with store.db() as connection:
             row = _meeting(connection, user, meeting_id, 'prep.generate', 'meeting.prepare')
-            visible, _hidden = _meeting_documents(connection, user, meeting_id)
+            visible, _hidden = _meeting_documents(connection, user, meeting_id, model=True)
+            if not store.can_read_meeting(connection, user['id'], meeting_id, model=True):
+                raise MeetError(403, 'secret_model_denied', 'Закрытая встреча не передаётся ассистенту. Откройте запись вручную.')
             fragments = []
             for document in visible:  # model context = ONLY documents this user may read
                 fragments += [store.fragment_out(f, document['title']) for f in connection.execute(
@@ -737,7 +788,7 @@ def router():
         if not row or not store.can_read_meeting(connection, user['id'], row['meeting_id']):
             raise denied(user, 'utterance', f'U{number}', action)
         if capability:
-            require(user, capability, 'utterance', f'U{number}', action)
+            _meeting(connection, user, row['meeting_id'], capability, action)
         return row
 
     @api.get('/api/meet/utterances/{utterance_id}')
@@ -788,6 +839,8 @@ def router():
         user = current_user(request)
         with store.db() as connection:
             row = _meeting(connection, user, meeting_id, 'protocol.edit', 'protocol.draft')
+            if not store.can_read_meeting(connection, user['id'], meeting_id, model=True):
+                raise MeetError(403, 'secret_model_denied', 'Закрытая встреча не передаётся ассистенту. Откройте запись вручную.')
             utterances = store.utterances(connection, meeting_id)
             participants = json.loads(row['participants'])
             confirmed = [store.item_out(connection, r) for r in connection.execute(
@@ -927,8 +980,17 @@ def router():
         row = connection.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone()
         if not row or not store.can_read_meeting(connection, user['id'], row['meeting_id']):
             raise denied(user, 'task', task_id, action)
+        row = dict(row)
+        if row['department_id'] is None:
+            row['department_id'] = connection.execute('SELECT department_id FROM meetings WHERE id=?', (row['meeting_id'],)).fetchone()[0]
         if capability:
             require(user, capability, 'task', task_id, action)
+            parent = dict(connection.execute('SELECT * FROM meetings WHERE id=?', (row['meeting_id'],)).fetchone())
+            parent['_shared'] = True  # read was checked above; write adds role/department/assignee constraints
+            parent['assignee_user_id'] = row['assignee_user_id']
+            parent['department_id'] = row['department_id'] or parent['department_id']
+            if not access.decide(access.load_user(connection, user['id']), capability, parent).allowed:
+                raise forbidden(user, capability, 'task', task_id, action)
         return row
 
     @api.patch('/api/meet/tasks/{task_id}')
@@ -948,6 +1010,8 @@ def router():
         changes = _normalized_task_changes(payload.changes)
         with store.write_tx() as connection:
             row = _task(connection, user, task_id, 'tasks.change', 'task.preview')
+            if user.get('level') == 'employee' and row['department_id'] not in user.get('_delegated_departments', []) and set(changes) - {'status'}:
+                raise forbidden(user, 'tasks.change', 'task', task_id, 'task.change_fields')
             before = {k: row[k] for k in ('status', 'assignee', 'due')}
             after = {**before, **{k: v for k, v in changes.items() if k in before}}
             changed = {k: {'from': before[k], 'to': after[k]} for k in before if before[k] != after[k]}
@@ -975,6 +1039,8 @@ def router():
             if row['version'] != pending['object_version']:
                 raise MeetError(409, 'stale', 'Задача изменилась после предпросмотра. Обновите и проверьте ещё раз.')
             changes = pending['payload']['changes']
+            if user.get('level') == 'employee' and row['department_id'] not in user.get('_delegated_departments', []) and set(changes) - {'status'}:
+                raise forbidden(user, 'tasks.change', 'task', task_id, 'task.change_fields')
             stamp = store.now()
             if 'status' in changes:
                 connection.execute('UPDATE tasks SET status=? WHERE id=?', (changes['status'], task_id))

@@ -1,6 +1,7 @@
 """Seed the CallWise Meetings demo (idempotent). Usage:
     .venv\\Scripts\\python scripts\\seed_meetings_demo.py [--reset] [--with-transcript]
---reset            only an explicit marked test --db, also requires --confirm-delete
+--reset            only an explicitly configured, marked isolated demo database
+--legacy           retain the original Orbita demo; default is Photoprint v2
 --with-transcript  also load demo/meetings/transcript.txt into the launch meeting
 """
 import hashlib
@@ -77,13 +78,17 @@ if __name__ == '__main__':
     from scripts.track3.paths import explicit_db
     from scripts.track3.cleanup import cleanup
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--db', help='Absolute isolated test DB; default retained only for non-destructive legacy seed')
+    parser.add_argument('--db', help='Абсолютный путь к изолированной демо-БД; иначе MEETINGS_DB_PATH')
+    parser.add_argument('--legacy', action='store_true', help='Загрузить прежнюю Орбиту вместо Фотопринт')
     parser.add_argument('--reset', action='store_true')
     parser.add_argument('--confirm-delete', action='store_true')
     parser.add_argument('--with-transcript', action='store_true')
     args = parser.parse_args()
-    if args.db:
-        test_path = explicit_db(args.db)
+    selected = args.db or os.getenv('MEETINGS_DB_PATH')
+    if not args.legacy and not selected:
+        parser.error('Укажите абсолютный --db или MEETINGS_DB_PATH вне рабочей data/.')
+    if selected:
+        test_path = explicit_db(selected)
         marker = Path(str(test_path)+'.track3.json')
         if marker.is_symlink() or (test_path.exists() and not marker.is_file()):
             parser.error('Existing test DB needs a regular Track 3 marker')
@@ -91,10 +96,15 @@ if __name__ == '__main__':
             parser.error('Test marker path mismatch')
         os.environ['MEETINGS_DB_PATH'] = str(test_path)
     if args.reset:
-        if not args.db or not args.confirm_delete:
-            parser.error('--reset requires an explicit marked test --db and --confirm-delete; working data/ is protected')
-        cleanup(args.db, confirm=True)
+        if not selected or (args.legacy and not args.confirm_delete):
+            parser.error('--reset требует явный путь; для --legacy также --confirm-delete. Рабочая data/ защищена.')
+        if test_path.exists():
+            cleanup(str(test_path), confirm=True)
         store.reset_cache()
-    print(seed(args.with_transcript))
-    if args.db and not marker.exists():
+    if args.legacy:
+        print(seed(args.with_transcript))
+    else:
+        from scripts.track3.seed_fotoprint import seed as photoprint
+        print(json.dumps(photoprint(str(test_path)), ensure_ascii=False, indent=2))
+    if selected and not marker.exists():
         marker.write_text(json.dumps({'version':1,'db':str(test_path),'dataset':'orbita-demo'}), encoding='utf-8')

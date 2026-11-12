@@ -596,3 +596,9 @@ uses the existing application without speech weights. [Status and acceptance evi
 [licenses](docs/track3-release/LICENSES.md), and [5–7 minute demo](docs/track3-release/DEMO.md).
 Release readiness is blocked until the outstanding live-model, independent reproduction
 and review gates pass; historical MVP model results are not current release evidence.
+
+
+### Фокус · Фотопринт v2 (разработка)
+
+Изолированный текстовый запуск, демо-роли и проверки: [V2_QUICKSTART.md](docs/track3-release/V2_QUICKSTART.md).
+Текущее состояние и непройденные критерии: [журнал v2](docs/track3-handoffs/agent-v2.md).

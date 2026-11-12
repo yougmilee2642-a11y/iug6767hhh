@@ -24,10 +24,10 @@ RATIOS = (
 
 
 def visible_tasks(connection, actor):
+    from meetings.access import predicate
+    sql, params = predicate(connection, actor, 'meeting', 'm', model=True)
     return [dict(row) for row in connection.execute(
-        'SELECT t.* FROM tasks t JOIN meetings m ON m.id=t.meeting_id WHERE m.owner_id=? '
-        'OR EXISTS (SELECT 1 FROM meeting_access a WHERE a.meeting_id=m.id AND a.user_id=?) ORDER BY t.id',
-        (actor, actor))]
+        'SELECT t.* FROM tasks t JOIN meetings m ON m.id=t.meeting_id WHERE ' + sql + ' ORDER BY t.id', params)]
 
 
 def overdue(task, day):
@@ -44,9 +44,9 @@ def metric_rows(connection, actor, cutoff, warnings):
     if not exists:
         warnings.append('Производственная витрина не загружена.')
         return []
-    rows = connection.execute('SELECT p.* FROM production_metrics p WHERE p.owner_id=? OR EXISTS '
-                              '(SELECT 1 FROM production_metric_access a WHERE a.metric_id=p.id AND a.user_id=?)',
-                              (actor, actor))
+    from meetings.access import predicate
+    sql, params = predicate(connection, actor, 'metric', 'p', model=True)
+    rows = connection.execute('SELECT p.* FROM production_metrics p WHERE ' + sql, params)
     latest = {}
     for raw in rows:
         row = dict(raw)
@@ -231,9 +231,10 @@ def resolve(actor, kind, source_id, audit):
             else:
                 if not connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_metrics'").fetchone():
                     raise not_found()
-                row = connection.execute('SELECT p.* FROM production_metrics p WHERE p.source_id=? AND '
-                    '(p.owner_id=? OR EXISTS (SELECT 1 FROM production_metric_access a '
-                    'WHERE a.metric_id=p.id AND a.user_id=?))', (source_id, actor, actor)).fetchone()
+                from meetings.access import predicate
+                sql, params = predicate(connection, actor, 'metric', 'p')
+                row = connection.execute('SELECT p.* FROM production_metrics p WHERE p.source_id=? AND ' + sql,
+                                         [source_id, *params]).fetchone()
                 if not row:
                     raise not_found()
                 data = dict(row)

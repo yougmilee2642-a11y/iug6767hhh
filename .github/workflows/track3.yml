@@ -39,10 +39,14 @@ jobs:
           node --check static/meetings/track3.js
           node --check static/meetings/protocol.js
           node --check static/meetings/voice.js
+          node --check static/meetings/administration.js
           node --test tests/*.cjs static/mts-shell/tests/*.mjs
       - name: Product HTTP, persistence and two roles (no model quality claim)
         if: always() && steps.dependencies.outcome == 'success'
         run: python scripts/track3/http_smoke.py --output /tmp/track3-http.json
+      - name: Photoprint v2 roles, KPI and restart over real HTTP
+        if: always() && steps.dependencies.outcome == 'success'
+        run: python scripts/track3/v2_http_smoke.py --output /tmp/track3-v2-http.json
       - name: Python syntax and whitespace
         if: always() && steps.dependencies.outcome == 'success'
         run: |
@@ -72,6 +76,9 @@ jobs:
       - name: Browser against real HTTP handlers (explicit model double)
         if: always() && steps.browser.outcome == 'success'
         run: python scripts/track3/ui_http_check.py --output /tmp/track3-ui-http.json --artifacts /tmp/track3-ui-http
+      - name: Photoprint v2 role forms and mobile viewports
+        if: always() && steps.browser.outcome == 'success'
+        run: python scripts/track3/v2_ui_check.py --output /tmp/track3-v2-ui.json --artifacts /tmp/track3-v2-ui
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -80,6 +87,9 @@ jobs:
             /tmp/track3-http.json
             /tmp/track3-ui-http.json
             /tmp/track3-ui-http/
+            /tmp/track3-v2-http.json
+            /tmp/track3-v2-ui.json
+            /tmp/track3-v2-ui/
           retention-days: 7
   windows-release:
     runs-on: windows-latest

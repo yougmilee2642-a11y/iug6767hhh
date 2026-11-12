@@ -186,7 +186,7 @@ def reset_cache():
     _initialized.clear()
 
 
-AUDIT_FIELDS = ('object_type', 'object_id', 'result', 'source_ids', 'confirmation_id', 'model', 'error_code')
+AUDIT_FIELDS = ('object_type', 'object_id', 'result', 'source_ids', 'confirmation_id', 'model', 'error_code', 'department_id')
 
 
 def audit(connection, user_id, action, **details):
@@ -196,13 +196,17 @@ def audit(connection, user_id, action, **details):
     The current HTTP request id is attached automatically. Never put titles, full prompts or tokens here."""
     columns = {k: details.pop(k) for k in AUDIT_FIELDS if k in details}
     sources = columns.get('source_ids') or []
+    department = columns.get('department_id')
+    if department is None and user_id is not None:
+        actor = connection.execute('SELECT department_id FROM users WHERE id=?', (user_id,)).fetchone()
+        department = actor[0] if actor else None
     connection.execute(
         'INSERT INTO audit(at,user_id,action,details,request_id,object_type,object_id,result,source_ids,confirmation_id,'
-        'model,error_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+        'model,error_code,department_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
         (now(), user_id, action, json.dumps(details, ensure_ascii=False, default=str), request_id_var.get(),
          columns.get('object_type'), None if columns.get('object_id') is None else str(columns['object_id']),
          columns.get('result') or 'ok', json.dumps([str(s) for s in sources]), columns.get('confirmation_id'),
-         columns.get('model'), columns.get('error_code')))
+         columns.get('model'), columns.get('error_code'), department))
 
 
 def audit_independent(user_id, action, **details):
@@ -221,37 +225,31 @@ def audit_out(row) -> dict:
             'request_id': row['request_id'], 'object_type': row['object_type'], 'object_id': row['object_id'],
             'result': row['result'], 'source_ids': json.loads(row['source_ids'] or '[]'),
             'confirmation_id': row['confirmation_id'], 'model': row['model'], 'error_code': row['error_code'],
-            'details': json.loads(row['details'] or '{}')}
+            'department_id': row['department_id'], 'details': json.loads(row['details'] or '{}')}
 
 
 # ---------- access ----------
 
-def can_read_meeting(connection, user_id: int, meeting_id: int) -> bool:
-    row = connection.execute(
-        'SELECT 1 FROM meetings m WHERE m.id=? AND (m.owner_id=? OR EXISTS '
-        '(SELECT 1 FROM meeting_access a WHERE a.meeting_id=m.id AND a.user_id=?))',
-        (meeting_id, user_id, user_id)).fetchone()
-    return row is not None
+def can_read_meeting(connection, user_id: int, meeting_id: int, *, model=False) -> bool:
+    from meetings.access import object_decision
+    return object_decision(connection, user_id, 'meeting', meeting_id, 'model.read' if model else None).allowed
 
 
-def can_read_document(connection, user_id: int, document_id: int) -> bool:
-    row = connection.execute(
-        'SELECT 1 FROM documents d WHERE d.id=? AND (d.owner_id=? OR EXISTS '
-        '(SELECT 1 FROM document_access a WHERE a.document_id=d.id AND a.user_id=?))',
-        (document_id, user_id, user_id)).fetchone()
-    return row is not None
+def can_read_document(connection, user_id: int, document_id: int, *, model=False) -> bool:
+    from meetings.access import object_decision
+    return object_decision(connection, user_id, 'document', document_id, 'model.read' if model else None).allowed
 
 
-def accessible_document_ids(connection, user_id: int) -> list[int]:
-    return [r[0] for r in connection.execute(
-        'SELECT d.id FROM documents d WHERE d.owner_id=? OR EXISTS '
-        '(SELECT 1 FROM document_access a WHERE a.document_id=d.id AND a.user_id=?) ORDER BY d.id', (user_id, user_id))]
+def accessible_document_ids(connection, user_id: int, *, model=False) -> list[int]:
+    from meetings.access import predicate
+    sql, params = predicate(connection, user_id, 'document', 'd', model=model)
+    return [r[0] for r in connection.execute('SELECT d.id FROM documents d WHERE ' + sql + ' ORDER BY d.id', params)]
 
 
-def accessible_meeting_ids(connection, user_id: int) -> list[int]:
-    return [r[0] for r in connection.execute(
-        'SELECT m.id FROM meetings m WHERE m.owner_id=? OR EXISTS '
-        '(SELECT 1 FROM meeting_access a WHERE a.meeting_id=m.id AND a.user_id=?) ORDER BY m.id', (user_id, user_id))]
+def accessible_meeting_ids(connection, user_id: int, *, model=False) -> list[int]:
+    from meetings.access import predicate
+    sql, params = predicate(connection, user_id, 'meeting', 'm', model=model)
+    return [r[0] for r in connection.execute('SELECT m.id FROM meetings m WHERE ' + sql + ' ORDER BY m.id', params)]
 
 
 # ---------- serializers ----------
@@ -268,7 +266,9 @@ def document_out(connection, row) -> dict:
     shared = [r[0] for r in connection.execute('SELECT user_id FROM document_access WHERE document_id=?', (row['id'],))]
     return {'id': row['id'], 'title': row['title'], 'filename': row['filename'], 'kind': row['kind'],
             'owner_id': row['owner_id'], 'owner_name': user_name(connection, row['owner_id']),
-            'shared_with': shared, 'fragments_count': count, 'created_at': row['created_at']}
+            'shared_with': shared, 'fragments_count': count, 'created_at': row['created_at'],
+            'department_id': row['department_id'], 'confidentiality': row['confidentiality'], 'doc_type': row['doc_type'],
+            'authored_at': row['authored_at'], 'version': row['version'], 'valid_until': row['valid_until'], 'supersedes_id': row['supersedes_id']}
 
 
 def fragment_out(row, title=None) -> dict:
@@ -282,7 +282,8 @@ def meeting_out(connection, row) -> dict:
             'timezone': DISPLAY_ZONE, 'participants': json.loads(row['participants']), 'owner_id': row['owner_id'],
             'owner_name': user_name(connection, row['owner_id']), 'access_user_ids': access,
             'speaker_map': json.loads(row['speaker_map']), 'followup_of': row['followup_of'],
-            'created_at': row['created_at'], 'version': row['version']}
+            'created_at': row['created_at'], 'version': row['version'],
+            'department_id': row['department_id'], 'confidentiality': row['confidentiality']}
 
 
 def utterance_out(row, speaker_map: dict) -> dict:
