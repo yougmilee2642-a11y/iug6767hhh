@@ -725,3 +725,21 @@ yougmilee2642-a11y/iug6767hhh; отдельное повторное разре�
 Публикация через branch/PR с проверкой CI, затем обычный merge; безforce/rebase.
 Текущая работа готовится к полному набору/HTTP/чистой установке и публикации.
 Liveмодели/аккаунты не запускались, ими автоматические тесты не заменяются.
+
+## E15.1/E15.6 и актуальная браузерная проверка
+
+Срез241a70c:1646Python passed/28skipped/0failed287.45s; это полный CPU
+с room-hints/corridor, до последнего UI-fixture regression. Целевой новый
+UI-transport+room5passed4.51s; Node66passed. Ранее E6.4source230fdfe:
+1642passed/28skipped286.51s; cleanruntime28.092/base29.534passed;
+HTTP5.726s passed. Первичные reports/v2-document-insights-* иv2-meeting-hints-*.
+
+PR13 опубликован. Первый CI43213981781: Linux/base/runtime и Windows/release/
+installpassed. Browser35scenarios failed2/errors39: icon-arrow изменял
+accessible name; multipart wake WAV ошибочно читался JSON fixture; старые
+селекторы card не соответствовали current main rows. Отдельно выявлен mobile
+overflow. Исправлены явный aria-label, binary-awarefixture, семантическое
+время/пояс, актуальные selectors без удаления assertions, min-width grid shrink.
+Реальные UI сценарии должны пройти новыйCI. Фикс private speech: wake-mode
+не является разрешением озвучить личные ответы; нужен явный solo-roomфлажок.
+Модель/аккаунты/живой микрофон не запускались. Браузер локально socketEPERM.

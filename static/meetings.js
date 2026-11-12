@@ -70,7 +70,7 @@ const assistant = voiceAssistant({ node, makeButton, request, state, openSource,
 const operations = operationsUI({node,makeButton,makeInput,request,runAction,state,ui,dateLabel,openMeeting,navigate:setPage});
 
 const briefing = briefingUI({node,makeButton,makeInput,request,runAction,state,dateLabel,openSource,openMeeting,
-  speak:()=>assistant.ask('Брифинг дня')});
+  speak:()=>assistant.ask('Брифинг дня'),corridor:()=>assistant.ask('Подготовь меня к встрече за 30 секунд')});
 
 function operation(button, key) {
   key = `${state.epoch}:${key}`;

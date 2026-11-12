@@ -58,6 +58,8 @@ def route(text):
     """Deterministic routing; the model never chooses an action."""
     if WRITE.search(text):
         return 'action'
+    if re.search(r'подготовь\w*\s+меня\s+к\s+встреч|(?:брифинг|к\s+встрече).*30\s*секунд|встреч\w*\s+за\s+тридцать\s+секунд',text,re.I):
+        return 'corridor'
     if re.search(r'PP-\d{4}-\d{5}|обращен|следующ.*встреч|кто.*план|кто.*встреч|(?:мои|у меня).*задач|задач.*(?:сегодня|недел)|просроч.*производ',text,re.I) and not DOCUMENT_HINT.search(text):
         return 'assistant_read'
     if re.search(r'брифинг|что\s+важного\s+сегодня',text,re.I) and not DOCUMENT_HINT.search(text):
@@ -236,6 +238,24 @@ def access_user(c,uid):
     return load_user(c,uid)
 
 
+def answer_corridor(actor_user,text,meeting_id,details):
+    from meetings.meeting_hints import corridor
+    now=utc_now()
+    with store.db() as c:
+        c.execute('BEGIN')
+        if meeting_id is not None and not store.can_read_meeting(c,actor_user['id'],meeting_id,model=True):
+            raise MeetError(404,'not_found','Не найдено или нет доступа.')
+        result=corridor(c,actor_user,now)
+        private=False
+        for uid in audience(c,actor_user['id'],meeting_id):
+            if uid==actor_user['id']:continue
+            try:other=corridor(c,access_user(c,uid),now)
+            except MeetError:private=True;break
+            if result['claims']!=other['claims']:private=True;break
+    details['source_ids']=[s['id'] for claim in result['claims'] for s in claim['sources']]
+    return result,result['spoken'],private
+
+
 def answer_agenda(actor_user, kind, text, meeting_id, details):
     """Встречи, задачи, сроки, решения, документы. None — вопрос не распознан, идём дальше."""
     from meetings import voice_agenda
@@ -311,7 +331,7 @@ def ask(actor_user, text, meeting_id, speak_private, details):
         details['route'] = kind
         result, phrase, private = agenda
     else:
-        handler = {'overview':answer_overview,'briefing':answer_briefing,'assistant_read':answer_context}.get(kind,answer_knowledge)
+        handler = {'overview':answer_overview,'briefing':answer_briefing,'assistant_read':answer_context,'corridor':answer_corridor}.get(kind,answer_knowledge)
         result, phrase, private = handler(actor_user, text, meeting_id, details)
 
     if kind == 'knowledge' and result.get('status') != 'grounded':

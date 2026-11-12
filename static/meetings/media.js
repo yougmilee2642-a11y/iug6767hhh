@@ -22,6 +22,26 @@ export function mediaUI(h) {
     const section=node('section','panel');section.append(node('h2','','Загрузить запись с согласия'));
     parent.append(section);
     const current=()=>state.user?.id===identity && state.epoch===epoch && section.isConnected;
+    if(state.capabilities.includes('transcript.edit')){
+      const mode=input({label:'Режим переговорной: показывать подсказки без действий',type:'checkbox'});
+      const live=node('div','');live.setAttribute('aria-live','polite');section.append(mode.wrap,live);
+      let timer=null;
+      const active=()=>current() && mode.input.checked && state.voiceCapture?.recording && String(state.voiceCapture.meetingId)===String(meeting.id);
+      async function poll(){
+        if(!current() || !mode.input.checked)return;
+        if(!active())live.replaceChildren(node('p','muted-copy','Подсказки включатся во время записи с согласием участников.'));
+        else try{
+          const drafts=(state.voiceDrafts[meeting.id] || []).filter(d=>!d.saved && !d.loading && d.text).slice(-10).map(d=>d.text.slice(0,2000));
+          const result=await request(`/meetings/${meeting.id}/room-hints`,{method:'POST',body:{consent:true,drafts}});
+          if(!active())return;
+          live.replaceChildren(node('p','muted-copy',result.notice));
+          for(const hint of result.hints){const row=node('article','claim-item');row.append(node('p','',hint.text),node('p','task-meta',hint.verified_transcript?'Сохранённая реплика':'Непроверенный фрагмент ASR'),node('blockquote','',hint.source.quote));live.append(row);}
+          if(!result.hints.length)live.append(node('p','','По текущим правилам уточнений нет.'));
+        }catch(error){if(active())live.replaceChildren(node('p','gap-state',error.message || 'Подсказки недоступны.'));}
+        if(current() && mode.input.checked)timer=setTimeout(poll,5000);
+      }
+      mode.input.addEventListener('change',()=>{clearTimeout(timer);if(mode.input.checked)void poll();else live.replaceChildren();});
+    }
     const jobs=node('div','');
     async function load() {
       const data=await request(`/meetings/${meeting.id}/audio`);if(!current())return;

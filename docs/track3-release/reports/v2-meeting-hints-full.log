@@ -1,0 +1,43 @@
+........................................................................ [  4%]
+........................................................................ [  8%]
+........................................................................ [ 12%]
+........................................................................ [ 17%]
+........................................................................ [ 21%]
+........................................................................ [ 25%]
+........................................................................ [ 30%]
+........................................................................ [ 34%]
+........................................................................ [ 38%]
+............ssssss...................................................... [ 43%]
+..............................................................s......... [ 47%]
+..................sssss................................................. [ 51%]
+........................................................................ [ 55%]
+........................................................................ [ 60%]
+........................................................................ [ 64%]
+........................................................................ [ 68%]
+........................................................................ [ 73%]
+........................................................................ [ 77%]
+...............................................................s...sssss [ 81%]
+sssssssss............................................................... [ 86%]
+........................................................................ [ 90%]
+........................................................................ [ 94%]
+........................................................................ [ 98%]
+.................                                                        [100%]
+=============================== warnings summary ===============================
+../../80c6e160b1f6/track3-clean-venv/lib/python3.12/site-packages/starlette/testclient.py:37
+  /workspace/scratch/80c6e160b1f6/track3-clean-venv/lib/python3.12/site-packages/starlette/testclient.py:37: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = typing.Callable[[], typing.ContextManager[anyio.abc.BlockingPortal]]
+
+tests/test_access_matrix.py::test_classification_matrix_matches_sql[False-public-document-director-director]
+tests/test_access_matrix.py::test_classification_matrix_matches_sql[False-public-document-director-director]
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+tests/test_access_matrix.py::test_classification_matrix_matches_sql[False-public-document-director-director]
+tests/test_access_matrix.py::test_classification_matrix_matches_sql[False-public-document-director-director]
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/test_access_matrix.py::test_classification_matrix_matches_sql[False-public-document-director-director]
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1646 passed, 28 skipped, 6 warnings in 287.45s (0:04:47)
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute

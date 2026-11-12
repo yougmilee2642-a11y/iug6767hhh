@@ -26,8 +26,11 @@ export function voiceAssistant(h) {
   status.setAttribute('aria-live', 'polite');
   const heard = node('p', 'voice-heard', '');
   const result = node('div', 'voice-result');
-  // Фокус озвучивает все ответы: это решение владельца компьютера, флажок «я один» убран.
-  const SPEAK_EVERYTHING = true;
+  // Public replies may be spoken. A private reply needs an explicit solo-room
+  // choice; enabling automatic wake does not authorize private speech.
+  const loud = node('label', 'voice-loud');
+  const loudBox = node('input', '');loudBox.type='checkbox';
+  loud.append(loudBox,node('span','','Я один в комнате — разрешаю озвучку личных ответов'));
   const form = node('form', 'voice-form');
   const typed = node('input', '');
   typed.type = 'text';
@@ -69,7 +72,7 @@ export function voiceAssistant(h) {
   const hush = makeButton('Остановить озвучку', stopSpeaking, 'secondary-button');
   hush.hidden = true;
   head.append(node('h2', '', 'Фокус'), close);
-  panel.append(head, status, heard, result, hush, form, wakeBox);
+  panel.append(head, status, heard, result, hush, loud, form, wakeBox);
   document.body.append(panel);
 
   const talk = node('button', 'voice-talk-button', 'Спросить голосом');
@@ -115,6 +118,7 @@ export function voiceAssistant(h) {
   function reset() {
     sequence++; stopSpeaking(); void cancelCapture(); void stopWake('');
     wakeFailed = false;
+    loudBox.checked=false;
     panel.hidden = true; heard.textContent = ''; result.replaceChildren(); setStatus('');
   }
 
@@ -225,7 +229,7 @@ export function voiceAssistant(h) {
     let reply;
     try {
       const id = meetingId();
-      reply = await request('/voice/ask', { method: 'POST', body: { text, speak_private: SPEAK_EVERYTHING, ...(id ? { meeting_id: Number(id) } : {}) } });
+      reply = await request('/voice/ask', { method: 'POST', body: { text, speak_private: loudBox.checked, ...(id ? { meeting_id: Number(id) } : {}) } });
     } catch (error) {
       if (mine === sequence) setStatus(error.message || 'Не удалось получить ответ.');
       return;
