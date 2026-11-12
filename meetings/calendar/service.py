@@ -147,7 +147,7 @@ def invitation(connection, recipient: dict, meeting_row, start: datetime, end: d
     visible = store.can_read_meeting(connection, recipient['id'], meeting_row['id'])
     subject = f"Приглашение: {meeting_row['title']}" if visible else 'Приглашение на встречу'
     body = (f"{subject}\nКогда: {local_label(start, tz_name)} — {end.astimezone(store.zone(tz_name)).strftime('%H:%M')}\n"
-            'Тестовый календарь CallWise: письмо не отправляется, приглашение хранится в локальном outbox.')
+            'Тестовый календарь Фокус: письмо не отправляется, приглашение хранится в локальном outbox.')
     return {'recipient_id': recipient['id'], 'recipient_name': recipient['name'], 'channel': 'local_outbox',
             'subject': subject[:250], 'body': body, 'has_meeting_access': visible}
 

@@ -43,7 +43,7 @@ def write(c):
         message['From']=f"user-{row['organizer_id']}@demo.invalid";message['To']=f"user-{row['recipient_id']}@demo.invalid"
         message['Subject']='Приглашение: '+event['title'].replace('\r',' ').replace('\n',' ')
         message['Date']=store.parse_aware(event['created_at'])
-        message['Message-ID']=f"<{stamp_hash(event['uid']+':'+str(row['recipient_id']))}@callwise.invalid>"
+        message['Message-ID']=f"<{stamp_hash(event['uid']+':'+str(row['recipient_id']))}@focus.invalid>"
         message.set_content('Локальная очередь. Письмо не отправлено.\n'+event['title']+'\n'+event['start_at'])
         message.add_attachment(ics.calendar([event]),maintype='text',subtype='calendar',filename='invitation.ics')
         count+=exclusive(root,f"invitation-{row['id']}.eml",message.as_bytes())

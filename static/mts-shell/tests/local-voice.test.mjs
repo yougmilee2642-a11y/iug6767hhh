@@ -165,7 +165,7 @@ function mockCapture(t) {
     const original=globalThis[key];globalThis[key]=value;
     t.after(()=>{if(original===undefined)delete globalThis[key];else globalThis[key]=original;});
   }
-  t.mock.method(globalThis.CallwiseSTT.IncrementalSTT.prototype,'attach',async()=>{});
+  t.mock.method(globalThis.FocusSTT.IncrementalSTT.prototype,'attach',async()=>{});
 }
 
 test('partial recognition never reaches chat; full-waveform final correction becomes one turn',async(t)=> {

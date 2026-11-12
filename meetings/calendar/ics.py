@@ -41,7 +41,7 @@ def utc(value):
 
 
 def calendar(events):
-    lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//CallWise//Focus v2//RU',
+    lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Фокус//Focus v2//RU',
              'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-TIMEZONE:Europe/Minsk']
     for event in events:
         lines += ['BEGIN:VEVENT', 'UID:' + escape(event['uid']),

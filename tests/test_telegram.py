@@ -27,7 +27,7 @@ def client(tmp_path,monkeypatch):
     monkeypatch.setattr(app,'get_provider',IntakeProvider)
     storage.initialize_db();store.initialize()
     with store.session() as db:
-        db.execute('INSERT INTO tg_runtime (bot_key,username,status,heartbeat) VALUES (?,?,?,?)',(store.bot_key(),'callwise_qa_bot','ready',time.time()))
+        db.execute('INSERT INTO tg_runtime (bot_key,username,status,heartbeat) VALUES (?,?,?,?)',(store.bot_key(),'focus_qa_bot','ready',time.time()))
     return TestClient(app.app)
 
 

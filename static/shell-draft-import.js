@@ -15,5 +15,5 @@
     if(data.facts.length+data.qa.reduce((n,q)=>n+q.question.length+q.answer.length+q.source.length,0)>6500)throw new Error('Сократите совокупные знания до 6500 символов.');
     return data;
   }
-  if(typeof module==='object'&&module.exports)module.exports={convert};else root.CallwiseDraftImport={convert};
+  if(typeof module==='object'&&module.exports)module.exports={convert};else root.FocusDraftImport={convert};
 })(typeof window==='object'?window:globalThis);

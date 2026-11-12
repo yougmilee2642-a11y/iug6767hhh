@@ -256,7 +256,7 @@ def test_generated_entity_contracts_validated(isolated,change):
 
 def test_builder_logs_no_input_or_provider_secrets(isolated,caplog):
     import logging
-    with caplog.at_level(logging.INFO,logger='callwise.builder'):
+    with caplog.at_level(logging.INFO,logger='focus.builder'):
         result=AgentBuilder(MockBuilder(ValueError('private-secret'))).generate(BusinessInput.model_validate(nova()))
     assert 'builder_started' in caplog.text and 'builder_completed' in caplog.text
     assert 'private-secret' not in caplog.text and 'Nova Beauty' not in caplog.text

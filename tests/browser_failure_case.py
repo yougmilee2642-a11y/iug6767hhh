@@ -1,6 +1,6 @@
 """Inject an intentionally wrong MODEL response in an existing disposable UI smoke DB.
 This runs the real EvaluationService/Runtime, not fabricated results or assertions.
-Usage: python tests/browser_failure_case.py <callwise-browser-.../test.sqlite> <agent_id>
+Usage: python tests/browser_failure_case.py <focus-browser-.../test.sqlite> <agent_id>
 """
 import json
 import sys
@@ -21,7 +21,7 @@ class WrongPriceAgent(DeterministicAgent):
 
 if __name__=='__main__':
     target=Path(sys.argv[1]).resolve()
-    if target.name!='test.sqlite' or not target.parent.name.startswith('callwise-browser-') or not target.is_file():
+    if target.name!='test.sqlite' or not target.parent.name.startswith('focus-browser-') or not target.is_file():
         raise SystemExit('Only the existing disposable browser-smoke database is accepted.')
     storage.DB_PATH=target;storage.DATA_DIR=target.parent
     def faulty_components():

@@ -1356,7 +1356,7 @@ async function startVoiceCapture(meetingId, button) {
       await context.audioWorklet.addModule('/static/pcm-capture-worklet.js');
       if (epoch !== state.epoch) throw new ApiError('Сессия изменилась.', 0, 'stale_session');
       const source = context.createMediaStreamSource(stream);
-      const worklet = new AudioWorkletNode(context, 'callwise-pcm');
+      const worklet = new AudioWorkletNode(context, 'focus-pcm');
       const gain = context.createGain();
       gain.gain.value = 0;
       source.connect(worklet);
@@ -1430,7 +1430,7 @@ function takeVoiceSamples(capture, count) {
 }
 
 function queueVoiceTranscription(capture, frames, startMs) {
-  const wav = window.CallwiseSTT?.wavPCM(frames);
+  const wav = window.FocusSTT?.wavPCM(frames);
   if (!wav) {
     showNotice('Не удалось собрать WAV-фрагмент записи.');
     return;

@@ -69,7 +69,7 @@ def export_events(c, user, event_id=None, *, busy_only=False):
     for row in rows:
         output = service.event_out(c, user['id'], row)
         uid = hmac.new(_secret(), f"calendar-event:{row['id']}".encode(), hashlib.sha256).hexdigest()
-        result.append({**output, 'uid': uid + '@callwise.invalid',
+        result.append({**output, 'uid': uid + '@focus.invalid',
                        'title': 'Занято' if busy_only else output['title']})
     return result
 
@@ -196,7 +196,7 @@ def router():
             message['To'] = f"user-{row['recipient_id']}@demo.invalid"
             message['Subject'] = 'Приглашение: ' + event['title'].replace('\r', ' ').replace('\n', ' ')
             message['Date'] = store.parse_aware(event['created_at'])
-            message['Message-ID'] = f"<{stamp_hash(event['uid'] + ':' + str(row['recipient_id']))}@callwise.invalid>"
+            message['Message-ID'] = f"<{stamp_hash(event['uid'] + ':' + str(row['recipient_id']))}@focus.invalid>"
             message.set_content('Локальный файл приглашения. Письмо не отправлено.\n'
                                 + service.local_label(store.parse_aware(event['start_at']), event['timezone'])
                                 + '\n' + event['title'])

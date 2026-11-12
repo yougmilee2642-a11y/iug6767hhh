@@ -35,10 +35,9 @@ try:
     final=post('/api/transcribe',files={'file':('utterance.wav',wav(audio),'audio/wav')},
         data={'interaction_id':interaction,'mode':'final','stream_id':stream}).json()
     assert final['final'] and final['raw_text'] and final['speaker']['status']=='enrolled'
-    report=client.get(BASE+'/static/qa/dual-asr-verification.html',timeout=10)
-    assert report.status_code==200 and 'text/html' in report.headers['Content-Type']
     summary={'interaction_id':interaction,'preview_requests':len(partials),'last_preview':partials[-1],
-             'final':final,'report_status':report.status_code,'health':client.get(BASE+'/api/health',timeout=10).json()['local_speech']}
+             'final':final,'health':client.get(BASE+'/api/health',timeout=10).json()['local_speech']}
+    (ROOT/'data/asr-verification').mkdir(parents=True,exist_ok=True)
     (ROOT/'data/asr-verification/http-smoke.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2),encoding='utf-8')
     print(json.dumps(summary,ensure_ascii=True),flush=True)
 finally:

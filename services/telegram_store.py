@@ -61,7 +61,7 @@ def status(agent_id):
 def create_link(agent_id):
     current = status(agent_id)
     if not current['configured'] or current['worker'] != 'ready' or not current['username']:
-        raise ValueError('Бот не готов: проверьте токен и перезапустите Callwise.')
+        raise ValueError('Бот не готов: проверьте токен и перезапустите Фокус.')
     code, identifier = secrets.token_urlsafe(24), secrets.token_hex(16)
     with session() as db:
         db.execute('UPDATE tg_links SET used=1 WHERE agent_id=? AND used=0', (agent_id,))
@@ -117,7 +117,7 @@ def enqueue_callback(db, saved, context):
     binding = db.execute('SELECT * FROM tg_bindings WHERE agent_id=? AND bot_key=?', (context.config.id, bot_key())).fetchone()
     if not enabled() or not binding:
         return False
-    text = (f'Callwise · {context.config.business.name}\nПодтверждённое обращение\n'
+    text = (f'Фокус · {context.config.business.name}\nПодтверждённое обращение\n'
             f"Номер: {saved['callback_id']}\nИмя: {saved['customer_name']}\nТелефон: {saved['phone']}\n"
             f"Причина: {saved['request_details']}\n\nЭто обращение, не выполненная услуга.")
     text = text[:3500]  # Plain text, no parse_mode. Do not turn user text into markup.

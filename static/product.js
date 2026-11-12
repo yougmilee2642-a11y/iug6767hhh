@@ -1,7 +1,7 @@
 let productAgents=[];
 function productCards(items){
   if(!items.length)return '<article class="panel empty-state"><b>Помощников пока нет</b><p>Начните с названия и задачи. Услуги, сотрудники и календарь не обязательны.</p><button class="primary-button" data-new-assistant>Создать помощника</button></article>';
-  return items.map(a=>`<article class="panel profile-card"><div class="profile-top"><span class="profile-icon">${CallwiseIcons.icon(a.profile==='support'?'book':'phone')}</span><span class="status-label ${a.status==='active'?'available':''}">${a.status==='active'?'Настроен для веб-теста':a.status==='valid'?'Проверен, ожидает активации':'Требует проверки'}</span></div><h3>${escapeHtml(a.company)}</h3><p>${a.profile==='support'?'Справочный помощник':'Секретарь'} · FAQ: ${a.faq_count}</p><p class="muted">Внешний канал не подключён</p><div class="profile-actions"><button class="secondary-button" data-product-edit="${escapeHtml(a.id)}">Изменить</button>${a.status==='active'?`<button class="primary-button" data-product-test="${escapeHtml(a.id)}">Тестовый разговор ${CallwiseIcons.icon('arrow')}</button>`:''}<button class="text-button" data-product-evaluation="${escapeHtml(a.id)}">Проверка сценариев</button></div></article>`).join('');
+  return items.map(a=>`<article class="panel profile-card"><div class="profile-top"><span class="profile-icon">${FocusIcons.icon(a.profile==='support'?'book':'phone')}</span><span class="status-label ${a.status==='active'?'available':''}">${a.status==='active'?'Настроен для веб-теста':a.status==='valid'?'Проверен, ожидает активации':'Требует проверки'}</span></div><h3>${escapeHtml(a.company)}</h3><p>${a.profile==='support'?'Справочный помощник':'Секретарь'} · FAQ: ${a.faq_count}</p><p class="muted">Внешний канал не подключён</p><div class="profile-actions"><button class="secondary-button" data-product-edit="${escapeHtml(a.id)}">Изменить</button>${a.status==='active'?`<button class="primary-button" data-product-test="${escapeHtml(a.id)}">Тестовый разговор ${FocusIcons.icon('arrow')}</button>`:''}<button class="text-button" data-product-evaluation="${escapeHtml(a.id)}">Проверка сценариев</button></div></article>`).join('');
 }
 function bindProductActions(container=document){
   container.querySelectorAll('[data-new-assistant]').forEach(b=>b.onclick=()=>newQuickAssistant().catch(e=>showToast(e.message)));
@@ -9,7 +9,7 @@ function bindProductActions(container=document){
   container.querySelectorAll('[data-product-edit]').forEach(b=>b.onclick=()=>editQuickAgent(b.dataset.productEdit).catch(e=>showToast(e.message)));
   container.querySelectorAll('[data-product-test]').forEach(b=>b.onclick=async()=>{try{await selectAgent(b.dataset.productTest);showView('call');}catch(e){showToast(e.message);}});
   container.querySelectorAll('[data-product-evaluation]').forEach(b=>b.onclick=()=>openEvaluation(b.dataset.productEvaluation).catch(e=>showToast(e.message)));
-  CallwiseIcons.fill();
+  FocusIcons.fill();
 }
 // Copy for each server-decided next step. The server owns the decision (state), the browser only words it.
 const NEXT_STEPS={
@@ -65,11 +65,11 @@ window.addEventListener('DOMContentLoaded',()=>{
   const reviewLink=document.createElement('a');reviewLink.className='text-button';reviewLink.href='/static/safety.html';reviewLink.textContent='Запросы менеджеру и границы защиты →';
   document.querySelector('#view-channels .privacy-panel').append(reviewLink);
   bindProductActions();refreshProduct().catch(e=>showToast(e.message));
-  document.dispatchEvent(new Event('callwise:product-ready'));
+  document.dispatchEvent(new Event('focus:product-ready'));
   $('#knowledgeAgent').onchange=()=>loadKnowledge().catch(e=>showToast(e.message));
   $('#knowledgeEdit').onclick=async()=>{try{await editQuickAgent($('#knowledgeAgent').value);setQuickStep(2);}catch(e){showToast(e.message);}};
   $('#historyAgent').onchange=loadApplications;$('#historyState').onchange=loadApplications;$('#historySource').onchange=loadApplications;
-  document.addEventListener('callwise:updated',()=>refreshProduct().catch(e=>showToast(e.message)));
+  document.addEventListener('focus:updated',()=>refreshProduct().catch(e=>showToast(e.message)));
   document.querySelector('.brand').onclick=event=>{event.preventDefault();showView('overview');};
   try{$('#shellImportOpen').hidden=!shellDrafts().length;}catch(_){}
   $('#shellImportOpen').onclick=()=>{
@@ -77,6 +77,6 @@ window.addEventListener('DOMContentLoaded',()=>{
   };
   $('#shellImportCancel').onclick=()=>$('#shellImportDialog').close();
   $('#shellImportBegin').onclick=async()=>{
-    try{const data=CallwiseDraftImport.convert(shellDrafts()[Number($('#shellImportSelect').value)]);await newQuickAssistant();fillQuick(data);setQuickStep(0);quickChanged();$('#quickStatus').textContent='Перенесён только черновик. Проверьте компанию, роль, знания и ограничения перед подтверждением.';$('#shellImportDialog').close();}catch(e){$('#shellImportError').textContent=e.message;}
+    try{const data=FocusDraftImport.convert(shellDrafts()[Number($('#shellImportSelect').value)]);await newQuickAssistant();fillQuick(data);setQuickStep(0);quickChanged();$('#quickStatus').textContent='Перенесён только черновик. Проверьте компанию, роль, знания и ограничения перед подтверждением.';$('#shellImportDialog').close();}catch(e){$('#shellImportError').textContent=e.message;}
   };
 });

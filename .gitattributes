@@ -11,6 +11,3 @@ demo/track3/documents/*.pptx binary
 # Upstream font/license bytes are preserved verbatim, including the OFL notice whitespace.
 static/fonts/jost/Jost.ttf binary
 static/fonts/jost/OFL.txt -text -whitespace
-
-# Preserve the primary pytest warning log verbatim (third-party messages include trailing spaces).
-docs/track3-release/reports/v2-e7-e9-python.log -whitespace

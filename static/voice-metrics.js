@@ -52,5 +52,5 @@
 
   const api = { create, summarize, percentile, STAGES };
   if (typeof module === 'object' && module.exports) module.exports = api;
-  else root.CallwiseVoiceMetrics = api;
+  else root.FocusVoiceMetrics = api;
 })(typeof self !== 'undefined' ? self : this);

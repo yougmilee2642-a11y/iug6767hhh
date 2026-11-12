@@ -26,7 +26,7 @@ def test_identifiers_preserve_all_digits():
 
 
 def test_mixed_alphabet_does_not_mangle_normal_latin_names():
-    assert prepare_russian_speech('Это тeст. CallWise и Wi-Fi.')=='Это т+ест. кол вайз и вай фай.'
+    assert prepare_russian_speech('Это тeст. Фокус и Wi-Fi.')=='Это т+ест. Фокус и вай фай.'
 
 
 def test_plain_mode_for_other_tts_engines():

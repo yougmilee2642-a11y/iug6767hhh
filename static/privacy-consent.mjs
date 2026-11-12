@@ -3,9 +3,9 @@ export function askPrivacy(privacy, signal) {
   return new Promise((resolve) => {
     if(signal?.aborted){resolve(false);return;}
     const dialog=document.createElement('dialog');
-    dialog.setAttribute('aria-labelledby','callwisePrivacyTitle');
+    dialog.setAttribute('aria-labelledby','focusPrivacyTitle');
     dialog.style.cssText='max-width:620px;width:calc(100% - 32px);border:1px solid #ddd;border-radius:18px;padding:28px;color:#202026;background:white;font:15px/1.6 Segoe UI,Arial,sans-serif';
-    const title=document.createElement('h2');title.id='callwisePrivacyTitle';title.textContent='До начала разговора';
+    const title=document.createElement('h2');title.id='focusPrivacyTitle';title.textContent='До начала разговора';
     const notice=document.createElement('p');notice.textContent=privacy.notice;
     const note=document.createElement('small');note.textContent='Версия уведомления: '+privacy.version;
     const actions=document.createElement('div');actions.style.cssText='display:flex;gap:12px;flex-wrap:wrap;margin-top:22px';

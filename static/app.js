@@ -39,8 +39,8 @@ let emptyHearings = 0;
 let endpointMs = null;
 let recordingStartedAt = 0;
 let modelLabel = '';
-const voiceMetrics = CallwiseVoiceMetrics.create();
-window.callwiseVoiceMetrics = voiceMetrics;
+const voiceMetrics = FocusVoiceMetrics.create();
+window.focusVoiceMetrics = voiceMetrics;
 
 const isCancel = (error) => error?.name === 'AbortError';
 function abortSession() {
@@ -140,8 +140,8 @@ async function speak(text) {
     voiceMetrics.record('playback_start', performance.now() - speakStartedAt, 'ok');
   });
   try {
-    const parts = localVoice ? CallwiseVoice.speechParts(text) : [text];
-    await CallwiseVoice.speakPreparedParts(parts, fetchPart, play, () => token === speechToken);
+    const parts = localVoice ? FocusVoice.speechParts(text) : [text];
+    await FocusVoice.speakPreparedParts(parts, fetchPart, play, () => token === speechToken);
   } catch (error) {
     if (!firstAudioRecorded) voiceMetrics.record('tts_first_audio', performance.now() - speakStartedAt, isCancel(error) ? 'cancelled' : 'failed');
     throw error;
@@ -192,7 +192,7 @@ async function playSpeechBlob(blob, token, onStarted = () => {}) {
 
 // Recognised speech is only a proposal: with review enabled the tester can correct it
 // (names, phones, amounts, negations) and the confirmed text becomes the user's turn.
-const transcriptReview = CallwiseTranscriptReview.createReview();
+const transcriptReview = FocusTranscriptReview.createReview();
 function reviewRecognised(text) {
   const box = $('#voiceReview'), field = $('#voiceReviewText');
   field.value = text;
@@ -317,7 +317,7 @@ async function listen() {
       audioContext ??= new AudioContext();
       await audioContext.resume();
       pcmSource=audioContext.createMediaStreamSource(media);
-      progressive=new CallwiseSTT.IncrementalSTT({
+      progressive=new FocusSTT.IncrementalSTT({
         streaming:true,
         transcribe:async (blob,signal,chunk)=> {
           const form=new FormData();
@@ -910,7 +910,7 @@ $('#downloadVoiceMetrics')?.addEventListener('click', () => {
     summary: voiceMetrics.summary(), attempts: voiceMetrics.attempts,
   };
   const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 1)], { type: 'application/json' }));
-  const link = Object.assign(document.createElement('a'), { href: url, download: 'callwise-voice-metrics.json' });
+  const link = Object.assign(document.createElement('a'), { href: url, download: 'focus-voice-metrics.json' });
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });

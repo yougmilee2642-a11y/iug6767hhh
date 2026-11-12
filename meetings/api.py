@@ -1,4 +1,4 @@
-"""HTTP API for CallWise Meetings. Access is checked on the server for every read, search, download
+"""HTTP API for Фокус Meetings. Access is checked on the server for every read, search, download
 and before building any model context. Inaccessible resources answer 404 (existence is not revealed)."""
 import hashlib
 import csv

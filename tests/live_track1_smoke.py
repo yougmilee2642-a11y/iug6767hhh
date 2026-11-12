@@ -29,7 +29,7 @@ def main():
         print(json.dumps({'status': 'blocked', 'reason': 'missing_key'}))
         return 2
     budget = Budget(6)
-    with tempfile.TemporaryDirectory(prefix='callwise-live-intake-') as directory:
+    with tempfile.TemporaryDirectory(prefix='focus-live-intake-') as directory:
         storage.DATA_DIR = Path(directory)
         storage.DB_PATH = storage.DATA_DIR / 'synthetic.sqlite'
         storage.initialize_db()

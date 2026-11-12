@@ -1,4 +1,4 @@
-"""CallWise Meetings: full path with a scripted local-model double (no Ollama needed)."""
+"""Фокус Meetings: full path with a scripted local-model double (no Ollama needed)."""
 import re
 from datetime import date
 from pathlib import Path

@@ -18,7 +18,7 @@ const NETWORK = /failed to fetch|networkerror|load failed|network request failed
 function explain(error, fallback = "Не удалось выполнить действие.") {
   const message = String(error?.message || "");
   if (error?.name === "TypeError" || NETWORK.test(message))
-    return "Сервер Callwise недоступен, ответ не получен. Запустите локальный сервер и повторите. Заготовленных ответов здесь нет.";
+    return "Сервер Фокус недоступен, ответ не получен. Запустите локальный сервер и повторите. Заготовленных ответов здесь нет.";
   return message || fallback;
 }
 function toast(text) {
@@ -60,7 +60,7 @@ function route() {
     location.hash = "home";
     return;
   }
-  document.title = "CallWise — голосовой помощник · Прототип";
+  document.title = "Фокус — голосовой помощник · Прототип";
   const section = ["demo", "how", "faq"].includes(parts[1]) ? parts[1] : "";
   requestAnimationFrame(() =>
     section
@@ -80,7 +80,7 @@ const waveform = () =>
   `<div class="small-sphere"><div class="waveform" aria-hidden="true">${"<i></i>".repeat(7)}</div></div>`;
 function messageHTML(m) {
   const source = safeSource(m.source);
-  return `<div class="bubble ${m.role === "user" ? "user" : m.role === "system" ? "system" : ""}"><small>${m.role === "user" ? "Вы" : m.role === "system" ? "О прототипе" : "CallWise · демо"}</small>${esc(m.text)}${source ? `<br><a href="${esc(source)}" target="_blank" rel="noopener noreferrer">Официальная справка МТС ↗</a>` : ""}</div>`;
+  return `<div class="bubble ${m.role === "user" ? "user" : m.role === "system" ? "system" : ""}"><small>${m.role === "user" ? "Вы" : m.role === "system" ? "О прототипе" : "Фокус · демо"}</small>${esc(m.text)}${source ? `<br><a href="${esc(source)}" target="_blank" rel="noopener noreferrer">Официальная справка МТС ↗</a>` : ""}</div>`;
 }
 async function openVoice(agentId = "mts-support", topic) {
   if (voice) stopVoice();
@@ -140,7 +140,7 @@ async function openVoice(agentId = "mts-support", topic) {
         appendMessage({
           role: "system",
           text:
-            "Диалог сохранён на локальном сервере Callwise. " +
+            "Диалог сохранён на локальном сервере Фокус. " +
             (result.result || ""),
         });
 
@@ -216,8 +216,8 @@ function stopVoice() {
 }
 function about() {
   showModal(
-    "О прототипе CallWise",
-    `<div class="modal-body about-copy"><p>Неофициальный прототип в стиле МТС Беларусь. Он не связан с личным кабинетом оператора и не подключает услуги.</p><p>Разговор работает с локальными Qwen, T-one, GigaAM и Silero. После согласия микрофон запрашивается автоматически; после каждого ответа помощник снова слушает. Фраза завершается после паузы в речи. Аудио не отправляется в облачный AI или МТС.</p><p>Личный кабинет открывает рабочее пространство Callwise с серверными помощниками и подтверждением настроек. Старые браузерные черновики переносятся явно через мастер. Телефония, вход через МТС ID и внешняя доставка не подключены.</p><p>Это контекст Q&A, а не fine-tuning модели. Полная база знаний МТС ещё не подготовлена. Используйте вымышленные данные.</p></div>`,
+    "О прототипе Фокус",
+    `<div class="modal-body about-copy"><p>Неофициальный прототип в стиле МТС Беларусь. Он не связан с личным кабинетом оператора и не подключает услуги.</p><p>Разговор работает с локальными Qwen, T-one, GigaAM и Silero. После согласия микрофон запрашивается автоматически; после каждого ответа помощник снова слушает. Фраза завершается после паузы в речи. Аудио не отправляется в облачный AI или МТС.</p><p>Личный кабинет открывает рабочее пространство Фокус с серверными помощниками и подтверждением настроек. Старые браузерные черновики переносятся явно через мастер. Телефония, вход через МТС ID и внешняя доставка не подключены.</p><p>Это контекст Q&A, а не fine-tuning модели. Полная база знаний МТС ещё не подготовлена. Используйте вымышленные данные.</p></div>`,
     `<small>Локальный голосовой тест</small>${btn("Понятно", "close", "", "btn-red")}`,
   );
 }

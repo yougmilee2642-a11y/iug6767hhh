@@ -145,6 +145,6 @@ def message_bytes(row):
     message['From']='focus@demo.invalid';message['To']=f"user-{row['recipient_id']}@demo.invalid"
     message['Subject']='Подтверждённый протокол встречи'
     message['Date']=store.parse_aware(row['created_at'])
-    message['Message-ID']=f"<protocol-{row['id']}@callwise.invalid>"
+    message['Message-ID']=f"<protocol-{row['id']}@focus.invalid>"
     message.set_content('Локальная очередь. Реальное письмо не отправлено.\n\n'+row['body'])
     return message.as_bytes()

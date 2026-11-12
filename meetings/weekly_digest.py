@@ -53,6 +53,6 @@ def message(c,user,row):
     current=build(c,user,row['period_end'],original['generated_at'])
     if digest(current)!=row['payload_hash']:raise MeetError(409,'stale','Данные или доступ изменились. Подготовьте дайджест заново.')
     mail=EmailMessage(policy=SMTP);mail['From']='focus@demo.invalid';mail['To']=f'user-{user["id"]}@demo.invalid'
-    mail['Subject']='Недельный дайджест Фокус';mail['Message-ID']=f'<weekly-{row["id"]}@callwise.invalid>'
+    mail['Subject']='Недельный дайджест Фокус';mail['Message-ID']=f'<weekly-{row["id"]}@focus.invalid>'
     mail.set_content(current['notice']+'\n\n'+'\n'.join(claim['text']+'\nИсточники: '+', '.join(s['id'] for s in claim['sources']) for claim in current['claims']))
     return mail.as_bytes()

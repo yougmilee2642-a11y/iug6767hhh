@@ -31,5 +31,5 @@
   }
   const api = { createReview };
   if (typeof module === 'object' && module.exports) module.exports = api;
-  else root.CallwiseTranscriptReview = api;
+  else root.FocusTranscriptReview = api;
 })(typeof self !== 'undefined' ? self : this);

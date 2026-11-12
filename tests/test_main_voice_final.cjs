@@ -24,7 +24,7 @@ test('main UI sends complete PCM to final ASR with the same question context',as
       state='inactive';start(){this.state='recording';}
       async stop(){this.state='inactive';this.ondataavailable({data:new Blob(['backup'])});await this.onstop();}
     },
-    CallwiseSTT:{IncrementalSTT:class{
+    FocusSTT:{IncrementalSTT:class{
       streamId='utterance';constructor(config){options=config;}async attach(){}async finish(){return['неполный текст'];}
       finalBlob(){return wavPCM([new Float32Array(1600).fill(.1),new Float32Array(1600).fill(.001)]);}
       cancel(){}

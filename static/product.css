@@ -1,4 +1,4 @@
-/* Callwise owner workspace. Shared red/charcoal language with the MTS concept. */
+/* Фокус owner workspace. Shared red/charcoal language with the MTS concept. */
 .mobile-concept-link{display:none}
 :root{--ink:#202026;--muted:#68707d;--line:#e5e7ed;--surface:#fff;--canvas:#f5f6f8;--accent:#e30611;--green:#217553;--radius:18px;--shadow:none}
 *{box-sizing:border-box}html{scroll-behavior:auto}body{margin:0;color:var(--ink);background:var(--canvas);font:15px/1.55 "Segoe UI",Arial,sans-serif}button,input,textarea,select{font:inherit}button,a{touch-action:manipulation}button:disabled{opacity:.5;cursor:not-allowed}button:focus-visible,a:focus-visible{outline:3px solid #e3061160;outline-offset:4px}[hidden]{display:none!important}

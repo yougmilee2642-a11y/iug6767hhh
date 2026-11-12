@@ -9,7 +9,7 @@
 только эталонные поручения с дословной цитатой из стенограммы. Это демо-данные,
 а не измерение качества модели.
 
-    python scripts/track3/seed_fotoprint_demo.py --db D:/projects/Callwise-local/demo-db/fotoprint.db
+    python scripts/track3/seed_fotoprint_demo.py --db D:/projects/focus/demo-db/fotoprint.db
 """
 import argparse
 import json

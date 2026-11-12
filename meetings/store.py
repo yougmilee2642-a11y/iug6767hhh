@@ -1,4 +1,4 @@
-"""SQLite storage for CallWise Meetings with server-side access checks."""
+"""SQLite storage for Фокус Meetings with server-side access checks."""
 import contextvars
 import hashlib
 import json

@@ -1,12 +1,12 @@
-# CallWise Meetings — MVP
+# Фокус Meetings — MVP
 
 A secure local assistant for meetings: **documents → preparation → transcript → verifiable protocol → confirmed
 assignments → follow-up control**. The default inference endpoint is loopback Ollama (`qwen2.5:7b`). Track 3 also supports the
 authenticated gateway: inference then runs on its host, and a Cloudflare tunnel adds an external
 intermediary. This is not fully local to the user’s computer. There is no cloud-model fallback.
 
-**Track 3:** use [the isolated text runbook](docs/track3-release/RUNBOOK.md),
-[release status](docs/track3-release/STATUS.md) and [evaluation protocol](docs/track3-release/EVALUATION.md).
+**Track 3:** use [the isolated text runbook](track3-release/RUNBOOK.md),
+[quick start](track3-release/V2_QUICKSTART.md) and [evaluation protocol](track3-release/EVALUATION.md).
 The legacy Orbita example below is retained separately. Text mode needs no voice weights.
 
 ## Launch
@@ -94,7 +94,7 @@ garbage model replies, duplicates, editing, persistence after a "restart", DOCX/
 
 **Historical note:** the original MVP document reported full tests, a browser path and three
 Orbita model runs. Those observations predate this Track 3 release and are not new measurements.
-Current passed/failed/not-run evidence is in [release status](docs/track3-release/STATUS.md).
+Current passed/failed/not-run evidence is in [quick start](track3-release/V2_QUICKSTART.md).
 No Photoprint recall result has been measured on the real model in this environment.
 
 ## Known limitations (honest list)

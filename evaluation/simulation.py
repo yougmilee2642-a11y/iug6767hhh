@@ -124,7 +124,7 @@ class SimulationEngine:
                'interaction_id':None, 'agent_id':config.id,
                'probe':scenario.initial_context.get('probe'), 'faults_requested':scenario.initial_context.get('tool_failures',0)}
         state=None; provider=None
-        with tempfile.TemporaryDirectory(prefix='callwise-evaluation-') as folder:
+        with tempfile.TemporaryDirectory(prefix='focus-evaluation-') as folder:
             with storage.isolated_database(Path(folder)/'simulation.sqlite'):
                 storage.initialize_db()
                 try:

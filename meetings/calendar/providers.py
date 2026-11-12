@@ -138,7 +138,7 @@ class Bitrix24Calendar(MockCalendar):
         # No source text or PII, and no automatic provider mail/reinvites.
         result = self.connector.call('calendar.event.add', {
             'type': 'user', 'ownerId': int(mappings[str(self.actor['id'])]), 'auto_detect_section': 'Y',
-            'name': 'Встреча CallWise', 'description': marker,
+            'name': 'Встреча Фокус', 'description': marker,
             'from': draft['start_at'], 'to': draft['end_at'], 'skip_time': 'N',
             'timezone_from': 'UTC', 'timezone_to': 'UTC', 'private_event': 'Y', 'accessibility': 'busy',
             'is_meeting': 'Y', 'attendees': [int(v) for v in mappings.values()],

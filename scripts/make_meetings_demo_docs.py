@@ -1,4 +1,4 @@
-"""Generate the synthetic DOCX and text-PDF demo documents for CallWise Meetings (no external deps besides PyMuPDF)."""
+"""Generate the synthetic DOCX and text-PDF demo documents for Фокус Meetings (no external deps besides PyMuPDF)."""
 import zipfile
 from pathlib import Path
 from xml.sax.saxutils import escape

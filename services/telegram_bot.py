@@ -79,13 +79,13 @@ def registration_message(client, peer, user_id, text):
     if text in {'/register','/start'}:
         url = miniapp_url()
         if url:
-            message(client, peer, 'Регистрация Callwise. Откройте приложение и заполните профиль. Регистрация не даёт доступа к чужим агентам.',
+            message(client, peer, 'Регистрация Фокус. Откройте приложение и заполните профиль. Регистрация не даёт доступа к чужим агентам.',
                     reply_markup={'inline_keyboard': [[{'text':'Открыть регистрацию','web_app':{'url':url}}]]})
             return
         with store.session() as db:
             db.execute('INSERT INTO tg_registration VALUES (?,?,?,?) ON CONFLICT(telegram_id) DO UPDATE SET step=excluded.step,payload=excluded.payload,expires=excluded.expires',
                        (user_id,'name','{}',time.time()+1800))
-        message(client, peer, 'Регистрация Callwise: сохраним Telegram ID, ваше имя и название бизнеса. Доступ к агентам отдельно. /cancel — отмена. Как к вам обращаться?')
+        message(client, peer, 'Регистрация Фокус: сохраним Telegram ID, ваше имя и название бизнеса. Доступ к агентам отдельно. /cancel — отмена. Как к вам обращаться?')
         return
     if text == '/cancel':
         with store.session() as db:
@@ -111,7 +111,7 @@ def registration_message(client, peer, user_id, text):
         message(client, peer, f"Профиль: {profile['display_name']}\nБизнес: {profile['business_name']}" if profile else 'Профиля пока нет. /register — регистрация.')
         return
     if not draft or draft['expires'] <= time.time():
-        message(client, peer, 'Callwise: /register — регистрация, /profile — ваш профиль. Привязка уведомлений выполняется в веб-мастере.')
+        message(client, peer, 'Фокус: /register — регистрация, /profile — ваш профиль. Привязка уведомлений выполняется в веб-мастере.')
         return
     if draft['step'] == 'delete':
         message(client,peer,'Подтверждение удаления: /confirm_delete. Отмена: /cancel.'); return
@@ -129,7 +129,7 @@ def registration_message(client, peer, user_id, text):
         step, reply = 'business', 'Как называется ваш бизнес?'
     else:
         data['business_name'] = text
-        step, reply = 'consent', f"Имя: {data['display_name']}\nБизнес: {text}\nСогласны сохранить эти данные и Telegram ID в Callwise? Ответьте «Да» или /cancel."
+        step, reply = 'consent', f"Имя: {data['display_name']}\nБизнес: {text}\nСогласны сохранить эти данные и Telegram ID в Фокус? Ответьте «Да» или /cancel."
     with store.session() as db:
         db.execute('UPDATE tg_registration SET step=?,payload=? WHERE telegram_id=?', (step,json.dumps(data,ensure_ascii=False),user_id))
     message(client, peer, reply)
@@ -146,7 +146,7 @@ def process_update(client, update):
         label = ' '.join(str(user.get(k,'')) for k in ('first_name','last_name')).strip() or 'Пользователь Telegram'
         if user.get('username'): label += ' @' + user['username']
         staged = store.stage_link(code, chat['id'], label)
-        message(client, chat['id'], 'Получатель найден. Вернитесь в Callwise, проверьте имя и подтвердите привязку.' if staged else 'Ссылка недействительна или уже использована. Создайте новую в Callwise.')
+        message(client, chat['id'], 'Получатель найден. Вернитесь в Фокус, проверьте имя и подтвердите привязку.' if staged else 'Ссылка недействительна или уже использована. Создайте новую в Фокус.')
         return
     registration_message(client, chat['id'], user['id'], text)
 
@@ -191,7 +191,7 @@ class TelegramWorker:
 
     def start(self):
         if not store.enabled(): return
-        self.thread = threading.Thread(target=self.run, daemon=True, name='callwise-telegram')
+        self.thread = threading.Thread(target=self.run, daemon=True, name='focus-telegram')
         self.thread.start()
 
     def stop(self):

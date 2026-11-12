@@ -1,4 +1,4 @@
-"""Seed the CallWise Meetings demo (idempotent). Usage:
+"""Seed the Фокус Meetings demo (idempotent). Usage:
     .venv\\Scripts\\python scripts\\seed_meetings_demo.py [--reset] [--with-transcript]
 --reset            only an explicitly configured, marked isolated demo database
 --legacy           retain the original Orbita demo; default is Photoprint v2

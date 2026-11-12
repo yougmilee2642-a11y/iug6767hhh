@@ -32,7 +32,7 @@
       if (!context.audioWorklet || typeof AudioWorkletNode==='undefined') throw new Error('AudioWorklet недоступен');
       await context.audioWorklet.addModule('/static/pcm-capture-worklet.js');
       if (this.cancelled) return;
-      this.node=new AudioWorkletNode(context,'callwise-pcm');
+      this.node=new AudioWorkletNode(context,'focus-pcm');
       this.node.port.onmessage=({data}) => {
         if (data==='flushed') {this.flushAck?.();return;}
         this.push(data);
@@ -135,6 +135,6 @@
     }
   }
   const api={IncrementalSTT,wavPCM};
-  root.CallwiseSTT=api;
+  root.FocusSTT=api;
   if (typeof module==='object' && module.exports) module.exports=api;
 })(typeof window==='object'?window:globalThis);

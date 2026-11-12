@@ -45,7 +45,7 @@ def plan(c,user,invitation_id):
     event=export_events(c,user,row['event_id'])[0];config=configuration(row['recipient_id'])
     mail=EmailMessage(policy=SMTP);mail['From']=config['sender'];mail['To']=config['recipient']
     mail['Subject']='Приглашение: '+event['title'].replace('\r',' ').replace('\n',' ')
-    mail['Message-ID']=f'<focus-invitation-{invitation_id}@callwise.invalid>'
+    mail['Message-ID']=f'<focus-invitation-{invitation_id}@focus.invalid>'
     text=event['title']+'\n'+event['start_at']+' — '+event['end_at']+'\nЧасовой пояс: '+event['timezone']
     mail.set_content(text);calendar=ics.calendar([event]);mail.add_attachment(calendar,maintype='text',subtype='calendar',filename='invitation.ics')
     # MIME boundary is random, so bind semantic content and exact ICS, not bytes.

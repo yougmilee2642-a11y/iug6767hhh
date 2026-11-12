@@ -13,7 +13,7 @@ test('segmentation preserves exact words, numeric values and all long-answer con
 });
 
 test('short confirmation is spoken in full as one part', () => {
-  const text = 'Запрос сохранён в Callwise. Доставка владельцу не подключена.';
+  const text = 'Запрос сохранён в Фокус. Доставка владельцу не подключена.';
   assert.deepEqual(speechParts(text), [text]);
 });
 

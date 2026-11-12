@@ -173,7 +173,7 @@ class BitrixCRM:
     def create(self, booking):
         values = booking['structured_data']['values']
         result = self.request('crm.deal.add', {'fields': {
-            'TITLE': 'Callwise: ' + values['service'], 'ORIGINATOR_ID': 'callwise', 'ORIGIN_ID': booking['id'],
+            'TITLE': 'Фокус: ' + values['service'], 'ORIGINATOR_ID': 'callwise', 'ORIGIN_ID': booking['id'],
             'COMMENTS': '\n'.join([f"Клиент: {values['customer_name']}", f"Телефон: {values['phone']}",
                                   f"Время: {values['datetime']}", f"Сотрудник: {values['employee']}",
                                   'Событие календаря: ' + booking['id']]),

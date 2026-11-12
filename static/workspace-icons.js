@@ -35,6 +35,6 @@ const paths = {
   copy: '<rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V3H3v13h5"/>',
 };
 
-window.CallwiseIcons={icon:(name)=>`<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">${paths[name]||paths.spark}</svg>`,fill:()=>document.querySelectorAll('[data-ui-icon]').forEach(el=>{el.innerHTML=CallwiseIcons.icon(el.dataset.uiIcon);})};
-window.addEventListener('DOMContentLoaded',()=>CallwiseIcons.fill());
+window.FocusIcons={icon:(name)=>`<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">${paths[name]||paths.spark}</svg>`,fill:()=>document.querySelectorAll('[data-ui-icon]').forEach(el=>{el.innerHTML=FocusIcons.icon(el.dataset.uiIcon);})};
+window.addEventListener('DOMContentLoaded',()=>FocusIcons.fill());
 })();

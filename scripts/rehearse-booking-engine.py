@@ -19,7 +19,7 @@ from prompts import load_agent
 
 def main():
     reports=[]
-    with tempfile.TemporaryDirectory(prefix='callwise-booking-rehearsal-') as directory:
+    with tempfile.TemporaryDirectory(prefix='focus-booking-rehearsal-') as directory:
       with storage.isolated_database(Path(directory)/'synthetic.sqlite'):
         storage.initialize_db()
         for missing in (False,True):

@@ -2,7 +2,7 @@
 
 Ollama's API has no authentication, so it must never be exposed directly.
 This gateway listens on a chosen address, checks `Authorization: Bearer <token>`
-in constant time and forwards only the read/inference endpoints CallWise needs
+in constant time and forwards only the read/inference endpoints Фокус needs
 to the loopback Ollama. Model management (pull/delete/create/push/copy) and
 `:cloud` models are refused.
 
@@ -120,7 +120,7 @@ def build_app(token, client=None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Шлюз CallWise к локальной Ollama с ключом.')
+    parser = argparse.ArgumentParser(description='Шлюз Фокус к локальной Ollama с ключом.')
     parser.add_argument('--host', default='127.0.0.1', help='Адрес прослушивания (IP Tailscale или 127.0.0.1 для туннеля).')
     parser.add_argument('--port', type=int, default=11500)
     parser.add_argument('--show-token', action='store_true', help='Показать ключ и выйти.')

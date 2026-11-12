@@ -34,8 +34,8 @@ def callback_tool():
                            (context.interaction_id, context.config.id, json.dumps(saved, ensure_ascii=False), datetime.now(timezone.utc).isoformat()))
             queued = enqueue_callback(db, saved, context)
         return ToolResult({'structured_data': saved, 'action_result': saved, 'intent': 'Обратный звонок'},
-                          status='completed', text=('Обращение сохранено в Callwise и поставлено в очередь Telegram. Отправка ещё не подтверждена.' if queued
-                            else 'Обращение сохранено в Callwise. Автоматическая доставка владельцу пока не подключена.'))
+                          status='completed', text=('Обращение сохранено в Фокус и поставлено в очередь Telegram. Отправка ещё не подтверждена.' if queued
+                            else 'Обращение сохранено в Фокус. Автоматическая доставка владельцу пока не подключена.'))
 
     return BusinessTool('save_callback_request', 'Сохранить подтверждённое обращение. Если владелец настроил получателя, поставить в очередь Telegram. Не обещает доставку, срок ответа или выполненную услугу.',
         {'type': 'object', 'properties': {key: {'type': 'string'} for key in ('customer_name', 'phone', 'request_details')},

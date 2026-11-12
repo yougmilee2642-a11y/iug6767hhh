@@ -37,11 +37,13 @@ def test_default_config_is_available(client):
     assert "car" not in response.json()
 
 
-def test_root_has_branded_social_preview(client):
+def test_root_has_branded_social_metadata(client):
     response = client.get("/")
     assert response.status_code == 200
-    assert "Callwise" in response.text
-    assert "http://127.0.0.1:8000/static/og.png" in response.text
+    assert "Фокус" in response.text
+    assert '<meta property="og:title" content="Фокус' in response.text
+    assert '<meta name="twitter:card" content="summary">' in response.text
+    assert "/static/og.png" not in response.text
     assert ">RU<" in response.text
     assert "AutoFix" not in response.text
 

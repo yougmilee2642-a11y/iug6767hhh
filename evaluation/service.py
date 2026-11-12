@@ -19,7 +19,7 @@ from evaluation.preflight import provider_preflight
 from providers.errors import ProviderError, public_error
 import os
 
-logger=logging.getLogger('callwise.evaluation')
+logger=logging.getLogger('focus.evaluation')
 _job_lock=threading.Lock()
 _active_job=None
 PROCESS_TOKEN=str(uuid.uuid4())
@@ -212,7 +212,7 @@ class EvaluationService:
             try: self.execute(run)
             finally:
                 with _job_lock: _active_job=None
-        threading.Thread(target=work,name='callwise-evaluation',daemon=True).start()
+        threading.Thread(target=work,name='focus-evaluation',daemon=True).start()
         return run
 
 

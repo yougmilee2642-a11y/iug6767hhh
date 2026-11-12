@@ -13,7 +13,7 @@ if ($remoteLlmUrl -and $remoteLlmUrl -notmatch '^http://(127\.0\.0\.1|localhost|
     $env:TRANSFORMERS_OFFLINE = '1'
     try { $null = Invoke-RestMethod ($remoteLlmUrl.TrimEnd('/') + '/healthz') -TimeoutSec 5; Write-Host "LLM-шлюз доступен: $remoteLlmUrl" }
     catch { Write-Warning "LLM-шлюз $remoteLlmUrl не отвечает. Включён ли компьютер хоста и start-gateway.ps1? (Tailscale подключён?)" }
-    Write-Host 'Callwise: http://127.0.0.1:8000 — нейросеть на компьютере хоста через шлюз.'
+    Write-Host 'Фокус: http://127.0.0.1:8000 — нейросеть на компьютере хоста через шлюз.'
     & $localPython -m uvicorn app:app --host 127.0.0.1 --port 8000
     exit $LASTEXITCODE
 }
@@ -23,8 +23,8 @@ if (-not (Test-Path -LiteralPath $localOllamaBinary)) { throw 'Не найден
 $env:OLLAMA_HOST = '127.0.0.1:11434'
 # Use Ollama's normal store, the same one used by `ollama pull` and the desktop app.
 # Respect a custom store, except the deprecated project store left by old launches.
-$callwiseLegacyOllamaStore = Join-Path $PSScriptRoot 'models/ollama'
-if (-not $env:OLLAMA_MODELS -or [IO.Path]::GetFullPath($env:OLLAMA_MODELS).TrimEnd('\', '/') -eq [IO.Path]::GetFullPath($callwiseLegacyOllamaStore).TrimEnd('\', '/')) {
+$focusLegacyOllamaStore = Join-Path $PSScriptRoot 'models/ollama'
+if (-not $env:OLLAMA_MODELS -or [IO.Path]::GetFullPath($env:OLLAMA_MODELS).TrimEnd('\', '/') -eq [IO.Path]::GetFullPath($focusLegacyOllamaStore).TrimEnd('\', '/')) {
     $env:OLLAMA_MODELS = Join-Path $env:USERPROFILE '.ollama/models'
 }
 $env:OLLAMA_NO_CLOUD = '1'
@@ -48,7 +48,7 @@ try {
         }
     }
     if (-not $localApiReady) { throw 'Ollama не запустился. Проверьте data/ollama.stderr.log.' }
-    Write-Host 'Callwise: http://127.0.0.1:8000 — локальная речь и текст, без внешних интеграций.'
+    Write-Host 'Фокус: http://127.0.0.1:8000 — локальная речь и текст, без внешних интеграций.'
     & $localPython -m uvicorn app:app --host 127.0.0.1 --port 8000
 } finally {
     if ($localOllamaProcess -and -not $localOllamaProcess.HasExited) { Stop-Process -Id $localOllamaProcess.Id }

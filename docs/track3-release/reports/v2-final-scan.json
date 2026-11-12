@@ -1,9 +1,0 @@
-{
-  "baseline": "5272c1c36be15fc8ae4c73580da9234aa3457ba6",
-  "protected_paths": [],
-  "secret_pattern_findings": [],
-  "scope": "Changed files including untracked candidate; finite token/key formats, not full DLP",
-  "models_run": false,
-  "real_accounts_used": false,
-  "status": "passed"
-}

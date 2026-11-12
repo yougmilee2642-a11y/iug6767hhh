@@ -59,7 +59,7 @@ class SmokeProvider:
 
 if __name__ == "__main__":
     import uvicorn
-    with tempfile.TemporaryDirectory(prefix="callwise-browser-") as directory:
+    with tempfile.TemporaryDirectory(prefix="focus-browser-") as directory:
         storage.DATA_DIR = Path(directory)
         storage.DB_PATH = storage.DATA_DIR / "test.sqlite"
         import app

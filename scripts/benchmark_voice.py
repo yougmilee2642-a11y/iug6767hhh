@@ -102,7 +102,7 @@ def run(manifest: Path, output: Path, include_text: bool = False, transcriber=No
         try: packages[package]=version(package)
         except PackageNotFoundError: packages[package]=None
     result = {
-        'benchmark': 'callwise_local_stt', 'language': 'ru', 'sample_count': len(rows),
+        'benchmark': 'focus_local_stt', 'language': 'ru', 'sample_count': len(rows),
         'wer_mean': round(statistics.mean(r['wer'] for r in rows), 5),
         'cer_mean': round(statistics.mean(r['cer'] for r in rows), 5),
         'latency_seconds_mean': round(statistics.mean(r['duration_seconds'] for r in rows), 3),

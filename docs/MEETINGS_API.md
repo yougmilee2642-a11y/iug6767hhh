@@ -1,9 +1,4 @@
-# CallWise Meetings — API contract (MVP)
-
-Legacy MVP ownership (current roles and contracts are appended below). Owner of backend: Claude (`meetings/` package, `scripts/seed_meetings_demo.py`, `demo/meetings/`, `tests/test_meetings*.py`).
-Owner of frontend + voice meeting mode: Codex (`static/meetings.html|js|css`, nav link in `static/index.html`,
-`services/dual_asr.py`, `services/local_speech.py`, `/api/transcribe` in `app.py`, `tests/test_meeting_voice*.py`, browser smoke).
-Do not edit the other side's files; if you need a change there, write it in `docs/MEETINGS_HANDOFF.md`.
+# Фокус Meetings — API contract (MVP)
 
 All endpoints are JSON, prefix `/api/meet`. Errors: `{"detail": "русский текст", "code": "machine_code"}`.
 - 401 `not_authenticated` — no demo-user session.
@@ -89,9 +84,7 @@ with `speaker_label="Говорящий ?"` and the user maps speakers manually.
 
 # Track 3 current API extensions
 
-Source of truth: integrated core/calendar, maintainer main e3d37e3, knowledge 9eecb94,
-Claude eval fixes 58ec401, UI d95b252 and their handoffs. Joint regressions are in
-track3-release/STATUS.md; a merged API does not mean release acceptance.
+Current routes and schemas: [API reference](track3-release/API.md).
 All dates for new meetings/calendar have an offset or an explicit timezone; Europe/Minsk
 is the business date zone. Errors are `{code, detail}` and may include fields; every
 route carries X-Request-ID. Hidden objects → 404, available object with insufficient
@@ -117,8 +110,7 @@ capability → 403. Role never grants an object ACL.
 | GET /api/meet/audit?scope=mine\|my_objects | Manager; response `{events,scope}`; my_objects includes safe denial metadata for owned objects |
 
 Roles: reader can read/generate prep/view calendar/QA/overview/feedback within ACL;
-manager additionally edits/shares/uploads/confirms/invites/audit. Detail and examples:
-[core](track3-handoffs/claude.md), [knowledge](track3-handoffs/codex2.md).
+manager additionally edits/shares/uploads/confirms/invites/audit. Detail and examples: [API reference](track3-release/API.md).
 Protocol adds kind=risk and summary with verified/needs_clarification, quotes and note.
 GET meeting includes a live followup open_tasks/task_questions block even when prep is null.
 Prep also adds current-ACL open_tasks/task_questions from the followup chain. Reader-generated
@@ -152,7 +144,7 @@ cloud fallback. Remote inference/data boundaries are in the runbook.
 записывает маршрут/результат/источники, без raw вопроса/ответа; вопрос QA может оставить
 обычный hash/result в qa_answers. Аудио не записывается этими route handlers в БД.
 Настоящий microphone/ASR/TTS в этой среде не проверен; 45 CPU tests — doubles.
-Подробнее: [авторский handoff](track3-handoffs/voice-assistant.md).
+Подробнее: [голосовой режим](MEETINGS.md).
 
 
 ## Photoprint v2 · подготовка и поручения (текущая ветка)

@@ -4,7 +4,8 @@
 реально импортируемому стеку и installer-файлам репозитория, а не к ресерчу.
 Текстовые веса не поставляются в git; речевые модели текстовый запуск не скачивает.
 Полный перечень установленных Python-дистрибутивов, версий, URL их проектов,
-заявленных лицензий и SHA-256 license/notice файлов: reports/environment.json.
+заявленных лицензий и SHA-256 license/notice файлов создаётся командой
+`python scripts/track3/inventory.py --output <путь-вне-репозитория>/environment.json`.
 Источник — METADATA и файлы самих установленных дистрибутивов, не догадки по имени.
 requirements-track3-lock.txt фиксирует прямые и транзитивные версии.
 
@@ -82,33 +83,13 @@ API и существующие модули репозитория, новог�
 что решение о лицензировании всей коммерческой голосовой поставки уже принято.
 
 
-## Шрифты нового UI «Фокус»
-
-Авторский rebrand `1ea0a5a` (в main `0e99e32`) реально подключает Jost400/500/600
-через Google Fonts CSS в static/meetings.html. [Upstream OFL.txt](https://github.com/google/fonts/blob/c30b221beb0c1da59d563feb91ec8656a1fa972a/ofl/jost/OFL.txt)
-проверен на google/fonts commit `c30b221beb0c1da59d563feb91ec8656a1fa972a`,
-license blob `85b6b99d12470b54d8cbc919bc45102d99f23437`: SIL Open Font License1.1.
-Это привязка источника лицензии, не идентификация текущего CDN binary: HTML CDN URL
-не закрепляет binary hash/version. При self-host нужно сохранить notice/лицензию
-проверенного конкретного файла; Codex3 шрифты не скачивал в поставку и UI не менял.
-
-Futura PT упомянут в CSS font-family; поставляемый бинарник и право его распространения
-не подтверждены. Одно CSS-имя не означает, что эти веса/файлы включены в репозиторий,
-и лицензия Jost на Futura PT не переносится. Внешний font fetch и автономный fallback
-переданы владельцу UI; это реальные assets нового интерфейса, не технологии ресерча.
-
-Фактический browser CI зафиксировал Google Fonts CSS и два Jost CDN URL с `/v20/`;
-reports/focus-font-requests.json. Версия пути наблюдалась, но не закреплена HTML;
-SHA конкретных WOFF2 и их embedded notices в этом аудите не проверены.
-
-
 ## Окружение CPU-регрессии v2 (E0)
 
 Для полного существующего pytest добавлены только CPU-библиотеки: PyAV16.1.0,
 SciPy1.15.3, SoundFile0.13.1 и зависимости cffi2.1.1/pycparser3.12. Модели не
 устанавливались/не запускались: ToneStream-тест использует scripted Model, decode
-проверяет синтетический WAV. Версии, METADATA, ссылки на upstream/PyPI и SHA256
-notice-файлов записаны в reports/v2-e0-dependencies.json. PyAV объявляет BSD-3-Clause,
+проверяет синтетический WAV. Версии, METADATA и хеши notice-файлов можно получить командой
+`python scripts/track3/inventory.py --output <путь-вне-репозитория>/dependencies.json`. PyAV объявляет BSD-3-Clause,
 SoundFile — BSD3, SciPy включает bundled notices, cffi — MIT-0, pycparser — BSD3.
 Лицензии FFmpeg/libsndfile в binary wheels нельзя выводить из лицензии Python wrapper;
 их отдельная проверка остаётся в реестре ограничений поставки.
@@ -122,8 +103,7 @@ Copyright2020 The Jost Project Authors, SIL Open Font License1.1.
 Файлы скачаны12.11.2026; TTF SHA256
 `6343b70971000b04c5d401c96ae08ce371086135e999d5e1e1413039c0213076`,
 OFL SHA256 `1af3438a4d5f0ed2bdbc5751a5a67ebf6d537334161184b7fbb68503ef0ea0c5`.
-Это новые конкретные байты; предыдущие разделы о CDN относятся к историческому
-срезу. Шрифт не модифицирован, уведомление включено в поставку. Самостоятельная
+Шрифт не модифицирован, уведомление включено в поставку. Самостоятельная
 поставка нужна для CSP/self и работы без внешнего запроса шрифтов.
 Новых Python/JS зависимостей для assistant/operations/Bitrix/calendar не добавлено.
 

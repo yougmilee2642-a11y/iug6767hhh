@@ -13,7 +13,7 @@ import storage
 if __name__ == '__main__':
     import uvicorn
     from fastapi.responses import HTMLResponse
-    with tempfile.TemporaryDirectory(prefix='callwise-track1-browser-') as directory:
+    with tempfile.TemporaryDirectory(prefix='focus-track1-browser-') as directory:
         storage.DATA_DIR = Path(directory)
         storage.DB_PATH = storage.DATA_DIR / 'smoke.sqlite'
         import app

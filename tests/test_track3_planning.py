@@ -33,7 +33,7 @@ def test_google_uses_freebusy_and_one_durable_private_event(env,monkeypatch):
         if r.method=='GET':return httpx.Response(404,json={})
         assert r.method=='POST' and r.url.params['sendUpdates']=='none'
         event=json.loads(r.content);writes.append(event)
-        assert 'attendees' not in event and event['summary']=='Встреча CallWise' and event['visibility']=='private'
+        assert 'attendees' not in event and event['summary']=='Встреча Фокус' and event['visibility']=='private'
         with store.db() as c:assert c.execute("SELECT status FROM calendar_provider_outbox").fetchone()[0]=='sending'
         return httpx.Response(200,json=event)
     transport=configure_google(env,monkeypatch,handler)

@@ -7,7 +7,7 @@ from meetings import store
 from test_track3_knowledge_support import env, document, meeting, audit_rows
 
 pytestmark = pytest.mark.skipif(importlib.util.find_spec('meetings.feedback') is None,
-                               reason='Claude core/feedback integration required')
+                               reason='Core/feedback integration required')
 
 
 @pytest.mark.parametrize('scoped', [False, True], ids=['global', 'meeting'])

@@ -6,7 +6,7 @@ step below; the applied version lives in `PRAGMA user_version`. Steps run once, 
 step leaves the database at the previous version. Steps must work on a database that already contains data.
 
 Never edit a released step: add a new one. Other modules that need tables send a request to the owner of
-store/migrations (see docs/track3-handoffs/claude.md).
+store/migrations.
 """
 import sqlite3
 from datetime import datetime, timezone

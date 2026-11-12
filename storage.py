@@ -8,7 +8,7 @@ from contextlib import contextmanager
 ROOT = Path(__file__).parent
 DATA_DIR = ROOT / "data"
 DB_PATH = DATA_DIR / "autofix.db"
-_database_scope = ContextVar("callwise_database_scope", default=None)
+_database_scope = ContextVar("focus_database_scope", default=None)
 
 
 def database_path():

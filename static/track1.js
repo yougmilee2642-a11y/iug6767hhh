@@ -1,7 +1,7 @@
 let quickCandidate=null, quickAgentId=null, quickSavedId=null, quickBusy=false;
 let quickStep=0, draftRevision=0, draftReady=false, draftConflict=false;
 let draftQueue=Promise.resolve(), draftTimer=null, draftInitialization=null, draftDirty=false;
-const KL=window.CallwiseKnowledgeLimits;
+const KL=window.FocusKnowledgeLimits;
 function setFieldError(el,message){
   let note=el.parentElement.querySelector(':scope > .field-error');
   if(message){
@@ -158,7 +158,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     try{
       const saved=await quickApi('/api/track1/agents',{candidate_id:quickCandidate.candidate_id,review_token:quickCandidate.review_token});quickSavedId=saved.id;quickAgentId=saved.id;
       await builderApi('/api/agents/'+encodeURIComponent(saved.id)+'/activate',{});await loadAgentChoices(saved.id);await loadAgentList();
-      $('#quickLifecycle').textContent='Настроен для веб-теста';$('#quickStatus').textContent='Можно проверить голосом или текстом в браузере. Внешний канал не подключён.';$('#quickSave').hidden=true;$('#quickTest').hidden=false;document.dispatchEvent(new Event('callwise:updated'));
+      $('#quickLifecycle').textContent='Настроен для веб-теста';$('#quickStatus').textContent='Можно проверить голосом или текстом в браузере. Внешний канал не подключён.';$('#quickSave').hidden=true;$('#quickTest').hidden=false;document.dispatchEvent(new Event('focus:updated'));
       await persistQuickDraft().catch(e=>{$('#draftSaveStatus').textContent='Помощник сохранён, но черновик не обновлён: '+e.message;});
     }catch(e){$('#quickStatus').textContent=(quickSavedId?'Настройки сохранены, но веб-тест ещё не активирован. Можно повторить. ':'')+e.message;}finally{setQuickBusy(false);}
   };

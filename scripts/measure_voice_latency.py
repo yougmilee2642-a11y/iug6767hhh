@@ -66,7 +66,7 @@ def wav_bytes(seconds=2.0, rate=16000, tone_hz=0.0):
 
 
 def multipart(fields, file_field, filename, content, content_type='audio/wav'):
-    boundary = '----callwise' + uuid.uuid4().hex
+    boundary = '----focus' + uuid.uuid4().hex
     parts = []
     for name, value in fields.items():
         parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
@@ -176,11 +176,11 @@ uvicorn.run(app.app, host='127.0.0.1', port=port, log_level='warning')
 def start_temp_server():
     port = free_port()
     env = dict(os.environ, TELEGRAM_ENABLED='false', BUSINESS_EMAIL='', CALLWISE_OWNER_PASSWORD='', CALLWISE_LOCAL_ONLY='true', AI_PROVIDER='ollama', HF_HUB_OFFLINE='1', TRANSFORMERS_OFFLINE='1')
-    temporary=tempfile.TemporaryDirectory(prefix='callwise-latency-')
+    temporary=tempfile.TemporaryDirectory(prefix='focus-latency-')
     try: process = subprocess.Popen([sys.executable, '-c', LAUNCH, str(ROOT), str(port),temporary.name], env=env, cwd=ROOT)
     except Exception:
         temporary.cleanup();raise
-    process._callwise_temporary=temporary
+    process._focus_temporary=temporary
     base = f'http://127.0.0.1:{port}'
     for _ in range(120):
         if timed(base + '/api/health', timeout=2)[0]:
@@ -197,10 +197,10 @@ def stop_temp_server(process):
         process.terminate()
         try: process.wait(timeout=10)
         except subprocess.TimeoutExpired: process.kill();process.wait(timeout=10)
-    temporary=getattr(process,'_callwise_temporary',None)
+    temporary=getattr(process,'_focus_temporary',None)
     if temporary:
         target=Path(temporary.name).resolve()
-        if target.parent!=Path(tempfile.gettempdir()).resolve() or not target.name.startswith('callwise-latency-'):
+        if target.parent!=Path(tempfile.gettempdir()).resolve() or not target.name.startswith('focus-latency-'):
             raise ValueError('Unexpected temporary storage path')
         temporary.cleanup()
 

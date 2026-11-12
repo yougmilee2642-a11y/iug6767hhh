@@ -59,7 +59,7 @@ def functional_smoke(budget,models,agent_factory=live_agent_provider):
         'maximum_requests':budget.maximum,'observations':[],'request_count':0,'retry_count':0,'tool_round_trip':False}
     began=budget.requests
     delegate=None
-    with tempfile.TemporaryDirectory(prefix='callwise-provider-smoke-') as folder:
+    with tempfile.TemporaryDirectory(prefix='focus-provider-smoke-') as folder:
       with storage.isolated_database(Path(folder)/'synthetic.sqlite'):
         storage.initialize_db()
         registry=default_registry()

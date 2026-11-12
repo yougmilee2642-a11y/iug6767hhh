@@ -9,13 +9,16 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py prompts.py storage.py ./
+COPY app.py prompts.py storage.py requirement_contract.py ./
 COPY agents ./agents
 COPY builder ./builder
 COPY evaluation ./evaluation
 COPY providers ./providers
 COPY tools ./tools
 COPY services ./services
+COPY integrations ./integrations
+COPY meetings ./meetings
+COPY track1 ./track1
 COPY configs ./configs
 COPY static ./static
 

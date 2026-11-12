@@ -21,7 +21,7 @@ def no_external_network(event,args):
 if __name__=='__main__':
     sys.addaudithook(no_external_network)
     import storage
-    with tempfile.TemporaryDirectory(prefix='callwise-source-check-') as folder:
+    with tempfile.TemporaryDirectory(prefix='focus-source-check-') as folder:
         storage.DATA_DIR=Path(folder);storage.DB_PATH=Path(folder)/'startup.sqlite'
         import pytest
         code=pytest.main(sys.argv[1:] or ['-q'])

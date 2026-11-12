@@ -38,5 +38,5 @@
 
   const api = { speechParts, speakPreparedParts };
   if (typeof module === 'object' && module.exports) module.exports = api;
-  else root.CallwiseVoice = api;
+  else root.FocusVoice = api;
 })(typeof window === 'object' ? window : globalThis);

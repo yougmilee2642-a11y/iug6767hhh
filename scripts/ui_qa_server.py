@@ -28,7 +28,7 @@ class UIProvider:
 if __name__=='__main__':
     import uvicorn
     import storage
-    with tempfile.TemporaryDirectory(prefix='callwise-ui-qa-') as folder:
+    with tempfile.TemporaryDirectory(prefix='focus-ui-qa-') as folder:
         storage.DATA_DIR=Path(folder);storage.DB_PATH=Path(folder)/'ui.sqlite'
         import app
         @asynccontextmanager

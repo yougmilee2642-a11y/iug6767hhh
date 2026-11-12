@@ -352,7 +352,7 @@ export class LocalVoiceSession {
       this.recorder = recorder;
       const chunks = [];
       const contextText=this.messages.filter((m)=>m.role==='assistant').at(-1)?.text || '';
-      const progressive=new globalThis.CallwiseSTT.IncrementalSTT({
+      const progressive=new globalThis.FocusSTT.IncrementalSTT({
         streaming:true,
         transcribe:(blob,signal,chunk)=> {
           const form=new FormData();

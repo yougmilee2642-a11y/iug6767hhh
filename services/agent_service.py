@@ -37,5 +37,5 @@ class AgentService:
             raise LookupError("Агент не найден")
         config = require_valid(AgentConfig.model_validate(item["config"]))
         self.repository.set_status(config.id, "active")
-        logging.getLogger("callwise.builder").info("agent_activated agent=%s", config.id)
+        logging.getLogger("focus.builder").info("agent_activated agent=%s", config.id)
         return self.repository.get(config.id)

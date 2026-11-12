@@ -76,7 +76,7 @@ class GoogleCalendar:
         mapping = self.mappings([p['id'] for p in draft['participants']])
         calendar = mapping[str(self.actor['id'])]
         event_id = 'c' + digest([calendar, idem])  # lowercase hex is valid base32hex
-        event = {'id': event_id, 'summary': 'Встреча CallWise', 'visibility': 'private',
+        event = {'id': event_id, 'summary': 'Встреча Фокус', 'visibility': 'private',
                  'start': {'dateTime': draft['start_at']}, 'end': {'dateTime': draft['end_at']},
                  'extendedProperties': {'private': {'callwise': digest(idem)}}}
         previous = self.call('get', calendar, event_id)

@@ -15,7 +15,7 @@ python scripts/track3/export_api.py --output docs/track3-release/openapi.json
 
 Схема отражает формы маршрутов и Pydantic validation; императивные проверки
 доступа, cookie и preview/confirm дополнительно описаны здесь и в
-[контракте](../track3-team/CONTRACT.md). Примеры: [requests.http](requests.http).
+[архитектуре](ARCHITECTURE.md). Примеры: [requests.http](requests.http).
 Формат источников и старых маршрутов: [MEETINGS_API.md](../MEETINGS_API.md).
 
 | Назначение | Маршруты относительно `/api/meet` |

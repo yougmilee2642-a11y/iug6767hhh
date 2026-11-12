@@ -1,9 +1,0 @@
-{
-  "asset_url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2",
-  "archive_bytes": 6958444,
-  "archive_sha256": "24615ee884c897d9d2ba09bb4d30da6bb1b15e685065962db5b02e76e4996488",
-  "notice_member": "sherpa-onnx-pyannote-segmentation-3-0/LICENSE",
-  "notice_sha256": "14d7016ad68e7394d6e6b78d96cc2ae431c905287b89674cfdf021e79e62b8ba",
-  "notice_heading": "MIT License",
-  "runtime_model_installed": false
-}

@@ -72,14 +72,14 @@ async def lifespan(application):
             try:
                 await asyncio.to_thread(local_provider.warm_up)
             except LocalAIError:
-                logging.getLogger('callwise').warning('Local AI warmup incomplete; no fallback used')
+                logging.getLogger('focus').warning('Local AI warmup incomplete; no fallback used')
     try:
         yield
     finally:
         await asyncio.to_thread(worker.stop)
 
 
-app = FastAPI(title="Callwise — AI-сотрудник", lifespan=lifespan)
+app = FastAPI(title="Фокус — AI-сотрудник", lifespan=lifespan)
 app.middleware('http')(owner_access.guard)
 app.include_router(owner_access.router())
 app.include_router(integrations_router())
@@ -88,7 +88,7 @@ app.include_router(telegram_router())
 app.include_router(shell_router())
 install_meetings(app)
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
-logger = logging.getLogger("callwise")
+logger = logging.getLogger("focus")
 
 
 class Message(BaseModel):

@@ -37,9 +37,9 @@ async function runCase(title,phrases) {
     const warmContext=new OfflineAudioContext(1,Math.ceil(buffers[0].duration*16000),16000);
     const warmSource=warmContext.createBufferSource();warmSource.buffer=buffers[0];
     warmSource.connect(warmContext.destination);warmSource.start();
-    await transcribe(CallwiseSTT.wavPCM([(await warmContext.startRendering()).getChannelData(0)]));
+    await transcribe(FocusSTT.wavPCM([(await warmContext.startRendering()).getChannelData(0)]));
     let firstPartialAt=null;
-    const stream=new CallwiseSTT.IncrementalSTT({transcribe,onPartial:text=> {
+    const stream=new FocusSTT.IncrementalSTT({transcribe,onPartial:text=> {
       if (text) {firstPartialAt ??= performance.now();progress.textContent='Уже распознано: '+text;}
     }});
     const source=context.createBufferSource();source.buffer=combined;
@@ -55,7 +55,7 @@ async function runCase(title,phrases) {
     const offline=new OfflineAudioContext(1,Math.round(seconds*16000),16000);
     const resampler=offline.createBufferSource();resampler.buffer=combined;resampler.connect(offline.destination);resampler.start();
     const resampled=await offline.startRendering();
-    const oldBegan=performance.now();const baseline=await transcribe(CallwiseSTT.wavPCM([resampled.getChannelData(0)]));
+    const oldBegan=performance.now();const baseline=await transcribe(FocusSTT.wavPCM([resampled.getChannelData(0)]));
     const batchAfterStop=performance.now()-oldBegan;
     const llmBegan=performance.now();
     const reply=await requestJSON('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({interaction_id:id,text:assembled.text,request_id:crypto.randomUUID()})});

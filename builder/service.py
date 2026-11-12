@@ -12,7 +12,7 @@ from services.agent_repository import AgentRepository
 from tools.registry import default_registry
 from requirement_contract import resolve, reviewed, effective_tasks
 
-logger = logging.getLogger("callwise.builder")
+logger = logging.getLogger("focus.builder")
 
 SCHEMA_MESSAGES = {
     "extra_forbidden": "Черновик содержит недопустимые параметры. Они не могут быть сохранены.",

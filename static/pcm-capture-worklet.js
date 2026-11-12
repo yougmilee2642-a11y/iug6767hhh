@@ -1,6 +1,6 @@
 // AudioWorklet keeps capture off the UI thread. Every message is independent PCM,
 // not a WebM fragment that may be missing its container header.
-class CallwisePCM extends AudioWorkletProcessor {
+class FocusPCM extends AudioWorkletProcessor {
   constructor() {
     super();
     this.samples=[];
@@ -48,4 +48,4 @@ class CallwisePCM extends AudioWorkletProcessor {
     return true;
   }
 }
-registerProcessor('callwise-pcm',CallwisePCM);
+registerProcessor('focus-pcm',FocusPCM);

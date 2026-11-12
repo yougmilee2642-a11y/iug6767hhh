@@ -135,7 +135,7 @@ export function voiceAssistant(h) {
       return;
     }
     if (state.voiceCapture?.recording) { setStatus('Идёт запись встречи. Остановите её, чтобы спросить Фокус.'); return; }
-    if (!navigator.mediaDevices?.getUserMedia || typeof AudioWorkletNode === 'undefined' || !window.CallwiseSTT?.wavPCM) {
+    if (!navigator.mediaDevices?.getUserMedia || typeof AudioWorkletNode === 'undefined' || !window.FocusSTT?.wavPCM) {
       setStatus('Браузер не даёт записать микрофон. Напишите вопрос текстом.');
       typed.focus();
       return;
@@ -146,7 +146,7 @@ export function voiceAssistant(h) {
       context = new AudioContext();
       await context.audioWorklet.addModule('/static/pcm-capture-worklet.js');
       const source = context.createMediaStreamSource(stream);
-      const worklet = new AudioWorkletNode(context, 'callwise-pcm');
+      const worklet = new AudioWorkletNode(context, 'focus-pcm');
       const gain = context.createGain();
       gain.gain.value = 0;
       source.connect(worklet); worklet.connect(gain); gain.connect(context.destination);
@@ -206,7 +206,7 @@ export function voiceAssistant(h) {
     const started = performance.now();
     setStatus('Распознаю вопрос…');
     const form = new FormData();
-    form.append('file', window.CallwiseSTT.wavPCM(current.frames), 'question.wav');
+    form.append('file', window.FocusSTT.wavPCM(current.frames), 'question.wav');
     try {
       const { text } = await request('/voice/transcribe', { method: 'POST', body: form });
       if (mine !== sequence) return;
@@ -237,7 +237,7 @@ export function voiceAssistant(h) {
     if (mine !== sequence) return;
     const answerMs = Math.round(performance.now() - started);
     renderReply(reply);
-    window.CallwiseVoiceTiming = { asr_ms: timing.asrMs ?? null, answer_ms: answerMs, tts_ms: null, route: reply.route };
+    window.FocusVoiceTiming = { asr_ms: timing.asrMs ?? null, answer_ms: answerMs, tts_ms: null, route: reply.route };
     if (!reply.speak || !reply.spoken) {
       setStatus(reply.silent_reason || 'Ответ показан на экране.');
       return;
@@ -250,7 +250,7 @@ export function voiceAssistant(h) {
       if (!response.ok) throw new Error('tts');
       const audio = await response.blob();
       if (mine !== sequence) return;
-      window.CallwiseVoiceTiming.tts_ms = Math.round(performance.now() - ttsStarted);
+      window.FocusVoiceTiming.tts_ms = Math.round(performance.now() - ttsStarted);
       player = new Audio(URL.createObjectURL(audio));
       // Быстрее, без «мультяшного» голоса: браузер сохраняет высоту тона.
       player.preservesPitch = true;
@@ -276,7 +276,7 @@ export function voiceAssistant(h) {
   async function startWake() {
     if (wake || wakeStarting || !state.user) return;
     if (capture || state.voiceCapture?.recording) return;
-    if (!navigator.mediaDevices?.getUserMedia || typeof AudioWorkletNode === 'undefined' || !window.CallwiseSTT?.wavPCM) {
+    if (!navigator.mediaDevices?.getUserMedia || typeof AudioWorkletNode === 'undefined' || !window.FocusSTT?.wavPCM) {
       wakeFailed = true;
       setStatus('Браузер не даёт слушать микрофон. Используйте кнопку или напишите вопрос.');
       return;
@@ -288,7 +288,7 @@ export function voiceAssistant(h) {
       context = new AudioContext();
       await context.audioWorklet.addModule('/static/pcm-capture-worklet.js');
       const source = context.createMediaStreamSource(stream);
-      const worklet = new AudioWorkletNode(context, 'callwise-pcm');
+      const worklet = new AudioWorkletNode(context, 'focus-pcm');
       const gain = context.createGain();
       gain.gain.value = 0;
       source.connect(worklet); worklet.connect(gain); gain.connect(context.destination);
@@ -364,7 +364,7 @@ export function voiceAssistant(h) {
   async function handleSegment(current, frames) {
     current.busy = true;
     const body = new FormData();
-    body.append('file', window.CallwiseSTT.wavPCM(frames), 'segment.wav');
+    body.append('file', window.FocusSTT.wavPCM(frames), 'segment.wav');
     try {
       const started = performance.now();
       if (current.mode === 'question') {

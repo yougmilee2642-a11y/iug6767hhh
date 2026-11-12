@@ -41,7 +41,7 @@ def main():
     if 'сайт' not in text.casefold(): raise AssertionError('Synthetic speech recognition did not preserve request topic')
     provider=OllamaProvider()
     answers=[]
-    with tempfile.TemporaryDirectory(prefix='callwise-local-smoke-') as directory:
+    with tempfile.TemporaryDirectory(prefix='focus-local-smoke-') as directory:
       with storage.isolated_database(Path(directory)/'smoke.sqlite'):
         storage.initialize_db()
         config=make_config(QuickInput(business_name='Синтетический IT-тест',facts='Разрабатываем сайты. Стоимость только после обсуждения.'),'local_smoke')

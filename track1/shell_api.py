@@ -61,7 +61,7 @@ def shell_config(agent: ShellAgent):
                 'Не задавай вопрос об имени и телефоне, если клиент просит справочную информацию.'])],
             tools=[ToolPolicy(name='transfer_to_human')],
             escalation=EscalationConfig(explicit_request_patterns=HUMAN_PATTERNS,
-                acknowledgement='Запрос на связь с человеком сохранён локально в Callwise. Оператор не подключён; сообщения МТС не отправлялись.',
+                acknowledgement='Запрос на связь с человеком сохранён локально в Фокус. Оператор не подключён; сообщения МТС не отправлялись.',
                 agent_initiated={'unsupported_scenario': 'disabled', 'complaint': 'disabled', 'tool_failure': 'disabled'}))
     config.name = agent.name
     config.rules.extend([

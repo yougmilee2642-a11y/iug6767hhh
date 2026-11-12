@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Callwise — календарь и CRM</title>
+  <title>Фокус — календарь и CRM</title>
   <link rel="icon" href="/static/favicon.svg">
   <link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/product.css">
   <style>
@@ -16,7 +16,7 @@
   <script src="/static/integrations.js" defer></script>
 </head>
 <body><main class="integration-page">
-  <header><a class="text-button" href="/#channels">← Кабинет Callwise</a><button class="secondary-button" id="refresh" type="button">Обновить статусы</button></header>
+  <header><a class="text-button" href="/#channels">← Кабинет Фокус</a><button class="secondary-button" id="refresh" type="button">Обновить статусы</button></header>
   <span class="eyebrow">ЗАПИСЬ БЕЗ ЛОЖНЫХ ОБЕЩАНИЙ</span>
   <h1>Календарь и CRM</h1>
   <p>Сначала проверяем свободное время и согласие клиента. Запись подтверждается календарём; передача в CRM имеет отдельный статус.</p>
@@ -27,7 +27,7 @@
     <p>Первые адаптеры: Google Calendar и Bitrix24. Другие CRM пока не подключены. Нужен помощник со сценарием записи, каталогом услуг и сотрудниками из расширенного конструктора.</p>
     <ol><li>Бизнес предоставляет отдельные календари сотрудников и доступ служебному аккаунту Google.</li>
       <li>Для Bitrix24 бизнес создаёт входящий вебхук с правами CRM.</li>
-      <li>Владелец Callwise указывает пути и секреты в <code>.env</code>, а соответствие помощников и календарей — в файле настроек. Подробности: <code>docs/CRM_CALENDAR.md</code>.</li>
+      <li>Владелец Фокус указывает пути и секреты в <code>.env</code>, а соответствие помощников и календарей — в файле настроек. Подробности: <code>docs/CRM_CALENDAR.md</code>.</li>
       <li>На тестовых данных проверяем свободный слот → подтверждение → событие → карточку CRM. До проверки подключение не считается рабочим.</li></ol>
     <p class="muted">Локальная AI-модель может оставаться локальной, но передача данных в CRM/календарь — облачная операция. В полностью локальном режиме она отключена.</p>
   </section>

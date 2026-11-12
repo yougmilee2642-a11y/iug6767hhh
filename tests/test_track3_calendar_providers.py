@@ -43,7 +43,7 @@ def test_calendar_confirmation_is_durable_idempotent_and_private(env, monkeypatc
         if method=='calendar.accessibility.get.json':return empty_busy(request)
         assert method=='calendar.event.add.json'
         fields=json.loads(request.content)
-        assert fields['name']=='Встреча CallWise' and not fields['meeting']['notify']
+        assert fields['name']=='Встреча Фокус' and not fields['meeting']['notify']
         assert 'Новая планёрка' not in request.content.decode()
         with store.db() as c:
             assert c.execute("SELECT status FROM calendar_provider_outbox").fetchone()[0]=='sending'

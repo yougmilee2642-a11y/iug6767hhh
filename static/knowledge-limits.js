@@ -45,5 +45,5 @@
 
   const api = { LIMITS, usage, problems, counterText };
   if (typeof module === 'object' && module.exports) module.exports = api;
-  else root.CallwiseKnowledgeLimits = api;
+  else root.FocusKnowledgeLimits = api;
 })(typeof self !== 'undefined' ? self : this);

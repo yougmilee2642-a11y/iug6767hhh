@@ -120,7 +120,7 @@ class CloudBookingRepository:
     def event(self, row):
         values = row['structured_data']['values']
         digest = hashlib.sha256(json.dumps(values, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
-        return {'id': row['id'], 'summary': 'Callwise: ' + values['service'],
+        return {'id': row['id'], 'summary': 'Фокус: ' + values['service'],
                 'description': f"Клиент: {values['customer_name']}\nТелефон: {values['phone']}\nСотрудник: {values['employee']}",
                 'start': {'dateTime': row['start'], 'timeZone': self.business.timezone},
                 'end': {'dateTime': row['end'], 'timeZone': self.business.timezone},

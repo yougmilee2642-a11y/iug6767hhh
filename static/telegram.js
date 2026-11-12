@@ -1,7 +1,7 @@
 let telegramLink=null;
 let telegramBusy=false;
 const workerLabels={ready:'Бот работает',offline:'Бот не запущен',starting:'Запускается',error:'Ошибка бота'};
-const tgErrors={invalid_token:'Токен не принят',polling_conflict:'Этот бот уже опрашивается другим процессом',webhook_active:'У бота уже задан webhook. Callwise не отключает его автоматически.',unknown_delivery:'Нет подтверждённого ответа Telegram',forbidden:'Бот заблокирован получателем'};
+const tgErrors={invalid_token:'Токен не принят',polling_conflict:'Этот бот уже опрашивается другим процессом',webhook_active:'У бота уже задан webhook. Фокус не отключает его автоматически.',unknown_delivery:'Нет подтверждённого ответа Telegram',forbidden:'Бот заблокирован получателем'};
 
 async function refreshTelegramPanel(){
   const select=$('#telegramAgent');const previous=select.value||selectedAgentId;
@@ -19,7 +19,7 @@ async function telegramStatus(){
     $('#telegramConnect').disabled=true;$('#telegramDisconnect').hidden=true;
     return;
   }
-  $('#telegramState').textContent=!data.configured?'Токен не задан или бот отключён. Добавьте TELEGRAM_BOT_TOKEN в .env и перезапустите Callwise.':`${workerLabels[data.worker]||data.worker}${data.username?' · @'+data.username:''}${data.error?' · '+(tgErrors[data.error]||'Проверьте настройки'):''}`;
+  $('#telegramState').textContent=!data.configured?'Токен не задан или бот отключён. Добавьте TELEGRAM_BOT_TOKEN в .env и перезапустите Фокус.':`${workerLabels[data.worker]||data.worker}${data.username?' · @'+data.username:''}${data.error?' · '+(tgErrors[data.error]||'Проверьте настройки'):''}`;
   $('#telegramRecipient').textContent=data.connected?`Получатель: ${data.recipient.label} · Telegram ID ${data.recipient.chat_id}`:'Получатель не привязан к этому агенту.';
   $('#telegramMiniapp').textContent=data.miniapp_ready?'HTTPS-адрес Mini App задан. /register покажет кнопку регистрации.':'Mini App пока только локально. Регистрация уже доступна в переписке: /register.';
   $('#telegramConnect').disabled=!$('#telegramAgent').value||data.worker!=='ready'||!data.configured;
