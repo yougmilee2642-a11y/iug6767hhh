@@ -40,6 +40,7 @@ jobs:
           node --check static/meetings/protocol.js
           node --check static/meetings/voice.js
           node --check static/meetings/administration.js
+          node --check static/meetings/crm.js
           node --test tests/*.cjs static/mts-shell/tests/*.mjs
       - name: Product HTTP, persistence and two roles (no model quality claim)
         if: always() && steps.dependencies.outcome == 'success'
@@ -47,6 +48,9 @@ jobs:
       - name: Photoprint v2 roles, KPI and restart over real HTTP
         if: always() && steps.dependencies.outcome == 'success'
         run: python scripts/track3/v2_http_smoke.py --output /tmp/track3-v2-http.json
+      - name: V2 evaluator pipeline (scripted double, no live quality claim)
+        if: always() && steps.dependencies.outcome == 'success'
+        run: python scripts/track3/evaluate.py --dataset photoprint-v2 --scripted-double --output /tmp/track3-v2-evaluation.json
       - name: Python syntax and whitespace
         if: always() && steps.dependencies.outcome == 'success'
         run: |
@@ -88,6 +92,7 @@ jobs:
             /tmp/track3-ui-http.json
             /tmp/track3-ui-http/
             /tmp/track3-v2-http.json
+            /tmp/track3-v2-evaluation.json
             /tmp/track3-v2-ui.json
             /tmp/track3-v2-ui/
           retention-days: 7

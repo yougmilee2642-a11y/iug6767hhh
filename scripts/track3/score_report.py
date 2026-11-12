@@ -19,6 +19,11 @@ def main():
         output = ReportFile(args.output)
         report = json.loads(Path(args.report).read_text(encoding='utf-8'))
         review = json.loads(Path(args.review).read_text(encoding='utf-8'))
+        if report.get('dataset')=='photoprint-v2':
+            from scripts.track3.evaluate_v2 import rescore
+            rescore(report,review)
+            with output: output.write(report)
+            return 0 if report['status'] in ('passed','pipeline_passed') else 1
         if report['status'] not in ('passed', 'failed'):
             raise ValueError('Cannot score a missing, running or interrupted evaluation')
         if report.get('schema_version') != 2 or report.get('scorer_version') != SCORER_VERSION:

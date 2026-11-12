@@ -223,3 +223,38 @@
 - Финальный targeted CRM:18 passed11.03s, в том числе запрет экспорта
   done/cancelled и неизвестного action. Полный1364 был до добавления этих двух
   параметризованных случаев; следующий CI проверит весь финальный набор.
+
+## E13 · frozen v2 / оценщик
+
+- CRM head `dd67886b4432a7d85beac3b5f1e884cc81380279`:CI43155600711 SUCCESS,
+  Linux1366/28,Node66,legacy35 browser, оба HTTP и v2 UI (отправка mock CRM,
+  статус, admin-check, роли/ширины); Windows SUCCESS. PR merge проверен как
+  `097acbb3caf13b805713a7c6e445a9339e8f5c84`.
+- **До** первого прогона v2 отдельный локальный коммит `df23bc5` зафиксировал
+  gold:5 текстов/30 задач/36 контролей/64 хеша. Вопросы включают8 ACL-negative,
+  4 no-data,4 injection,3 stale;3 stale читают детерминированный обзор, не LLM.
+  Gold после ответов не менялся. Полные имена нормализуются только по точному
+  уникальному имени участника frozen roster этой встречи, без fuzzy-сопоставления.
+- Новый `evaluate.py --dataset photoprint-v2 --scripted-double`:scripted fixture
+  → настоящий HTTP API → source resolution → независимый deterministic scorer.
+  Первая попытка30/30,36/36; финальный наблюдаемый reports/v2-evaluator-double.json:
+  pipeline_passed,30/30,precision1,ошибки владельца/срока/ложные0,claims17/17,
+  rights/false_actions0. **Это проверка конвейера, качество LLM не измерено.**
+  Report помечен dirty=true, gold_commit и evaluator_sha256 сохранены.
+- Дублёр никогда не конструирует MeetingLLM и не читает endpoint. Live-ветка
+  требует чистый checkout/явное окно GPU/реальные version+digest, иначе NOT RUN.
+  JSON checkpoint, исходные ответы, параметры, задержки, hashes predictions/QA;
+  независимый rescore не может обойти цитаты/подмену наблюдений/модельного судью.
+- call_defect — контроль задач по готовому тексту звонка. ASR/звук/диаризация и
+  полная аналитика E7 явно NOT RUN, не входят в эти успешные результаты.
+- Полный CPU1373 passed/28 skipped94.24s;Node66;actualHTTP/restart3.94s.
+  После добавления CLI/no-overwrite теста targeted evaluator8 passed6.47s;
+  следующий CI должен включить его в полный набор. PowerShell parser/runtime
+  здесь отсутствует: live_eval.ps1 не запускался. Написаны LIVE_CHECKS.md и
+  host-only live_eval.ps1 (UTF-8 BOM для Windows PowerShell), добавлен CI double CLI.
+- Office ZIP помечены binary в .gitattributes для защиты CRC от EOL-конверсии;
+  сами байты frozen-набора не менялись. Локальный Chromium не перезапускался
+  при неизменившемся ограничении sandbox. Старые host-v1 результаты18/18,16/16
+  только атрибутированы integration-handoff11.11.2026, не переизмерены этим агентом.
+- Следующий P0: E14/self-audit, чистая установка, API/OpenAPI/демо/риски.
+  P1/P2 остаются по спецификации; main не менялся, PR12 остаётся draft.

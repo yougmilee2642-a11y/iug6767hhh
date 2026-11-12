@@ -1,0 +1,292 @@
+{
+  "status": "passed",
+  "model": "scripted double; live quality not measured",
+  "roles": 6,
+  "requests": [
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "prod_head",
+      "method": "POST",
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "role": "prod_head",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "designer",
+      "method": "POST",
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "role": "designer",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "admin",
+      "method": "POST",
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "role": "admin",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "auditor",
+      "method": "POST",
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "role": "auditor",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "GET",
+      "route": "/demo-profiles",
+      "status": 200
+    },
+    {
+      "role": "designer",
+      "method": "GET",
+      "route": "/documents/41/download",
+      "status": 404
+    },
+    {
+      "role": "admin",
+      "method": "GET",
+      "route": "/documents/41/download",
+      "status": 404
+    },
+    {
+      "role": "auditor",
+      "method": "GET",
+      "route": "/documents/41/download",
+      "status": 404
+    },
+    {
+      "role": "prod_head",
+      "method": "GET",
+      "route": "/documents/41/download",
+      "status": 404
+    },
+    {
+      "role": "admin",
+      "method": "GET",
+      "route": "/meetings/1",
+      "status": 404
+    },
+    {
+      "role": "auditor",
+      "method": "GET",
+      "route": "/meetings/1",
+      "status": 404
+    },
+    {
+      "role": "designer",
+      "method": "GET",
+      "route": "/meetings/1",
+      "status": 404
+    },
+    {
+      "role": "admin",
+      "method": "GET",
+      "route": "/admin/users",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "GET",
+      "route": "/overview?as_of=2026-11-11T12:00:00%2B00:00",
+      "status": 200
+    },
+    {
+      "role": "designer",
+      "method": "POST",
+      "route": "/qa",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/qa",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "GET",
+      "route": "/tasks",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/crm/preview",
+      "status": 403
+    },
+    {
+      "role": "prod_head",
+      "method": "POST",
+      "route": "/crm/preview",
+      "status": 200
+    },
+    {
+      "role": "prod_head",
+      "method": "POST",
+      "route": "/confirmations/cf_nyFhzecIpSJDH9H2uriP9wpz/cancel",
+      "status": 200
+    },
+    {
+      "role": "prod_head",
+      "method": "POST",
+      "route": "/crm/confirm",
+      "status": 409
+    },
+    {
+      "role": "prod_head",
+      "method": "POST",
+      "route": "/crm/preview",
+      "status": 200
+    },
+    {
+      "role": "prod_head",
+      "method": "POST",
+      "route": "/crm/confirm",
+      "status": 200
+    },
+    {
+      "role": "prod_head",
+      "method": "POST",
+      "route": "/crm/confirm",
+      "status": 200
+    },
+    {
+      "role": "admin",
+      "method": "POST",
+      "route": "/integrations/check",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/tasks/1/preview",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/confirmations/cf_AC5HpB8AKDRZ0A8m-6aIX1vn/cancel",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/tasks/1/confirm",
+      "status": 409
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/tasks/1/preview",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/tasks/1/confirm",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/tasks/1/confirm",
+      "status": 200
+    },
+    {
+      "role": "auditor",
+      "method": "GET",
+      "route": "/audit",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "prod_head",
+      "method": "GET",
+      "route": "/crm/tasks/1",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "GET",
+      "route": "/tasks",
+      "status": 200
+    },
+    {
+      "role": "designer",
+      "method": "GET",
+      "route": "/meetings/1",
+      "status": 404
+    }
+  ],
+  "kpi_before_mutation": {
+    "open_tasks": 4,
+    "overdue_tasks": 3,
+    "on_time_orders": 97.6,
+    "defect_rate": 1.8,
+    "capacity_utilization": 75.0,
+    "missing_assignee": 0,
+    "missing_due": 1,
+    "open_decisions": 0,
+    "overdue_decisions": 0,
+    "support_sla": 92.0,
+    "mary_resolution": 68.0,
+    "moderation_queue": 18,
+    "unclaimed_pickup": 31,
+    "late_order_causes": 12,
+    "capacity_forecast_peak": 111.0
+  },
+  "restart": "passed",
+  "elapsed_seconds": 3.9358877550112084,
+  "working_tree_dirty": true,
+  "commit": "df23bc528ba3a3e49738bb7f72b74c808a8a0104"
+}

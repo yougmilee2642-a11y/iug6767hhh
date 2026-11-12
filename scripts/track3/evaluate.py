@@ -401,18 +401,25 @@ def summarize(report):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', required=True, help='New absolute .json report path; never overwritten')
+    parser.add_argument('--dataset', choices=('photoprint-v1','photoprint-v2'), default='photoprint-v1')
+    parser.add_argument('--scripted-double',action='store_true',help='V2 pipeline test only; never reports live model quality')
     parser.add_argument('--exclusive-gpu-window', action='store_true',
                         help='Operator confirms agreed window without competing inference')
     args = parser.parse_args()
+    if args.scripted_double and args.dataset!='photoprint-v2': parser.error('--scripted-double requires --dataset photoprint-v2')
     try:
         output = ReportFile(args.output)
     except ValueError as error:
         parser.error(str(error))
     report = initial_report()
+    report['dataset'] = args.dataset
     with output:
         output.write(report)
         try:
-            run_evaluation(report, args.exclusive_gpu_window, output.write)
+            if args.dataset=='photoprint-v2':
+                from scripts.track3.evaluate_v2 import run_evaluation as run_v2
+                run_v2(report,args.exclusive_gpu_window,output.write,scripted_double=args.scripted_double)
+            else: run_evaluation(report, args.exclusive_gpu_window, output.write)
         except KeyboardInterrupt:
             report.update(status='interrupted', blocker='operator_interrupted')
         except Exception as error:
@@ -424,8 +431,11 @@ def main():
             output.write(report)
     print(json.dumps({'status': report['status'], 'stage': report['stage'], 'report': str(output.path),
                       'model': report.get('model'), 'overall': report.get('overall')}, ensure_ascii=False))
-    return 0 if report['status'] == 'passed' else 130 if report['status'] == 'interrupted' else 2 if report['status'] == 'not_run' else 1
+    return 0 if report['status'] in ('passed','pipeline_passed') else 130 if report['status'] == 'interrupted' else 2 if report['status'] == 'not_run' else 1
 
 
 if __name__ == '__main__':
+    # V2 imports these shared scoring/error helpers. Reuse this exact module
+    # when invoked as a file, including the safe EvaluationBlocked exception.
+    sys.modules['scripts.track3.evaluate'] = sys.modules[__name__]
     raise SystemExit(main())
