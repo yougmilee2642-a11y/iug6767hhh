@@ -8,6 +8,33 @@ concurrency:
   group: track3-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 jobs:
+  clean-install:
+    name: Clean install (${{ matrix.os }}, ${{ matrix.profile }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            profile: base
+          - os: ubuntu-24.04
+            profile: runtime
+          - os: windows-latest
+            profile: runtime
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Isolated clone, venv, seed twice, seven roles, model 503 and restart
+        run: python scripts/track3/clean_install.py --profile ${{ matrix.profile }} --output "${{ runner.temp }}/track3-install-${{ matrix.profile }}.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: track3-install-${{ matrix.os }}-${{ matrix.profile }}
+          path: ${{ runner.temp }}/track3-install-${{ matrix.profile }}.json
+          retention-days: 7
   text-and-browser:
     runs-on: ubuntu-24.04
     timeout-minutes: 15

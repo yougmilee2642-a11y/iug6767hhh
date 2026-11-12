@@ -7,6 +7,56 @@
 
 Защищённый локальный помощник для встреч: документы → подготовка → расшифровка → проверяемый протокол → подтверждённые поручения → контроль. Запуск, демо-сценарий, проверки и ограничения — в [MEETINGS.md](MEETINGS.md). Страница: http://127.0.0.1:8000/meetings.
 
+## Трек 3 за 15 минут — текстовый прототип Фотопринт v2
+
+Python 3.12, Git; PowerShell из корня. Цель 15 минут относится к текстовой
+установке с доступным индексом пакетов, без скачивания моделей. Проверяемое
+время и ограничения кэша — [отчёт установки](docs/track3-release/TEST_REPORT.md).
+
+```powershell
+py -3.12 -m venv .venv-track3
+.venv-track3\Scripts\python -m pip install -r requirements-track3-runtime.txt
+.venv-track3\Scripts\python -m pip check
+$env:MEETINGS_DB_PATH = Join-Path $env:TEMP 'fotoprint-v2-demo\meetings.db'
+$env:MEETINGS_DEMO = '1'
+$env:CALLWISE_LOCAL_ONLY = 'true'
+$env:TELEGRAM_ENABLED = 'false'
+$env:CALLWISE_CLOUD_INTEGRATIONS_ENABLED = 'false'
+.venv-track3\Scripts\python scripts\seed_meetings_demo.py
+.venv-track3\Scripts\python scripts\track3\start.py --db $env:MEETINGS_DB_PATH --port 8000
+```
+
+Открыть `http://127.0.0.1:8000/meetings`; остановка — Ctrl+C. Повторный запуск
+сохраняет БД и сессии. Все данные вымышленные; пароль каждой роли `<login>-demo`.
+
+| Логин | Уровень | Отдел |
+|---|---|---|
+| director | Директор | Дирекция |
+| prod_head | Руководитель | Производство |
+| sup_head | Руководитель | Поддержка |
+| log_head | Руководитель | Логистика |
+| fin_head | Руководитель | Финансы |
+| hr_head | Руководитель | HR |
+| mod_lead | Старший сотрудник | Модерация |
+| operator | Сотрудник | Производство |
+| sup_agent | Сотрудник | Поддержка |
+| designer | Подрядчик | Маркетинг |
+| admin | Администратор, без бизнес-содержимого | ИТ |
+| auditor | Аудитор, только журнал | Дирекция |
+
+Без моделей доступны документы, роли, ручная работа с протоколом, подтверждение
+поручений/решений, KPI и mock CRM/календарь. Подготовка, AI-протокол и
+содержательный QA требуют модели; при её отсутствии — честный 503 `model_*`,
+данные сохраняются. Live Ollama/ASR/TTS/микрофон в v2 агентом не проверялись.
+CRM и приглашения локальные, внешней доставки нет. Единый чат, аналитика звонков,
+расширенное хранение и часть P1/P2 ещё не реализованы. Интерфейс загружает шрифты
+из Google Fonts; remote gateway обрабатывает текст на машине хоста.
+
+[Подробный запуск и проверки](docs/track3-release/V2_QUICKSTART.md) ·
+[самоаудит](docs/track3-release/SELF_AUDIT.md) ·
+[API](docs/track3-release/API.md) · [демо](docs/track3-release/DEMO.md).
+Старые инструкции других треков ниже не заменяют этот изолированный запуск.
+
 ## Полировка 14 октября 2026
 
 Кнопка «Проверка сценариев» доступна в карточках короткого мастера и в прежнем

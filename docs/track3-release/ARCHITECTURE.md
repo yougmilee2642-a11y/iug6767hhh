@@ -1,21 +1,28 @@
-# Архитектура и потоки Track 3
+# Архитектура и потоки Фокус v2
 
 ```mermaid
 flowchart TD
+  Sources["CRM, Mary, ERP, 1С, HR: синтетические витрины"] --> Store["SQLite: домен и источники"]
+  Files["Документы и расшифровки"] --> Store
+  Store --> Policy["SQL: роль, отдел, ACL, классификация"]
   UI["/meetings UI"] --> Auth["Cookie → ACL → capability"]
-  Auth --> Read["Документы, встреча, транскрипт"]
-  Read --> LLM["MeetingLLM: shared endpoint policy"]
+  Auth --> Policy
+  Policy --> Read["Разрешённые документы, встречи, задачи, KPI"]
+  Read --> Mask["Маскирование ПДн"]
+  Mask --> LLM["MeetingLLM: loopback или защищённый gateway"]
   LLM --> Verify["Цитаты, поля, текущие права"]
   Verify --> Draft["Черновик / QA с источниками"]
   Draft --> Human["Просмотр человеком"]
   Human --> Confirm["Confirm / cancel"]
-  Confirm --> DB["SQLite: задачи, календарь, аудит"]
-  Auth --> KPIs["Доступные строки: KPI и задачи"]
+  Confirm --> DB["SQLite: задачи, решения, аудит"]
+  Confirm --> Outbox["Mock CRM / календарь / local outbox"]
+  Policy --> KPIs["KPI: формула, дата, источник"]
   KPIs --> Draft
 ```
 
 Ядро регистрирует роутеры knowledge/management при наличии модулей. Миграции
-выполняет только meetings/migrations, version 8. UI использует серверные capabilities,
+выполняет только meetings/migrations: v9 — домен/роли/витрины, v10 — контроль
+решений, v11 — integration outbox/mock CRM. UI использует серверные capabilities,
 не определяет их по должности. ACL проверяется перед ролью и сборкой контекста,
 после долгой генерации и при открытии источника. Отказы журналируются отдельной
 транзакцией; ошибки не раскрывают названия чужих объектов.

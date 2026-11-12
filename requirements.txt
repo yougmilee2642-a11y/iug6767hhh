@@ -11,3 +11,7 @@ tzdata>=2025.1
 jsonschema>=4.23
 google-auth>=2.38,<3
 requests>=2.32,<3
+# Text meeting seed and PDF import also run without the optional voice profile.
+numpy==2.2.5
+pypdf==5.4.0
+PyMuPDF==1.25.5

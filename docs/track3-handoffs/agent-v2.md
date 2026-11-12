@@ -258,3 +258,33 @@
   только атрибутированы integration-handoff11.11.2026, не переизмерены этим агентом.
 - Следующий P0: E14/self-audit, чистая установка, API/OpenAPI/демо/риски.
   P1/P2 остаются по спецификации; main не менялся, PR12 остаётся draft.
+
+
+## E14 · воспроизведение установки и промежуточный самоаудит
+
+- Предыдущий head3dbc30c/CI43157518742 прошёл Linux/Windows/браузер целиком.
+- Новый чистый клон/venv: base requirements устанавливается, но seed падает
+  без PDF reader. Первичное наблюдение сохранено, не переписано. В base
+  добавлены numpy/pypdf/PyMuPDF существующих проверенных версий; старый
+  requirements-track3.txt/lock не изменён. Новый runtime профиль не ставит
+  pytest/Playwright/ASR CPU libraries; независимый lean venv прошёл за12.68s
+  с неконтролируемым кэшем. Не холодный benchmark и не независимый человек.
+- clean_install.py клонирует чистый commit/создаёт отдельную venv/seed twice,
+  проверяет7 уровней, реальный HTTP/CRM/restart/503. Отчёт новый вне repo,
+  модели не устанавливает и endpoint принудительно закрыт. CI matrix:
+  Linux base/runtime + Windows runtime. Новый CI обязателен.
+- v2_http_smoke теперь7 уровней включая lead; --unavailable не подменяет
+  MeetingLLM, проверяет настоящий provider→503 prepare/protocol/QA на port1,
+  сохранность реплик и restart. Продуктовые handlers не изменены.
+- README/QUICKSTART отделяют runtime от regression profile; актуальны API,
+  OpenAPI60 paths/exporter, requests.http, архитектура v11, DEMO/PITCH,
+  SELF_AUDIT/TEST_REPORT. STATUS v1 архивирован, новый отражает v2.
+  Не заявлены отсутствующие чат/брифинг/call analytics/ICS/with-drafts.
+- Полный CPU1374 passed/28 skipped/0 failed92.08s; Node66 passed; оба HTTP
+  passed; compile/diff passed. Raw evidence reports/v2-e14-* относится к
+  рабочему кандидату; публикация/чистая установка ещё впереди.
+- Secret history scan96 commits/106431 added lines: три повтора одного
+  отрицательного URL fixture https://u:p@example.com; реальные ключи по
+  format rules не обнаружены. Это ограниченный scan, не DLP/credential validation.
+- Все live модели NOT RUN, frozen gold не менялся; P1/P2 не завершены,
+  main не меняется. Автор новых изменений Codex; ложное авторство не добавлено.

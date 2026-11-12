@@ -1,0 +1,18 @@
+# Text-only product environment. No torch, speech weights or browser/test tools.
+# Constraints pin the shared transitive versions without editing old requirements.
+-c requirements-track3-lock.txt
+fastapi==0.115.12
+pydantic==2.11.4
+uvicorn==0.34.2
+python-multipart==0.0.20
+python-dotenv==1.1.0
+openai==1.78.1
+edge-tts==7.0.2
+httpx==0.28.1
+tzdata==2025.2
+jsonschema==4.23.0
+google-auth==2.40.1
+requests==2.32.4
+numpy==2.2.5
+pypdf==5.4.0
+PyMuPDF==1.25.5

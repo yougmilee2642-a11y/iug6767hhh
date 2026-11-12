@@ -1,0 +1,199 @@
+{
+  "status": "passed_with_base_profile_gap",
+  "started_at": 1794459313.6755748,
+  "workspace": "/tmp/track3-v2-clean-cbmjj379",
+  "platform": "linux",
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "steps": [
+    {
+      "name": "clone",
+      "exit_code": 0,
+      "elapsed_seconds": 6.8177232919988455,
+      "last_lines": [
+        "Cloning into '/tmp/track3-v2-clean-cbmjj379/repo'..."
+      ]
+    },
+    {
+      "name": "venv",
+      "exit_code": 0,
+      "elapsed_seconds": 5.360638860001927,
+      "last_lines": []
+    },
+    {
+      "name": "base-requirements",
+      "exit_code": 0,
+      "elapsed_seconds": 25.27780941600213,
+      "last_lines": [
+        "Using cached pycparser-3.12-py3-none-any.whl (62 kB)",
+        "Installing collected packages: websockets, uvloop, urllib3, tzdata, typing-extensions, truststore, tabulate, sniffio, rpds-py, pyyaml, python-multipart, python-dotenv, pygments, pycparser, pyasn1, propcache, pluggy, packaging, multidict, jiter, iniconfig, idna, httptools, h11, frozenlist, click, charset_normalizer, certifi, attrs, annotated-types, annotated-doc, aiohappyeyeballs, yarl, uvicorn, typing-inspection, requests, referencing, pytest, pydantic-core, pyasn1-modules, opentelemetry-api, httpcore2, httpcore, cffi, anyio, aiosignal, watchfiles, starlette, pydantic, jsonschema-specifications, httpx2, httpx, cryptography, aiohttp, openai, jsonschema, google-auth, fastapi, edge-tts",
+        "Successfully installed aiohappyeyeballs-2.7.1 aiohttp-3.14.5 aiosignal-1.4.0 annotated-doc-0.0.6 annotated-types-0.8.0 anyio-4.16.0 attrs-26.1.0 certifi-2026.10.23 cffi-2.1.1 charset_normalizer-3.5.2 click-8.5.1 cryptography-50.0.2 edge-tts-7.3.1 fastapi-0.162.5 frozenlist-1.8.0 google-auth-2.62.2 h11-0.16.0 httpcore-1.0.9 httpcore2-2.16.0 httptools-0.9.0 httpx-0.28.1 httpx2-2.16.0 idna-3.20 iniconfig-2.3.1 jiter-0.19.0 jsonschema-4.26.0 jsonschema-specifications-2025.9.1 multidict-7.2.1 openai-3.49.0 opentelemetry-api-1.45.2 packaging-26.3 pluggy-1.7.0 propcache-0.5.4 pyasn1-0.6.5 pyasn1-modules-0.4.2 pycparser-3.12 pydantic-2.14.3 pydantic-core-2.50.4 pygments-2.21.0 pytest-9.2.0 python-dotenv-1.2.4 python-multipart-0.0.33 pyyaml-6.0.3 referencing-0.37.0 requests-2.34.2 rpds-py-2026.9.1 sniffio-1.3.1 starlette-1.10.0 tabulate-0.10.0 truststore-0.10.5 typing-extensions-4.16.0 typing-inspection-0.4.5 tzdata-2026.6 urllib3-2.8.0 uvicorn-0.54.0 uvloop-0.23.0 watchfiles-1.3.0 websockets-17.4 yarl-1.25.1",
+        "",
+        "[notice] A new release of pip is available: 25.0.1 -> 26.3",
+        "[notice] To update, run: python -m pip install --upgrade pip"
+      ]
+    },
+    {
+      "name": "base-seed",
+      "exit_code": 1,
+      "elapsed_seconds": 1.111002612989978,
+      "last_lines": [
+        "  File \"/tmp/track3-v2-clean-cbmjj379/repo/meetings/documents.py\", line 94, in fragments",
+        "    blocks = {'txt': _txt, 'docx': _docx, 'pdf': _pdf}[kind](data)",
+        "             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+        "  File \"/tmp/track3-v2-clean-cbmjj379/repo/meetings/documents.py\", line 69, in _pdf",
+        "    raise DocumentError('Не удалось прочитать PDF.') from None",
+        "meetings.documents.DocumentError: Не удалось прочитать PDF."
+      ]
+    },
+    {
+      "name": "track3-requirements",
+      "exit_code": 0,
+      "elapsed_seconds": 21.338024525000947,
+      "last_lines": [
+        "    Uninstalling edge-tts-7.3.1:",
+        "      Successfully uninstalled edge-tts-7.3.1",
+        "Successfully installed PyMuPDF-1.25.5 av-16.1.0 cachetools-5.5.2 distro-1.9.0 edge-tts-7.0.2 fastapi-0.115.12 google-auth-2.40.1 greenlet-3.5.6 jsonschema-4.23.0 numpy-2.2.5 openai-1.78.1 playwright-1.52.0 pydantic-2.11.4 pydantic_core-2.33.2 pyee-13.0.1 pypdf-5.4.0 pytest-8.3.5 python-dotenv-1.1.0 python-multipart-0.0.20 requests-2.32.4 rsa-4.9.1 scipy-1.15.3 soundfile-0.13.1 srt-3.5.3 starlette-0.46.2 tqdm-4.70.1 tzdata-2025.2 uvicorn-0.34.2",
+        "",
+        "[notice] A new release of pip is available: 25.0.1 -> 26.3",
+        "[notice] To update, run: python -m pip install --upgrade pip"
+      ]
+    },
+    {
+      "name": "pip-check",
+      "exit_code": 0,
+      "elapsed_seconds": 0.2919389819871867,
+      "last_lines": [
+        "No broken requirements found."
+      ]
+    },
+    {
+      "name": "seed",
+      "exit_code": 0,
+      "elapsed_seconds": 1.0378580340038752,
+      "last_lines": [
+        "    \"prod_head\": 4,",
+        "    \"sales_head\": 15,",
+        "    \"sup_agent\": 11,",
+        "    \"sup_head\": 5",
+        "  }",
+        "}"
+      ]
+    },
+    {
+      "name": "seed-repeat",
+      "exit_code": 0,
+      "elapsed_seconds": 0.7868720469996333,
+      "last_lines": [
+        "    \"prod_head\": 4,",
+        "    \"sales_head\": 15,",
+        "    \"sup_agent\": 11,",
+        "    \"sup_head\": 5",
+        "  }",
+        "}"
+      ]
+    },
+    {
+      "name": "http-smoke",
+      "exit_code": 0,
+      "elapsed_seconds": 3.591687768988777,
+      "last_lines": [
+        "{\"status\": \"passed\", \"model\": \"scripted double; live quality not measured\", \"roles\": 6, \"kpi_before_mutation\": {\"open_tasks\": 4, \"overdue_tasks\": 3, \"on_time_orders\": 97.6, \"defect_rate\": 1.8, \"capacity_utilization\": 75.0, \"missing_assignee\": 0, \"missing_due\": 1, \"open_decisions\": 0, \"overdue_decisions\": 0, \"support_sla\": 92.0, \"mary_resolution\": 68.0, \"moderation_queue\": 18, \"unclaimed_pickup\": 31, \"late_order_causes\": 12, \"capacity_forecast_peak\": 111.0}, \"restart\": \"passed\", \"elapsed_seconds\": 3.4031847000005655, \"working_tree_dirty\": false, \"commit\": \"3dbc30cf4f2646ddef3d97638774262be740ad42\"}"
+      ]
+    },
+    {
+      "name": "installed-packages",
+      "exit_code": 0,
+      "elapsed_seconds": 0.2625602400075877,
+      "last_lines": [
+        "urllib3==2.8.0",
+        "uvicorn==0.34.2",
+        "uvloop==0.23.0",
+        "watchfiles==1.3.0",
+        "websockets==17.4",
+        "yarl==1.25.1"
+      ]
+    }
+  ],
+  "cache": "not controlled; pip may reuse existing download cache",
+  "actor": "agent; isolated clone/venv, not an independent human install",
+  "models_downloaded": false,
+  "live_model_quality": "not_run",
+  "commit": "3dbc30cf4f2646ddef3d97638774262be740ad42",
+  "base_profile_seed": "failed",
+  "installed_packages": [
+    "aiohappyeyeballs==2.7.1",
+    "aiohttp==3.14.5",
+    "aiosignal==1.4.0",
+    "annotated-doc==0.0.6",
+    "annotated-types==0.8.0",
+    "anyio==4.16.0",
+    "attrs==26.1.0",
+    "av==16.1.0",
+    "cachetools==5.5.2",
+    "certifi==2026.10.23",
+    "cffi==2.1.1",
+    "charset-normalizer==3.5.2",
+    "click==8.5.1",
+    "cryptography==50.0.2",
+    "distro==1.9.0",
+    "edge-tts==7.0.2",
+    "fastapi==0.115.12",
+    "frozenlist==1.8.0",
+    "google-auth==2.40.1",
+    "greenlet==3.5.6",
+    "h11==0.16.0",
+    "httpcore==1.0.9",
+    "httpcore2==2.16.0",
+    "httptools==0.9.0",
+    "httpx==0.28.1",
+    "httpx2==2.16.0",
+    "idna==3.20",
+    "iniconfig==2.3.1",
+    "jiter==0.19.0",
+    "jsonschema==4.23.0",
+    "jsonschema-specifications==2025.9.1",
+    "multidict==7.2.1",
+    "numpy==2.2.5",
+    "openai==1.78.1",
+    "opentelemetry-api==1.45.2",
+    "packaging==26.3",
+    "playwright==1.52.0",
+    "pluggy==1.7.0",
+    "propcache==0.5.4",
+    "pyasn1==0.6.5",
+    "pyasn1_modules==0.4.2",
+    "pycparser==3.12",
+    "pydantic==2.11.4",
+    "pydantic_core==2.33.2",
+    "pyee==13.0.1",
+    "Pygments==2.21.0",
+    "PyMuPDF==1.25.5",
+    "pypdf==5.4.0",
+    "pytest==8.3.5",
+    "python-dotenv==1.1.0",
+    "python-multipart==0.0.20",
+    "PyYAML==6.0.3",
+    "referencing==0.37.0",
+    "requests==2.32.4",
+    "rpds-py==2026.9.1",
+    "rsa==4.9.1",
+    "scipy==1.15.3",
+    "sniffio==1.3.1",
+    "soundfile==0.13.1",
+    "srt==3.5.3",
+    "starlette==0.46.2",
+    "tabulate==0.10.0",
+    "tqdm==4.70.1",
+    "truststore==0.10.5",
+    "typing-inspection==0.4.5",
+    "typing_extensions==4.16.0",
+    "tzdata==2025.2",
+    "urllib3==2.8.0",
+    "uvicorn==0.34.2",
+    "uvloop==0.23.0",
+    "watchfiles==1.3.0",
+    "websockets==17.4",
+    "yarl==1.25.1"
+  ],
+  "elapsed_seconds": 65.88338565826416
+}

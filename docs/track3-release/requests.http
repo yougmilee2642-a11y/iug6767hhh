@@ -1,0 +1,59 @@
+# Выполнять последовательно на отдельном синтетическом seed; cookie jar включён.
+@base = http://127.0.0.1:8000/api/meet
+# Подставить ID из ответа GET /tasks; указанные ниже 1 — только пример.
+@taskId = 1
+@confirmationId = COPY_FROM_PREVIEW
+
+### Вход руководителя производства
+POST {{base}}/login
+Content-Type: application/json
+
+{"login":"prod_head","password":"prod_head-demo"}
+
+### Текущие серверные полномочия
+GET {{base}}/me
+
+### Обзор с фиксированной датой синтетики
+GET {{base}}/overview?as_of=2026-11-11T12:00:00%2B00:00
+
+### Задачи
+GET {{base}}/tasks
+
+### Предпросмотр: ничего не отправляется
+POST {{base}}/crm/preview
+Content-Type: application/json
+
+{"action":"task.create","object_id":{{taskId}}}
+
+### Отмена: использовать ID предыдущего preview
+POST {{base}}/confirmations/{{confirmationId}}/cancel
+
+### Новый preview необходим после cancel; confirm только после проверки человеком
+POST {{base}}/crm/confirm
+Content-Type: application/json
+
+{"confirmation_id":"{{confirmationId}}","idempotency_key":"manual-demo-crm-001"}
+
+### Сохранённый статус отправки
+GET {{base}}/crm/tasks/{{taskId}}
+
+### Ответ с источниками требует модели; без неё ожидается честный 503 model_*
+POST {{base}}/qa
+Content-Type: application/json
+
+{"question":"Какие условия поставки картона 0,9 мм?"}
+
+### Выход
+POST {{base}}/logout
+
+### Подрядчик: бюджет не раскрывается
+POST {{base}}/login
+Content-Type: application/json
+
+{"login":"designer","password":"designer-demo"}
+
+### Честный отказ без вызова модели
+POST {{base}}/qa
+Content-Type: application/json
+
+{"question":"Какой бюджет акции Premium?"}

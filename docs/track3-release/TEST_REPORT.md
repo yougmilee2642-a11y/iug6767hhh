@@ -1,0 +1,80 @@
+# Проверки Фокус v2 — 12.11.2026
+
+Это промежуточный отчёт P0/E14; весь объём ТЗ не завершён. Результат привязан
+к commit/dirty в первичных JSON. Документационные коммиты не являются новым
+прогоном модели. [Самоаудит](SELF_AUDIT.md) содержит риски каждого требования.
+
+## Измеренные проверки
+
+| Проверка | Результат и границы |
+|---|---|
+| Полный небраузерный Python | 1374 passed, 28 skipped, 0 failed, 92,08 s; `reports/v2-e14-python.log`. Шесть deprecation warnings PyMuPDF; skips не считаются passed. |
+| Node | 66 passed, 0 failed; `reports/v2-e14-node.log` |
+| Настоящий HTTP, 7 уровней | `reports/v2-e14-http.json`: KPI, ACL, cancel/confirm, CRM/idempotence/restart; явный QA double, не качество модели |
+| Недоступная модель через настоящий HTTP | `reports/v2-e14-unavailable-http.json`: реальные provider/prepare/protocol/QA → 503 model_unavailable, расшифровка не изменена, 7 уровней/restart |
+| Предыдущий чистый CI | [43157518742](https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43157518742) на 3dbc30c: Linux/Windows, Python/Node/35 UI, оба browser→HTTP и evaluator passed. Не переносится на новый head. |
+| E13 на дублёре | `reports/v2-evaluator-double.json`: pipeline_passed, 30 задач/36 вопросов; quality NOT MEASURED, не live recall |
+| Первоначальный чистый base | `reports/v2-e14-initial-install.json`: 65,88 s всего; base install 25,28 s прошёл, seed упал без PDF reader; после test-профиля seed/restart прошли |
+| Изолированный runtime | `reports/v2-e14-initial-runtime.json`: 12,68 s, повтор seed/HTTP passed; pytest/Playwright/torch/scipy/av/soundfile отсутствуют. Кэш pip не контролировался. Профиль был незакоммичен, код клона 3dbc30c. |
+| Исправленная установка base/runtime | Новый `clean_install.py` запускается после commit; отчёты и Windows CI должны быть проверены отдельно. Нельзя считать passed по первоначальному замеру. |
+| OpenAPI | `export_api.py` из настоящего app: 60 путей; временная БД, без моделей/рабочей data/ |
+| Secret scan истории | Форматы ключей/private keys/webhooks/credential URLs. Три credential-URL совпадения — один отрицательный fixture `https://u:p@example.com` в повторённой истории теста; реальных ключей этими правилами не обнаружено. Не полноценный DLP-аудит. |
+
+## Критерии приёмки §7.5
+
+| Критерий | Проверка | Результат |
+|---|---|---|
+| ≥80% явных задач | frozen 5×6, scorer v3/evaluate_v2; `test_track3_v2_evaluation.py` | Конвейер double passed; live требует хоста |
+| Источник каждого утверждения | knowledge claims/excerpt integrity, core risk/summary quotes | CPU/double passed; полнота live неизвестна |
+| Чужая роль получает отказ, отказ в журнале | access_matrix, core denial-survives-rollback, HTTP | Passed |
+| Cancel без изменения | core/task/calendar/decision/CRM cancel tests | Passed |
+| Протокол↔поручение | core confirm/idempotence, task controls; UI/HTTP navigation | Passed на предыдущем CI; новый CI обязателен |
+
+## ОТ-01..08
+
+| ID | Тест/доказательство | Результат |
+|---|---|---|
+| ОТ-01 | clean_install base/runtime Linux/Windows | Исправленный профиль ожидает новый прогон; первоначальная ошибка сохранена |
+| ОТ-02 | `test_access_matrix.py`, HTTP семи уровней, отозванные права/истёкшее делегирование | Passed |
+| ОТ-03 | `test_fotoprint_seed.py`, генератор и хеши v1/v2 | Passed |
+| ОТ-04 | core/privacy audit/filter/CSV/logout; auditor/director/head-scope | Passed |
+| ОТ-05 | real unavailable HTTP, model error/garbage/timeout tests, CRM uncertain | Passed на CPU/локальном HTTP |
+| ОТ-06 | UI35 + v2 browser, русские сообщения | Предыдущий CI passed, новый ожидается; ручной аудит неполон |
+| ОТ-07 | management/domain_metrics/decision_controls/calendar time tests | Passed |
+| ОТ-08 | LICENSES + metadata/notice hashes | Частично: юридические решения не заменяются тестами |
+
+## Шесть веток лекции — карта покрытия
+
+Сокращения: core=`test_track3_core.py`, QA=`test_track3_knowledge.py`,
+CRM=`test_track3_crm.py`, calendar=`test_track3_calendar.py`,
+KPI=`test_track3_management.py`. Все файлы в `tests/`.
+«Частично» означает пробел, а не пройденный критерий.
+
+| Функция | Обычный путь | Нет прав | Повтор | Нет данных | Источник недоступен | Устаревание |
+|---|---|---|---|---|---|---|
+| QA | QA grounded/dated/source | QA each_document_acl | QA saved/revalidated | QA no_relevant_data | QA saved source revoked/corrupt; hardening tests | v2 stale controls + retrieval/source_at |
+| Протокол | core risk/summary/status | core reader/foreign | core confirm idempotent | meetings empty_transcript | core transcript_edited_during_draft, ACL recheck; внешний источник не нужен | Частично: version/recheck есть, полного отдельного ageing сценария нет |
+| CRM | CRM create/status | CRM employee/foreign_token | CRM replay/concurrent | CRM missing_mapping/source_empty | CRM down/timeout durable | CRM stale fault/changed state before confirm |
+| Календарь | calendar slots/preview/confirm | calendar roles/ACL/revocation | calendar double_confirm/races | calendar no-free-interval/participant checks | Частично: mock provider есть, отдельного transport outage нет | calendar stale_meeting/slot taken; возраст витрин смен ещё не реализован |
+| Обзор | KPI known formulas | KPI ACL-before-count/sum | Повтор GET, resolver recheck | KPI empty/missing/hidden + zero denom | domain source mutation, missing table; CRM fault warning | KPI snapshot_freshness + conservative source_at |
+
+Устаревшая витрина, изменившийся preview и отозванная цитата проверяют разные
+свойства. Эта карта не заявляет полное покрытие ещё не реализованных P1-маршрутов.
+
+## Команды воспроизведения
+
+```bash
+python -m pip install -r requirements-track3-v2-test.txt
+python scripts/track3/check.py -q tests --ignore=tests/ui_track3
+node --test tests/*.cjs static/mts-shell/tests/*.mjs
+python scripts/track3/v2_http_smoke.py --output /absolute/new-http.json
+python scripts/track3/v2_http_smoke.py --unavailable --output /absolute/new-unavailable.json
+python scripts/track3/clean_install.py --profile runtime --output /absolute/new-runtime-install.json
+python scripts/track3/clean_install.py --profile base --output /absolute/new-base-install.json
+```
+
+Полная установка и smoke выполняются с синтетическими временными БД. Рабочая
+`data/` не очищается. Локальный Chromium не перезапускался при прежнем запрете
+Unix socket; браузер проверяет CI. Хост отдельно запускает LIVE_CHECKS.
+Живые Ollama/ASR/TTS/диаризация, настоящая почта/CRM, микрофон и независимый
+человеческий install не выполнялись агентом.

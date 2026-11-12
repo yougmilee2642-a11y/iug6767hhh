@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 
-def server(db, port):
+def server(db, port, unavailable=False):
     from scripts.track3.start import configure
     from meetings import llm
     configure(Path(db))
@@ -23,13 +23,14 @@ def server(db, port):
             if '48000' in user or '650000' in user:
                 raise AssertionError('Forbidden source entered designer/model context')
             return {'excerpt_ids': []}
-    llm.set_llm(Double())
+    if not unavailable:
+        llm.set_llm(Double())
     import app
     import uvicorn
     uvicorn.run(app.app, host='127.0.0.1', port=port)
 
 
-def run():
+def run(unavailable=False):
     import httpx
     from scripts.track3.seed_fotoprint import seed
     events = []
@@ -40,8 +41,12 @@ def run():
         base = f'http://127.0.0.1:{port}'
         proc = None
         def start():
-            child = subprocess.Popen([sys.executable, __file__, '--serve', str(path), '--port', str(port)], cwd=ROOT,
-                                     env={**os.environ, 'MEETINGS_DEMO': '1', 'OLLAMA_BASE_URL': 'http://127.0.0.1:1'},
+            command = [sys.executable, __file__, '--serve', str(path), '--port', str(port)]
+            if unavailable:
+                command.append('--unavailable')
+            child = subprocess.Popen(command, cwd=ROOT,
+                                     env={**os.environ, 'MEETINGS_DEMO': '1', 'OLLAMA_BASE_URL': 'http://127.0.0.1:1',
+                                          'OLLAMA_API_KEY': '', 'MEETINGS_TIMEOUT': '1'},
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             try:
                 deadline = time.monotonic() + 20
@@ -70,7 +75,7 @@ def run():
                 assert response.status_code == expected, (login, route, response.status_code, response.text)
                 assert response.headers.get('X-Request-ID')
                 return response.json()
-            for login in ['director','prod_head','operator','designer','admin','auditor']:
+            for login in ['director','prod_head','mod_lead','operator','designer','admin','auditor']:
                 clients[login] = httpx.Client(base_url=base, trust_env=False, timeout=15)
                 request(login, 'POST', '/login', json={'login': login, 'password': login + '-demo'})
                 assert request(login, 'GET', '/me')['level']
@@ -88,6 +93,18 @@ def run():
             assert request('designer', 'POST', '/qa', json={'question':'Какой бюджет акции Premium?'})['status'] == 'insufficient_data'
             secret = request('director', 'POST', '/qa', json={'question':'Каков фонд оплаты труда?'})
             assert secret['status'] == 'insufficient_data' and 'закрыт для ассистента' in secret['answer']
+            if unavailable:
+                # Exercise the real provider against an explicitly closed loopback port.
+                # No Ollama process, gateway or scripted reply participates in this mode.
+                before = request('director', 'GET', f'/meetings/{mid}')
+                for route in [f'/meetings/{mid}/prepare', f'/meetings/{mid}/protocol/draft']:
+                    error = request('director', 'POST', route, expected=503)
+                    assert error['code'] == 'model_unavailable' and error.get('detail'), error
+                error = request('director', 'POST', '/qa', expected=503,
+                                json={'question': 'Какие условия поставки картона 0,9 мм?'})
+                assert error['code'] == 'model_unavailable' and error.get('detail'), error
+                after = request('director', 'GET', f'/meetings/{mid}')
+                assert before['utterances'] == after['utterances']
             tasks = request('operator', 'GET', '/tasks')['tasks']; task = next(t for t in tasks if t['status'] == 'open')
             request('operator','POST','/crm/preview',expected=403,json={'action':'task.create','object_id':task['id']})
             crm = request('prod_head','POST','/crm/preview',json={'action':'task.create','object_id':task['id']})
@@ -114,7 +131,9 @@ def run():
             assert request('prod_head','GET',f"/crm/tasks/{task['id']}")['outbox']['external_ref']==crm_result['external_ref']
             assert next(t for t in request('operator', 'GET', '/tasks')['tasks'] if t['id']==task['id'])['status']=='in_progress'
             request('designer', 'GET', f'/meetings/{mid}', expected=404)
-            return {'status':'passed', 'model':'scripted double; live quality not measured', 'roles':6,
+            return {'status':'passed', 'model':('unavailable loopback; no live inference' if unavailable else
+                                               'scripted double; live quality not measured'), 'roles':len(clients),
+                    'model_failure_path': 'passed' if unavailable else 'not_run',
                     'requests':events, 'kpi_before_mutation':metrics, 'restart':'passed'}
         finally:
             stop()
@@ -124,11 +143,12 @@ def run():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--serve'); parser.add_argument('--port', type=int); parser.add_argument('--output')
+    parser.add_argument('--unavailable', action='store_true', help='Check real provider 503 at closed loopback port 1; never contact a model')
     args = parser.parse_args()
-    if args.serve: return server(args.serve, args.port)
+    if args.serve: return server(args.serve, args.port, args.unavailable)
     if not args.output: parser.error('--output required')
     started = time.perf_counter()
-    try: result = run(); code = 0
+    try: result = run(args.unavailable); code = 0
     except Exception as error: result = {'status':'failed','error':type(error).__name__, 'detail':str(error)}; code = 1
     result['elapsed_seconds'] = time.perf_counter() - started
     result['working_tree_dirty'] = bool(subprocess.check_output(['git','status','--porcelain'], cwd=ROOT, text=True).strip())
