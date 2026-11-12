@@ -3,7 +3,7 @@ export function assistantUI(h) {
   const {node,makeButton:button,makeTextarea:textarea,makeSelect:select,makeInput:input,request,runAction:run,state,ui,dateLabel:date,openMeeting,openSource}=h;
   let owner=null,conversation=null,messages=[],draft='';
   const reset=()=>{owner=null;conversation=null;messages=[];draft='';};
-  const field=(label,control)=>{const wrap=node('label','meeting-field');wrap.append(node('span','field-label',label),control);return wrap;};
+  const field=(label,control)=>{control.setAttribute('aria-label',label);const wrap=node('label','meeting-field');wrap.append(node('span','field-label',label),control);return wrap;};
   async function action(card,proposal) {
     const form=node('form','meet-form-grid');
     const text=textarea({label:proposal.kind==='meeting'?'Тема встречи':'Текст поручения',value:proposal.text,rows:3});
