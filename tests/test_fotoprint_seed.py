@@ -86,7 +86,7 @@ def test_migrate_populated_v8_preserves_content_and_acl(tmp_path, monkeypatch):
     c.execute("INSERT INTO documents(id,owner_id,title,filename,kind,content,sha256,created_at) VALUES (66,55,'Старый','old.txt','txt',?,'abc','2026-01-01T00:00:00+00:00')", (b'keep original',))
     c.execute('INSERT INTO document_access VALUES (66,55)'); c.commit()
     monkeypatch.setattr(migrations, 'MIGRATIONS', original)
-    assert migrations.apply(c) == [9,10,11]
+    assert migrations.apply(c) == list(range(9, migrations.LATEST + 1))
     assert migrations.apply(c) == []
     assert c.execute('SELECT content FROM documents WHERE id=66').fetchone()[0] == b'keep original'
     assert c.execute('SELECT * FROM document_access').fetchall() == [(66, 55)]

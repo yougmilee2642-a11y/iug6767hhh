@@ -6,7 +6,7 @@ ACL/конфиденциальность на чтении, до контекс�
 Admin/auditor не получают бизнес-содержимое. Чужой объект → 404 без его названия;
 запрещённая операция → 403. В ответе есть `X-Request-ID` для журнала.
 
-Полный срез 60 путей: [openapi.json](openapi.json). Он получен из настоящего
+Полный срез 67 путей: [openapi.json](openapi.json). Он получен из настоящего
 `app.app`, а не написан вручную. Обновление без моделей/рабочей БД:
 
 ```bash
@@ -28,6 +28,7 @@ python scripts/track3/export_api.py --output docs/track3-release/openapi.json
 | QA/источник | `POST /qa`, `GET /qa/{id}`, `GET /sources/{kind}/{id}` |
 | Обзор | `GET /overview?as_of=…` — KPI, формула, числитель/знаменатель, as_of, источник |
 | Mock CRM | `POST /crm/preview`, `POST /crm/confirm`, `GET /crm/tasks/{id}`, `GET /crm/orders/{order_no}` |
+| Календарь ICS/EML | `GET /calendar/export.ics`, `/calendar/feed/{token}.ics`, `POST/GET /calendar/subscriptions`, import preview/confirm; [границы](CALENDAR.md) |
 | Интеграции | `GET /integrations`, `POST /integrations/check`, `GET /crm/targets` |
 | Администрирование | `GET /admin/users`, `POST /admin/users/preview`, `POST /admin/users/confirm` |
 | Делегирование | `POST /delegations` (preview), `POST /delegations/confirm`; текущие права — `GET /me` |
@@ -44,4 +45,4 @@ preview возвращает `confirmation_id` и изменения; челов
 Ошибки: `{ "code": "model_unavailable", "detail": "…русское объяснение…" }`.
 503 `model_*` сохраняет исходные материалы. Контекст модели не отправляется во
 внешние CRM/почту. Коннектор CRM и календарь сейчас mock/local outbox.
-Единого `/assistant`, ICS-подписки, live Bitrix24 и управления retention пока нет.
+ICS/EML реализованы локально; единого `/assistant`, live Bitrix24 и управления retention пока нет.

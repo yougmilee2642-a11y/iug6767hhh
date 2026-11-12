@@ -17,7 +17,7 @@
 | Первоначальный чистый base | `reports/v2-e14-initial-install.json`: 65,88 s всего; base install 25,28 s прошёл, seed упал без PDF reader; после test-профиля seed/restart прошли |
 | Изолированный runtime | `reports/v2-e14-initial-runtime.json`: 12,68 s, повтор seed/HTTP passed; pytest/Playwright/torch/scipy/av/soundfile отсутствуют. Кэш pip не контролировался. Профиль был незакоммичен, код клона 3dbc30c. |
 | Исправленная установка base/runtime | Новый `clean_install.py` запускается после commit; отчёты и Windows CI должны быть проверены отдельно. Нельзя считать passed по первоначальному замеру. |
-| OpenAPI | `export_api.py` из настоящего app: 60 путей; временная БД, без моделей/рабочей data/ |
+| OpenAPI | `export_api.py` из настоящего app: 67 путей; временная БД, без моделей/рабочей data/ |
 | Secret scan истории | Форматы ключей/private keys/webhooks/credential URLs. Три credential-URL совпадения — один отрицательный fixture `https://u:p@example.com` в повторённой истории теста; реальных ключей этими правилами не обнаружено. Не полноценный DLP-аудит. |
 
 ## Критерии приёмки §7.5
@@ -78,3 +78,27 @@ python scripts/track3/clean_install.py --profile base --output /absolute/new-bas
 Unix socket; браузер проверяет CI. Хост отдельно запускает LIVE_CHECKS.
 Живые Ollama/ASR/TTS/диаризация, настоящая почта/CRM, микрофон и независимый
 человеческий install не выполнялись агентом.
+
+## E4: календарный обмен (12.11.2026)
+
+- Полный pytest:1389 passed/28 skipped/0 failed,97,76s (`reports/v2-calendar-python.log`).
+  Первый запуск выбрал неполное окружение без PyAV/SciPy:1387 passed/28 skipped/2 failed;
+  исходный лог `v2-calendar-python-incomplete-env.log` сохранён. Повтор в v2 CPU
+  окружении не менял существующие тесты/порог успеха. Новых календарных случаев15.
+- Node66/0, syntax/diff passed. `v2-calendar-http.json`:7 уровней, ICS/EML,
+  import preview/confirm, subscription/restart/revoke, provider503;3,94s.
+- Frozen evaluator повторён без изменения gold: pipeline_passed30/30 задач,
+ 36/36 QA,17/17 claims,0 rights/false_actions. Это scripted double, не live качество.
+- `v2-calendar-ui-local.json`: браузер NOT RUN, launch заблокирован socket policy.
+  Новый UI путь cancel/confirm import, subscription/revoke,360/768/1440 включён
+  в v2_ui_check.py и должен пройти на опубликованном CI.
+- Финальные E14 чистые установки на локальном a11f836:base23,31s/runtime19,964s;
+  отчёты `v2-e14-base-final.json`, `v2-e14-runtime-final.json`. Кэш неконтролируемый,
+  модели не скачивались. API-публикация имеет идентичное дерево7c98d1c; CI43161157327
+  уже подтвердил base/runtime Linux и text/browser. Windows ещё queued.
+- Миграция12 работает на пустой и заполненной v8; повтор seed сохраняет количества.
+  Расширено ожидание списка миграций в старом тесте: теперь9..LATEST вместо9,10,11;
+  ни один старый тест не удалён. Подписки хранят hash токена, права и срок
+  перепроверяются; устаревший outbox больше не выдаёт название после отзыва ACL.
+
+Границы: [CALENDAR](CALENDAR.md). Реального SMTP/Outlook/Google/Битрикс24 нет.

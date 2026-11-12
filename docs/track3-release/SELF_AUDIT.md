@@ -8,7 +8,7 @@
 
 | Требование | Статус | Доказательство | Риск/оставшаяся проверка |
 |---|---|---|---|
-| ОТ-01: запуск ≤15 минут | Частично | `clean_install.py`, V2_QUICKSTART; исходный чистый клон 65,88 s выявил пропуск PDF reader; runtime 12,68 s прошёл | Исправленный base/Windows требуют нового CI; кэш тёплый, модели не включены |
+| ОТ-01: запуск ≤15 минут | Частично | `clean_install.py`, V2_QUICKSTART; исходный чистый клон 65,88 s выявил пропуск PDF reader; runtime 12,68 s прошёл | Base/runtime Linux CI 43161157327 passed; Windows пока queued; кэш тёплый, модели не включены |
 | ОТ-02: серверные роли | Выполнено | `test_access_matrix.py`, SQL/classification matrix, HTTP семи уровней | Production identity/SSO отсутствует |
 | ОТ-03: синтетика | Выполнено | `test_fotoprint_seed.py`: генератор, хеши, 18 пользователей, 54 документа, 600 заказов/250 клиентов/400 обращений | Не представляет реальные данные/нагрузку |
 | ОТ-04: журнал | Выполнено | core denial-survives-rollback; privacy audit/logout/filters/CSV tests | Нет внешнего неизменяемого журнала/авторотации |
@@ -17,7 +17,7 @@
 | ОТ-07: TZ/валюта/формулы | Выполнено | `test_track3_management.py`, domain_metrics, decision_controls; Europe/Minsk/BYN | as_of не восстанавливает прошлую историю статусов задач |
 | ОТ-08: лицензии | Частично | LICENSES; `reports/v2-e0-dependencies.json`, notice hashes | PyMuPDF AGPL/commercial, Silero noncommercial, bundled FFmpeg/libsndfile |
 | §7.2.1: подготовка | Выполнено | `test_track3_preparation_v2.py`, core previous-meeting tests | Семантика live неизвестна; локальный проект повестки не сохраняется |
-| §7.2.2: календарь | Выполнено | `test_track3_calendar.py`: занятость/cancel/гонки/replay/ACL | Mock/local outbox; смены, ICS, провайдеры остаются P1 |
+| §7.2.2: календарь | Выполнено | `test_track3_calendar.py`: занятость/cancel/гонки/replay/ACL | Mock/local outbox, ICS/EML и отзыв подписок: test_track3_calendar_interchange.py; смены/провайдеры остаются P1 |
 | §7.2.3: протокол/цитаты | Требует живой проверки хостом | core summary/risk/outcome/unknown/edited/quote tests; evaluator v2 | Настоящая модель не измерена |
 | §7.2.4: поручения | Выполнено | `test_track3_task_controls.py`, core confirm/cancel/filter/link tests | Комментарии/эскалация остаются P1 |
 | §7.2.5: QA с источником | Требует живой проверки хостом | knowledge tests; frozen 36 QA, double pipeline | Единый чат/FTS5 ещё не реализованы |
@@ -42,7 +42,7 @@
 | E1 | Выполнено: домен/синтетика/миграции/seed |
 | E2 | Матрица/администрирование/делегирование выполнены; новые P1-маршруты впереди |
 | E3 | P0 mock CRM выполнен; Bitrix24 transport/Mary-адаптер/импорт-сверка не выполнены |
-| E4 | Базовый mock календарь выполнен; смены/ICS/EML/реальные провайдеры не выполнены |
+| E4 | Mock, ICS export/import/subscriptions и EML download выполнены; смены/провайдеры и автоматические .eml-файлы не выполнены |
 | E5 | Унаследован voice MVP; v2-команды частично, микрофон/модели NOT RUN |
 | E6 | Форматы/цитаты/ACL/устаревание есть; FTS5/сводка/сравнение не выполнены |
 | E7 | Унаследованы аудио endpoints; jobs/storage/call analytics v2 не выполнены |

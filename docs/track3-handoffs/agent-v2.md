@@ -288,3 +288,32 @@
   format rules не обнаружены. Это ограниченный scan, не DLP/credential validation.
 - Все live модели NOT RUN, frozen gold не менялся; P1/P2 не завершены,
   main не меняется. Автор новых изменений Codex; ложное авторство не добавлено.
+
+## E14 publication / E4 · ICS и локальные приглашения
+
+- Незавершённый a11f836 опубликован через API с идентичным tree как7c98d1c.
+  Старый локальный commit сохранён отдельной веткой. Новый CI43161157327:
+  Linux base/runtime и весь text/browser SUCCESS; Windows queued.
+- Чистые install reports:base23,31s/runtime19,964s, кэш неконтролируемый,
+  без моделей;7 ролей/seed twice/provider503/restart passed. Финальные raw JSON
+  добавлены без замены первоначального failed evidence.
+- Миграция12: отзывные signed busy-only ICS subscriptions (90 дней) и состояние
+  личного импорта. Export только моих подтверждённых событий, текущий ACL;
+  import только интервалы, preview/confirm/cancel/replay/concurrency/stale.
+  Старые ручные busy/events не удаляются. Повторы не дублируют.
+- MIME .eml download с ICS, synthetic .invalid addressees, доступ организатор/адресат.
+  Проверяются обе текущие ACL; safe_outbox теперь также редактирует старые названия.
+  Никаких SMTP/реальных сервисов; data/outbox/*.eml автоматом не создаются.
+- UI — существующие элементы/стили, disclosure на Встречах, импорт/подписка/отзыв,
+  загрузкиICS/EML. Нового CSS нет. OpenAPI67 путей, RFC5545 primary references
+  в CALENDAR.md. Зависимости не добавлены.
+- Новый targeted37 passed; full1389/28/0,97,76s; Node66/0; HTTP7 ролей/ICS/EML/
+  подписка/restart/revoke/503 passed3,94s. Первый full с неверным venv имел2
+  ModuleNotFoundError старых dual_asr CPU tests; лог сохранён. Полный повтор
+  в track3-clean-venv зелёный без изменения тестов.
+- Double evaluation повторён:30 задач/36QA/17claims,0 rights/false_actions;
+  это только pipeline. Локальный Chromium socket forbidden, UI NOT RUN; новый
+  путь в v2_ui_check и CI. LiveLLM/ASR/TTS/диаризация не запускались.
+- Осталось E4: смены/буферы/необязательные участники, внешние провайдеры, серии,
+  напоминания, автоматические файлыEML. Остальные P1/P2 по SELF_AUDIT не закрыты.
+  start-gateway.ps1/main не менялись. PR12 остаётся draft.

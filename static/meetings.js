@@ -3,6 +3,7 @@ import { protocolPayload } from './meetings/protocol.js';
 import { voiceAssistant } from './meetings/voice.js';
 import { administrationUI } from './meetings/administration.js';
 import { crmUI } from './meetings/crm.js';
+import { calendarUI } from './meetings/calendar.js';
 
 const API = '/api/meet';
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -50,6 +51,7 @@ const ui = track3UI({ node, makeButton, makeInput, makeTextarea, makeSelect, req
   navigate: setPage });
 const administration = administrationUI({ node, makeButton, makeInput, request, runAction, state, dateLabel });
 const crm = crmUI({ node, makeButton, makeInput, request, runAction, state, dateLabel, ui });
+const calendarTools = calendarUI({ node, makeButton, makeInput, request, runAction, state, dateLabel, ui, markSaved });
 const assistant = voiceAssistant({ node, makeButton, request, state, openSource, dateLabel, navigate: (page) => {
   if (page === 'tasks') void openTasks(); else setPage(page);
 } });
@@ -548,6 +550,7 @@ function renderMeetings(app) {
     list.append(cards);
   }
   app.append(list);
+  calendarTools.panel(app);
 }
 
 function emptyState(title, description) {

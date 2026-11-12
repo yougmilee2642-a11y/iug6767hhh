@@ -63,6 +63,32 @@ def run(artifacts):
                                 page.get_by_role('heading', name=heading, exact=True).wait_for()
                                 assert not errors, {'login':login,'page_errors':errors}
                                 if login == 'prod_head':
+                                    page.get_by_role('button',name='Встречи',exact=True).click()
+                                    calendar=page.locator('details').filter(has=page.get_by_text('Мой календарь · ICS и приглашения',exact=True))
+                                    calendar.locator('summary').click()
+                                    payload=(b'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:browser-import\r\n'
+                                             b'DTSTART:20261201T060000Z\r\nDTEND:20261201T070000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n')
+                                    calendar.get_by_label('Импорт занятости (.ics)',exact=True).set_input_files({'name':'busy.ics','mimeType':'text/calendar','buffer':payload})
+                                    calendar.get_by_role('button',name='Предпросмотр импорта',exact=True).click()
+                                    import_dialog=page.get_by_role('dialog').filter(has=page.get_by_role('heading',name='Проверить импорт занятости',exact=True))
+                                    import_dialog.wait_for()
+                                    with page.expect_response(lambda response:'/api/meet/confirmations/' in response.url and response.url.endswith('/cancel') and response.status==200):
+                                        import_dialog.get_by_role('button',name='Отмена',exact=True).click()
+                                    assert calendar.get_by_label('Импорт занятости (.ics)',exact=True).input_value().endswith('busy.ics')
+                                    calendar.get_by_role('button',name='Предпросмотр импорта',exact=True).click();import_dialog.wait_for()
+                                    with page.expect_response(lambda response:response.url.endswith('/api/meet/calendar/import/confirm') and response.status==200):
+                                        import_dialog.get_by_role('button',name='Подтвердить',exact=True).click()
+                                    import_dialog.wait_for(state='hidden')
+                                    assert 'Импортировано интервалов: 1' in calendar.inner_text()
+                                    calendar.get_by_role('button',name='Создать ссылку подписки',exact=True).click()
+                                    subscription_dialog=page.get_by_role('dialog').filter(has=page.get_by_role('heading',name='Создать подписку календаря',exact=True))
+                                    subscription_dialog.wait_for();subscription_dialog.get_by_role('button',name='Создать ссылку',exact=True).click();subscription_dialog.wait_for(state='hidden')
+                                    assert '/api/meet/calendar/feed/' in calendar.get_by_label('Ссылка подписки (храните как пароль)',exact=True).input_value()
+                                    for width in (360,768,1440):
+                                        page.set_viewport_size({'width':width,'height':1000})
+                                        assert page.evaluate('document.documentElement.scrollWidth <= innerWidth+1'), ('calendar overflow',width)
+                                    calendar.get_by_role('button',name='Отозвать ссылки подписки',exact=True).click()
+                                    page.get_by_text('Ссылки подписки отозваны.',exact=True).wait_for()
                                     page.get_by_role('button',name='Задачи',exact=True).click()
                                     card=page.locator('.task-card').first;card.wait_for()
                                     card.get_by_role('button',name='Отправить в Битрикс24 · mock',exact=True).click()

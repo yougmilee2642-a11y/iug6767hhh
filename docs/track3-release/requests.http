@@ -57,3 +57,15 @@ POST {{base}}/qa
 Content-Type: application/json
 
 {"question":"Какой бюджет акции Premium?"}
+
+### Скачать свой календарь (после входа)
+GET {{base}}/calendar/export.ics
+
+### Создать busy-only подписку: экранное действие, ответ содержит секретную ссылку
+POST {{base}}/calendar/subscriptions
+
+### Метаданные ссылок без токенов
+GET {{base}}/calendar/subscriptions
+
+### Отозвать свою ссылку: подставить её ID
+DELETE {{base}}/calendar/subscriptions/1

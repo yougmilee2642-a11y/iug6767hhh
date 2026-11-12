@@ -120,6 +120,7 @@ def router():
         with store.write_tx() as connection:
             pending = confirmations.load(connection, user, payload.confirmation_id, ACTION, 'meeting', None,
                                          payload.idempotency_key)
+            require(user, 'calendar.invite', action='calendar.confirm')
             if pending['already']:
                 bundle = service.event_bundle(connection, user['id'], pending['result']['event_id'])
                 return {**bundle, 'already_confirmed': True}
@@ -158,10 +159,13 @@ def router():
     def outbox(request: Request):
         """Local test invitations addressed to me or sent by me. Nothing here is ever e-mailed."""
         user = current_user(request)
+        require(user, 'calendar.view', action='calendar.outbox')
         with store.db() as connection:
             rows = connection.execute(
                 'SELECT o.* FROM calendar_outbox o JOIN calendar_events e ON e.id=o.event_id '
                 'WHERE o.recipient_id=? OR e.organizer_id=? ORDER BY o.id', (user['id'], user['id'])).fetchall()
-            return {'invitations': [service.outbox_out(r) for r in rows], 'delivery': 'local_outbox_only'}
+            return {'invitations': [service.safe_outbox(connection, user['id'], r) for r in rows], 'delivery': 'local_outbox_only'}
 
+    from meetings.calendar.interchange import router as interchange_router
+    api.include_router(interchange_router())
     return api

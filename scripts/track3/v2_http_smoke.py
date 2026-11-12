@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from datetime import datetime, timedelta, timezone
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -93,6 +94,29 @@ def run(unavailable=False):
             assert request('designer', 'POST', '/qa', json={'question':'Какой бюджет акции Premium?'})['status'] == 'insufficient_data'
             secret = request('director', 'POST', '/qa', json={'question':'Каков фонд оплаты труда?'})
             assert secret['status'] == 'insufficient_data' and 'закрыт для ассистента' in secret['answer']
+            # Exercise interchange through product HTTP without any external service.
+            from meetings.calendar import ics
+            start_at = datetime.now(timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0) + timedelta(days=7)
+            calendar_token = request('director','POST','/calendar/preview',json={
+                'meeting_id':mid,'participant_ids':[ids['users']['operator']],
+                'start_at':start_at.isoformat(),'duration_minutes':30})
+            scheduled = request('director','POST','/calendar/confirm',json={
+                'confirmation_id':calendar_token['confirmation_id'],'idempotency_key':'http-calendar-confirm-001'})
+            exported = clients['director'].get('/api/meet/calendar/export.ics')
+            assert exported.status_code == 200 and len(ics.parse(exported.content)) >= 1
+            invitation = clients['director'].get(f"/api/meet/calendar/outbox/{scheduled['invitations'][0]['id']}/download.eml")
+            assert invitation.status_code == 200 and b'invitation.ics' in invitation.content
+            import_file = ics.calendar([{'uid':'http-import','created_at':start_at.isoformat(),
+                'start_at':(start_at+timedelta(hours=3)).isoformat(),
+                'end_at':(start_at+timedelta(hours=4)).isoformat(),'title':'Не сохранять название'}])
+            imported = request('operator','POST','/calendar/import/preview',files={'file':('busy.ics',import_file,'text/calendar')})
+            imported_result = request('operator','POST','/calendar/import/confirm',json={
+                'confirmation_id':imported['confirmation_id'],'idempotency_key':'http-calendar-import-001'})
+            assert imported_result['interval_count']==1
+            subscription = request('director','POST','/calendar/subscriptions')
+            # Do not put the bearer itself in reports; access logs redact the path.
+            feed = clients['designer'].get(subscription['path'])
+            assert feed.status_code==200 and 'SUMMARY:Занято' in feed.text
             if unavailable:
                 # Exercise the real provider against an explicitly closed loopback port.
                 # No Ollama process, gateway or scripted reply participates in this mode.
@@ -129,12 +153,15 @@ def run(unavailable=False):
             stop(); proc = start()
             assert request('operator', 'GET', '/me')['user']['login'] == 'operator'
             assert request('prod_head','GET',f"/crm/tasks/{task['id']}")['outbox']['external_ref']==crm_result['external_ref']
+            assert clients['designer'].get(subscription['path']).status_code==200
+            request('director','DELETE',f"/calendar/subscriptions/{subscription['id']}")
+            assert clients['designer'].get(subscription['path']).status_code==404
             assert next(t for t in request('operator', 'GET', '/tasks')['tasks'] if t['id']==task['id'])['status']=='in_progress'
             request('designer', 'GET', f'/meetings/{mid}', expected=404)
             return {'status':'passed', 'model':('unavailable loopback; no live inference' if unavailable else
                                                'scripted double; live quality not measured'), 'roles':len(clients),
                     'model_failure_path': 'passed' if unavailable else 'not_run',
-                    'requests':events, 'kpi_before_mutation':metrics, 'restart':'passed'}
+                    'requests':events, 'kpi_before_mutation':metrics, 'restart':'passed', 'calendar_interchange':'passed'}
         finally:
             stop()
             for client in clients.values(): client.close()
