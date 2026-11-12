@@ -312,3 +312,11 @@ body.meetings-page {
 .voice-items li.late small { color: var(--f-action-hover); }
 .voice-item-open { flex: 0 0 auto; min-height: 28px; padding: 0; border: 0; background: transparent; color: var(--f-muted); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
 .voice-item-open:hover { color: var(--f-action); }
+
+/* «Привет, Фокус» слушается всегда: тихая строка состояния в панели и пульс на значке микрофона */
+.voice-wake { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--f-line); color: var(--f-muted); font-size: 13px; }
+.voice-wake-toggle { min-height: 0; padding: 0; border: 0; background: transparent; color: var(--f-muted); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+.voice-wake-toggle:hover { color: var(--f-action); }
+.voice-talk-button.listening::after { position: absolute; right: 6px; top: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--f-action); content: ""; animation: focus-listen 2s ease-in-out infinite; }
+@keyframes focus-listen { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .voice-talk-button.listening::after { animation: none; } }

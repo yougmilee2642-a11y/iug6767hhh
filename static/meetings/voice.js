@@ -26,14 +26,8 @@ export function voiceAssistant(h) {
   status.setAttribute('aria-live', 'polite');
   const heard = node('p', 'voice-heard', '');
   const result = node('div', 'voice-result');
-  const loud = node('label', 'voice-loud');
-  const loudBox = node('input', '');
-  loudBox.type = 'checkbox';
-  loud.append(loudBox, node('span', '', 'Я один в комнате — озвучивать и ответы по закрытым данным'));
-  // Выбор запоминается для этого пользователя в этом браузере.
-  const aloneKey = () => `focus-alone:${state.user?.id ?? ''}`;
-  const restoreAlone = () => { try { loudBox.checked = localStorage.getItem(aloneKey()) === '1'; } catch { loudBox.checked = false; } };
-  loudBox.addEventListener('change', () => { try { localStorage.setItem(aloneKey(), loudBox.checked ? '1' : '0'); } catch { /* storage off */ } });
+  // Фокус озвучивает все ответы: это решение владельца компьютера, флажок «я один» убран.
+  const SPEAK_EVERYTHING = true;
   const form = node('form', 'voice-form');
   const typed = node('input', '');
   typed.type = 'text';
@@ -42,28 +36,40 @@ export function voiceAssistant(h) {
   typed.setAttribute('aria-label', 'Вопрос помощнику текстом');
   form.append(typed, makeButton('Спросить', null, 'secondary-button', 'submit'));
   form.addEventListener('submit', (event) => { event.preventDefault(); const text = typed.value.trim(); if (text) { typed.value = ''; void ask(text); } });
+  // «Привет, Фокус» слушается автоматически, пока пользователь в системе.
+  // Речь распознаётся на этом компьютере и не сохраняется; выключить можно ссылкой в панели.
+  const WAKE_KEY = 'focus-wake-off';
+  const wakeWanted = () => { try { return localStorage.getItem(WAKE_KEY) !== '1'; } catch { return true; } };
+  let wakeStarting = false;
+  let wakeFailed = false;
   const wakeBox = node('div', 'voice-wake');
-  const wakeConsent = node('label', 'voice-loud');
-  const wakeConsentBox = node('input', '');
-  wakeConsentBox.type = 'checkbox';
-  wakeConsent.append(wakeConsentBox, node('span', '', 'Все в комнате знают, что Фокус слушает фразу «Привет, Фокус» '
-    + 'или «Окей, Фокус». Речь распознаётся на этом компьютере и не сохраняется.'));
-  const wakeButton = makeButton('Слушать «Привет, Фокус»',
-    () => void (wake ? stopWake('Фокус больше не слушает.') : startWake()), 'secondary-button');
-  wakeButton.disabled = true;
-  wakeConsentBox.addEventListener('change', () => { wakeButton.disabled = !wakeConsentBox.checked && !wake; });
-  wakeBox.append(wakeConsent, wakeButton);
+  const wakeNote = node('span', 'voice-wake-note', '');
+  const wakeToggle = makeButton('', () => {
+    const off = Boolean(wake);
+    try { localStorage.setItem(WAKE_KEY, off ? '1' : '0'); } catch { /* storage off */ }
+    wakeFailed = false;
+    if (off) void stopWake('Фокус больше не слушает «Привет, Фокус».'); else void startWake();
+    syncWake();
+  }, 'voice-wake-toggle');
+  wakeBox.append(wakeNote, wakeToggle);
+  function syncWake() {
+    wakeNote.textContent = wake ? 'Слушаю «Привет, Фокус»' : 'Не слушаю «Привет, Фокус»';
+    wakeToggle.textContent = wake ? 'Не слушать' : 'Слушать';
+    talk.classList.toggle('listening', Boolean(wake));
+    talk.title = wake ? 'Фокус слушает «Привет, Фокус». Нажмите, чтобы сразу задать вопрос (Alt+V)'
+      : 'Нажмите и говорите; нажмите ещё раз, чтобы отправить (Alt+V)';
+  }
   const head = node('div', 'voice-panel-head');
   const close = makeButton('×', () => {
     stopSpeaking(); void cancelCapture();
-    if (wake) setStatus('Фокус слушает фразу активации. Чтобы выключить, нажмите «Перестать слушать».');
-    else panel.hidden = true;
+    if (wake && wake.mode === 'question') { wake.mode = 'wake'; wake.waitMs = 0; }
+    panel.hidden = true;
   }, 'icon-button');
   close.setAttribute('aria-label', 'Свернуть Фокус');
   const hush = makeButton('Остановить озвучку', stopSpeaking, 'secondary-button');
   hush.hidden = true;
   head.append(node('h2', '', 'Фокус'), close);
-  panel.append(head, status, heard, result, hush, loud, form, wakeBox);
+  panel.append(head, status, heard, result, hush, form, wakeBox);
   document.body.append(panel);
 
   const talk = node('button', 'voice-talk-button', 'Спросить голосом');
@@ -98,16 +104,18 @@ export function voiceAssistant(h) {
 
   function mount(container) {
     if (!state.user || !state.capabilities.includes('qa.ask')) { talk.remove(); panel.hidden = true; return; }
-    restoreAlone();
     talk.textContent = capture ? 'Отправить вопрос' : 'Спросить голосом';
     talk.classList.toggle('recording', Boolean(capture));
     container.prepend(talk);
+    syncWake();
+    // Автоматически: после входа и после окончания записи встречи.
+    if (!wake && !wakeStarting && !wakeFailed && wakeWanted() && !capture && !state.voiceCapture?.recording) void startWake();
   }
 
   function reset() {
     sequence++; stopSpeaking(); void cancelCapture(); void stopWake('');
-    wakeConsentBox.checked = false; wakeButton.disabled = true;
-    panel.hidden = true; heard.textContent = ''; result.replaceChildren(); setStatus(''); restoreAlone();
+    wakeFailed = false;
+    panel.hidden = true; heard.textContent = ''; result.replaceChildren(); setStatus('');
   }
 
   async function toggle() {
@@ -115,7 +123,13 @@ export function voiceAssistant(h) {
     panel.hidden = false;
     intro();
     stopSpeaking();
-    if (wake) { setStatus('Фокус уже слушает: скажите «Привет, Фокус» и вопрос.'); return; }
+    if (wake) {
+      // Кнопка микрофона при включённом «Привет, Фокус»: сразу слушать вопрос.
+      wake.mode = 'question'; wake.waitMs = 0; wake.segment = []; wake.speechMs = 0; wake.silenceMs = 0;
+      if (wake.context.state === 'suspended') await wake.context.resume().catch(() => {});
+      setStatus('Слушаю вопрос…');
+      return;
+    }
     if (state.voiceCapture?.recording) { setStatus('Идёт запись встречи. Остановите её, чтобы спросить Фокус.'); return; }
     if (!navigator.mediaDevices?.getUserMedia || typeof AudioWorkletNode === 'undefined' || !window.CallwiseSTT?.wavPCM) {
       setStatus('Браузер не даёт записать микрофон. Напишите вопрос текстом.');
@@ -211,7 +225,7 @@ export function voiceAssistant(h) {
     let reply;
     try {
       const id = meetingId();
-      reply = await request('/voice/ask', { method: 'POST', body: { text, speak_private: loudBox.checked, ...(id ? { meeting_id: Number(id) } : {}) } });
+      reply = await request('/voice/ask', { method: 'POST', body: { text, speak_private: SPEAK_EVERYTHING, ...(id ? { meeting_id: Number(id) } : {}) } });
     } catch (error) {
       if (mine === sequence) setStatus(error.message || 'Не удалось получить ответ.');
       return;
@@ -256,12 +270,14 @@ export function voiceAssistant(h) {
 
   // ---------- «Привет, Фокус»: voice-activity detection here, short segments to the local ASR ----------
   async function startWake() {
-    if (wake || !wakeConsentBox.checked) return;
-    if (capture || state.voiceCapture?.recording) { setStatus('Сначала закончите текущую запись.'); return; }
+    if (wake || wakeStarting || !state.user) return;
+    if (capture || state.voiceCapture?.recording) return;
     if (!navigator.mediaDevices?.getUserMedia || typeof AudioWorkletNode === 'undefined' || !window.CallwiseSTT?.wavPCM) {
+      wakeFailed = true;
       setStatus('Браузер не даёт слушать микрофон. Используйте кнопку или напишите вопрос.');
       return;
     }
+    wakeStarting = true;
     let stream; let context;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
@@ -278,13 +294,20 @@ export function voiceAssistant(h) {
     } catch {
       stream?.getTracks().forEach((track) => track.stop());
       await context?.close().catch(() => {});
-      wake = null;
-      setStatus('Нет доступа к микрофону. Разрешите его в браузере или используйте кнопку.');
+      wake = null; wakeStarting = false; wakeFailed = true;
+      setStatus('Нет доступа к микрофону. Разрешите его в браузере, и Фокус начнёт слушать «Привет, Фокус».');
+      syncWake();
       return;
     }
-    wakeButton.textContent = 'Перестать слушать';
-    talk.classList.add('listening');
-    setStatus('Фокус слушает. Скажите «Привет, Фокус» или «Окей, Фокус» и задайте вопрос.');
+    wakeStarting = false;
+    // Браузер может держать звук на паузе до первого действия на странице — продолжаем по первому клику или клавише.
+    if (context.state === 'suspended') {
+      const resume = () => { void context.resume().catch(() => {}); };
+      document.addEventListener('pointerdown', resume, { once: true, capture: true });
+      document.addEventListener('keydown', resume, { once: true, capture: true });
+    }
+    syncWake();
+    setStatus('Скажите «Привет, Фокус» и задайте вопрос.');
   }
 
   async function stopWake(message) {
@@ -293,9 +316,7 @@ export function voiceAssistant(h) {
     wake = null;
     current.stream.getTracks().forEach((track) => track.stop());
     await current.context.close().catch(() => {});
-    wakeButton.textContent = 'Слушать «Привет, Фокус»';
-    wakeButton.disabled = !wakeConsentBox.checked;
-    talk.classList.remove('listening');
+    syncWake();
     if (message) setStatus(message);
   }
 
@@ -366,7 +387,7 @@ export function voiceAssistant(h) {
         setStatus('Слушаю вопрос…');
       }
     } catch (error) {
-      if (wake === current) await stopWake(error.message || 'Фокус перестал слушать из-за ошибки.');
+      if (wake === current) { wakeFailed = true; await stopWake(error.message || 'Фокус перестал слушать из-за ошибки.'); }
     } finally {
       current.busy = false;
     }
