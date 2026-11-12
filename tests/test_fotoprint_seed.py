@@ -49,7 +49,7 @@ def test_seed_counts_passwords_and_no_duplicate_sources(seeded, tmp_path):
                 assert not re.search(r'\+\d[\d ()-]{8,}\d|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}', text)
     app = FastAPI(); install(app)
     client = TestClient(app)
-    manifest = json.loads((ROOT / 'demo/track3/v2/manifest.json').read_text())
+    manifest = json.loads((ROOT / 'demo/track3/v2/manifest.json').read_text(encoding='utf-8'))
     for u in manifest['users']:
         response = client.post('/api/meet/login', json={'login': u['login'], 'password': u['login'] + '-demo'})
         assert response.status_code == 200
@@ -70,7 +70,7 @@ def test_generator_is_byte_reproducible_and_keeps_v1(tmp_path):
     build(tmp_path)
     assert first == {p.relative_to(tmp_path): hashlib.sha256(p.read_bytes()).hexdigest() for p in (tmp_path / 'demo/track3').rglob('*') if p.is_file()}
     assert all((tmp_path / p).read_bytes() == data for p, data in before.items())
-    gold = json.loads((tmp_path / 'demo/track3/v2/task-gold.json').read_text())
+    gold = json.loads((tmp_path / 'demo/track3/v2/task-gold.json').read_text(encoding='utf-8'))
     assert len(gold['transcripts']) == 5 and sum(len(t['tasks']) for t in gold['transcripts']) == 30
 
 
@@ -114,7 +114,7 @@ def test_cli_defaults_to_photoprint_and_reset_stays_in_marked_path(tmp_path):
 
 
 def test_extended_readers_keep_conditions_headers_and_locations():
-    manifest = json.loads((ROOT / 'demo/track3/v2/manifest.json').read_text())
+    manifest = json.loads((ROOT / 'demo/track3/v2/manifest.json').read_text(encoding='utf-8'))
     types = set()
     for doc in manifest['documents']:
         kind, fragments = documents.fragments(doc['filename'], (ROOT / 'demo/track3' / doc['path']).read_bytes())
