@@ -130,3 +130,31 @@ def object_decision(connection, user_id, kind, object_id, action=None):
     row = connection.execute(f'SELECT o.*,EXISTS (SELECT 1 FROM {acl} a WHERE a.{fk}=o.id AND a.user_id=?) AS _shared '
                              f'FROM {table} o WHERE o.id=?', (user_id, object_id)).fetchone()
     return decide(load_user(connection, user_id), action or kind + '.read', row) if row else Decision(False, 'not_found')
+
+
+def snapshot_predicate(connection, actor, alias='s', *, own_column=None):
+    """Department scope for source-system snapshots, before grouping/limiting.
+
+    Source snapshots have no object ACL yet. Employee own-row projections are
+    available only when the caller supplies a known server-side column.
+    """
+    if not alias.isidentifier() or own_column not in (None, 'user_id', 'agent_user_id', 'responsible_user_id'):
+        raise ValueError('Unsupported snapshot selector')
+    user = load_user(connection, actor)
+    if not user or not user['active'] or user.get('level') not in CONTENT_LEVELS:
+        return '0', []
+    level = user['level']
+    clauses, params = [f"{alias}.confidentiality='public'"], []
+    if level == 'director':
+        clauses = [f"{alias}.confidentiality IN ('public','internal','department','confidential')"]
+    else:
+        if level != 'contractor': clauses.append(f"{alias}.confidentiality='internal'")
+        departments = list(user.get('_delegated_departments', []))
+        if level in ('head','lead') and user['department_id'] is not None: departments.append(user['department_id'])
+        if departments:
+            clauses.append(f"({alias}.confidentiality='department' AND {alias}.department_id IN ({','.join('?' for _ in departments)}))")
+            params.extend(departments)
+        if level == 'employee' and own_column:
+            clauses.append(f"({alias}.confidentiality='department' AND {alias}.{own_column}=?)")
+            params.append(actor)
+    return '(' + ' OR '.join(clauses) + ')', params

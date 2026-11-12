@@ -74,7 +74,7 @@ Decision and task items always have ≥1 verified quote; otherwise they are move
 A rejected proposal is `kind: "proposal", outcome: "rejected"` — never a decision.
 
 ## Tasks board
-- `GET /api/meet/tasks?status=` → `{tasks}` (from accessible meetings only)
+- `GET /api/meet/tasks?status=&missing=` → `{tasks,counts}` (from accessible meetings only)
 - `PATCH /api/meet/tasks/{id}` → `409 confirmation_required` after ACL/role checks in Track 3. Use preview/confirm below.
 - `POST /api/meet/meetings/{id}/next-agenda` `{create_meeting?: bool}` → `{agenda: [{task_id, text, assignee, due, status}], meeting?: Meeting}`
 
@@ -100,7 +100,7 @@ capability → 403. Role never grants an object ACL.
 | Endpoint | Request / behavior |
 |---|---|
 | GET /api/meet/me | user.access_role, user.capabilities plus top-level capabilities, role, timezone |
-| POST /api/meet/tasks/{id}/preview | `{changes:{status?,assignee?,due?}}` → confirmation_id, expires_at, preview.before/after/version |
+| POST /api/meet/tasks/{id}/preview | `{changes:{status?,assignee?,assignee_user_id?,due?,priority?,linked_entities?}}` → confirmation_id, expires_at, preview.before/after/version |
 | POST /api/meet/tasks/{id}/confirm | `{confirmation_id,idempotency_key}` (8–80 chars key); repeat returns already_confirmed |
 | POST /api/meet/confirmations/{id}/cancel | Cancel only the caller’s preview; target unchanged |
 | GET /api/meet/calendar/participants | Synthetic directory `{participants:[{id,name}]}` |
@@ -153,3 +153,42 @@ cloud fallback. Remote inference/data boundaries are in the runbook.
 обычный hash/result в qa_answers. Аудио не записывается этими route handlers в БД.
 Настоящий microphone/ASR/TTS в этой среде не проверен; 45 CPU tests — doubles.
 Подробнее: [авторский handoff](track3-handoffs/voice-assistant.md).
+
+
+## Photoprint v2 · подготовка и поручения (текущая ветка)
+
+`GET /api/meet/meetings/{id}` и `POST .../prepare` дополняют followup/prep
+текущими данными роли. `open_tasks` включает доступные задачи отдела и общих
+заказов, а также связанные прежние встречи; отменённые/завершённые исключены.
+`previous_questions` содержит только вопросы с повторно проверенной репликой;
+`kpi_context` — срез отдела с `as_of`, формулой, числителем/знаменателем и
+разрешимыми источниками. Всё вычисляется без новой модели. Legacy-пользователи
+сохраняют прежний набор связанных встреч.
+
+Task `status`: `open|in_progress|blocked|done|cancelled`.
+Task `priority`: `low|normal|high|urgent`, по умолчанию normal.
+`assignee_user_id` связывает назначение с действующим пользователем; свободное
+имя сохраняется для явно названного внешнего ответственного. `external_ref`
+доступен только для чтения; вручную записать фиктивный CRM ref нельзя.
+
+`linked_entities` — не более20 объектов `{kind,id}`; kind — `order|customer|document`,
+id — строка. Пример: `[{"kind":"order","id":"PP-2611-00042"}]`.
+В preview и снова в confirm проверяются доступ к каждой связи, действующий
+ответственный, версия задачи и scope роли. У сотрудника разрешён только статус
+своей задачи; при делегировании — только действующий отдел делегирования.
+Руководитель группы не назначает в чужой отдел.
+
+`GET /api/meet/tasks?missing=assignee|due|either` отбирает незакрытые задачи без
+владельца/даты. `counts.missing_assignee` и `counts.missing_due` считаются по
+полному доступному незакрытому реестру. Нераспознанный срок словами считается
+неуточнённой датой; исходная формулировка сохраняется.
+
+`assignee_suggestion` — необязательная подсказка по теме, с `status=assumption`;
+она не заполняет поля владельца и ничего не записывает. В UI пункты можно
+добавлять в явно обозначенный локальный проект повестки: это память вкладки,
+не изменение встречи/документа на сервере.
+
+Навигация: пункт протокола → task_id; задача → protocol_item_id/meeting_id и
+source_quote. Интерфейс позволяет перейти к задаче, её пункту протокола и
+реплике. Источник задачи датируется подтверждением, а не будущей плановой датой
+встречи. Любой источник при открытии повторно проверяет доступ.

@@ -67,7 +67,15 @@ export function track3UI(h) {
     const actions = node('div', 'inline-actions');
     let busy = false;
     let committed = false;
-    const cancel = button('Отмена', () => modal.close());
+    const restoreOrigin = () => {
+      if (generation !== openedGeneration) return;
+      const target = origin?.isConnected ? origin : document.querySelector('#app h1');
+      if (target) { if (target.tagName === 'H1') target.tabIndex = -1; target.focus(); }
+    };
+    // Native cancel hides the dialog before its later close event. Restore focus
+    // synchronously so Escape completion always includes focus returning to origin.
+    const dismiss = () => { modal.close(); restoreOrigin(); };
+    const cancel = button('Отмена', dismiss);
     const confirm = button(confirmLabel, async () => {
       if (busy || generation !== openedGeneration) return;
       busy = true; cancel.disabled = confirm.disabled = true;
@@ -85,17 +93,14 @@ export function track3UI(h) {
     }, 'primary-button');
     actions.append(cancel, confirm);
     modal.append(label, content, error, actions);
-    modal.addEventListener('cancel', (event) => { if (busy) event.preventDefault(); });
+    modal.addEventListener('cancel', (event) => { event.preventDefault(); if (!busy) dismiss(); });
     modal.addEventListener('close', () => {
       if (generation === openedGeneration && !committed && cancelAction) void cancelAction().catch((e) => {
         if (state.user && generation === openedGeneration) showNotice(`Предпросмотр закрыт. ${e.message}`);
       });
       if (generation === openedGeneration) h.markSaved(modal);
       modal.remove(); if (activeDialog === modal) activeDialog = null;
-      if (generation === openedGeneration) {
-        const target = origin?.isConnected ? origin : document.querySelector('#app h1');
-        if (target) { if (target.tagName === 'H1') target.tabIndex = -1; target.focus(); }
-      }
+      restoreOrigin();
     }, { once: true });
     document.body.append(modal); activeDialog = modal; modal.showModal(); cancel.focus();
     return modal;
@@ -414,15 +419,24 @@ export function track3UI(h) {
     const draft = taskDrafts.get(draftKey) || task;
     const form = node('form', 'meet-form-grid');
     form.dataset.itemId = `task-${task.id}`;
-    const status = select([{ value: 'open', label: 'Открыта' }, { value: 'in_progress', label: 'В работе' }, { value: 'done', label: 'Готова' }], draft.status);
+    const status = select([{ value: 'open', label: 'Открыта' }, { value: 'in_progress', label: 'В работе' }, { value: 'done', label: 'Готова' }, {value:'blocked',label:'Заблокирована'}, {value:'cancelled',label:'Отменена'}], draft.status);
     const assignee = input({ label: 'Ответственный', value: draft.assignee || '' });
     const due = input({ label: 'Срок', type: 'date', value: draft.due || '' });
-    form.append(node('p', '', task.text), field('Статус задачи', status), assignee.wrap, due.wrap);
+    const priority = select([{value:'low',label:'Низкий'}, {value:'normal',label:'Обычный'}, {value:'high',label:'Высокий'}, {value:'urgent',label:'Срочный'}], draft.priority || 'normal');
+    const links = textarea({label:'Связи · по строке: order:PP-2611-00042, customer:client-0001, document:12',
+      value:(draft.linked_entities || []).map(entity => `${entity.kind}:${entity.id}`).join('\n'), rows:3});
+    const ownStatusOnly = state.user?.level === 'employee' && !(state.user.delegations || []).some(grant => grant.department_id === task.department_id);
+    assignee.input.disabled = due.input.disabled = priority.disabled = links.input.disabled = ownStatusOnly;
+    form.append(node('p', '', task.text), field('Статус задачи', status), assignee.wrap, due.wrap, field('Приоритет',priority), links.wrap);
     if (!task.due && task.due_text) form.append(node('p', 'task-meta', `Срок словами: ${task.due_text}. Он сохраняется, если не назначать новую дату.`));
-    form.addEventListener('input', () => taskDrafts.set(draftKey, {status: status.value, assignee: assignee.input.value, due: due.input.value}));
+    form.addEventListener('input', () => taskDrafts.set(draftKey, {status: status.value, assignee: assignee.input.value, due: due.input.value, priority:priority.value, linked_entities:(links.input.value.split('\n').filter(line=>line.trim()).map(line=>{const split=line.indexOf(':');return {kind:line.slice(0,split),id:line.slice(split+1).trim()};}))}));
     const editor = dialog('Изменить подтверждённую задачу', form, async () => {
-      const values = { status: status.value, assignee: assignee.input.value.trim() || null, due: due.input.value || null };
-      const changes = Object.fromEntries(Object.entries(values).filter(([field, value]) => value !== (task[field] || null)));
+      const linked_entities = links.input.value.split('\n').map(line=>line.trim()).filter(Boolean).map(line=>{
+        const split=line.indexOf(':'); if (split<1) throw new Error('Связь должна иметь формат тип:ID.');
+        return {kind:line.slice(0,split),id:line.slice(split+1).trim()};
+      });
+      const values = ownStatusOnly ? {status:status.value} : { status: status.value, assignee: assignee.input.value.trim() || null, due: due.input.value || null, priority:priority.value, linked_entities };
+      const changes = Object.fromEntries(Object.entries(values).filter(([field, value]) => JSON.stringify(value) !== JSON.stringify(task[field] ?? (field==='linked_entities' ? [] : field==='priority' ? 'normal' : null))));
       if (!Object.keys(changes).length) throw new Error('Изменений нет. Измените статус, исполнителя или срок перед предпросмотром.');
       const result = await request(`/tasks/${task.id}/preview`, { method: 'POST', body: { changes } });
       editor.close();
@@ -430,9 +444,9 @@ export function track3UI(h) {
       editor.addEventListener('close', () => {
         if (generation !== viewGeneration || !state.user) return;
         const content = node('div'); content.append(node('p', '', result.preview.text));
-        const names = { status: 'Статус', assignee: 'Ответственный', due: 'Срок' };
-        const statuses = { open: 'Открыта', in_progress: 'В работе', done: 'Готова' };
-        for (const [name, label] of Object.entries(names)) content.append(node('p', '', `${label}: ${statuses[result.preview.before[name]] || result.preview.before[name] || 'Не указан'} → ${statuses[result.preview.after[name]] || result.preview.after[name] || 'Не указан'}`));
+        const names = { status: 'Статус', assignee: 'Ответственный', due: 'Срок', priority:'Приоритет', linked_entities:'Связи' };
+        const statuses = { open: 'Открыта', in_progress: 'В работе', done: 'Готова', blocked:'Заблокирована', cancelled:'Отменена', low:'Низкий', normal:'Обычный', high:'Высокий', urgent:'Срочный' };
+        for (const [name, label] of Object.entries(names)) content.append(node('p', '', `${label}: ${Array.isArray(result.preview.before[name]) ? JSON.stringify(result.preview.before[name]) : statuses[result.preview.before[name]] || result.preview.before[name] || 'Не указан'} → ${Array.isArray(result.preview.after[name]) ? JSON.stringify(result.preview.after[name]) : statuses[result.preview.after[name]] || result.preview.after[name] || 'Не указан'}`));
         if (!Object.hasOwn(changes, 'due') && task.due_text) content.append(node('p', 'task-meta', `Срок словами сохраняется: ${task.due_text}`));
         const idempotencyKey = key();
         const previewDialog = dialog('Подтвердить изменение задачи', content, async () => {

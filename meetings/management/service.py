@@ -31,7 +31,7 @@ def visible_tasks(connection, actor):
 
 
 def overdue(task, day):
-    if task['status'] == 'done' or not isinstance(task['due'], str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', task['due']):
+    if task['status'] in ('done','cancelled') or not isinstance(task['due'], str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', task['due']):
         return False
     try:
         return date.fromisoformat(task['due']) < day
@@ -39,13 +39,15 @@ def overdue(task, day):
         return False
 
 
-def metric_rows(connection, actor, cutoff, warnings):
+def metric_rows(connection, actor, cutoff, warnings, department_id=None):
     exists = connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_metrics'").fetchone()
     if not exists:
         warnings.append('Производственная витрина не загружена.')
         return []
     from meetings.access import predicate
     sql, params = predicate(connection, actor, 'metric', 'p', model=True)
+    if department_id is not None:
+        sql += ' AND p.department_id=?'; params.append(department_id)
     rows = connection.execute('SELECT p.* FROM production_metrics p WHERE ' + sql, params)
     latest = {}
     for raw in rows:
@@ -126,7 +128,7 @@ def ratio(rows, numerator, denominator, label, warnings):
 def build(connection, actor, cutoff, generated):
     warnings, metrics, manifests = [], [], {}
     tasks = visible_tasks(connection, actor)
-    open_rows = [task for task in tasks if task['status'] != 'done']
+    open_rows = [task for task in tasks if task['status'] not in ('done','cancelled')]
     late_rows = [task for task in open_rows if overdue(task, cutoff.astimezone(MINSK).date())]
     task_dates = []
     for task in tasks:
@@ -138,9 +140,9 @@ def build(connection, actor, cutoff, generated):
     # Persist the latter in the signed ID so reopening preserves its provenance.
     task_stamp = iso(max(task_dates, default=generated))
     for key, label, rows, formula in (
-        ('open_tasks', 'Открытые задачи', open_rows, "count(status != 'done'); текущий реестр"),
+        ('open_tasks', 'Открытые задачи', open_rows, "count(status NOT IN ('done','cancelled')); текущий реестр"),
         ('overdue_tasks', 'Просроченные задачи', late_rows,
-         f"count(status != 'done' AND valid_date(due) < {cutoff.astimezone(MINSK).date().isoformat()}); Europe/Minsk"),
+         f"count(status NOT IN ('done','cancelled') AND valid_date(due) < {cutoff.astimezone(MINSK).date().isoformat()}); Europe/Minsk"),
     ):
         # Include all visible tasks in fingerprint: changing a closed task to open
         # must invalidate an old source even if the old result was zero.

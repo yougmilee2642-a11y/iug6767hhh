@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import traceback
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -51,21 +52,40 @@ def run(artifacts):
                                 page.get_by_label('Демо-роль', exact=True).select_option(login)
                                 page.get_by_role('button', name='Войти', exact=True).click()
                                 page.get_by_role('heading', name=heading, exact=True).wait_for()
-                                assert not errors, errors
+                                assert not errors, {'login':login,'page_errors':errors}
+                                if login == 'operator':
+                                    page.get_by_role('button', name='Задачи', exact=True).click()
+                                    card = page.locator('.task-card').first; card.wait_for()
+                                    card.get_by_role('button',name='Изменить задачу',exact=True).click()
+                                    dialog = page.get_by_role('dialog'); dialog.wait_for()
+                                    assert dialog.get_by_label('Приоритет',exact=True).is_disabled(), 'Employee priority must be read-only'
+                                    dialog.get_by_label('Статус задачи',exact=True).select_option('blocked')
+                                    dialog.get_by_role('button',name='Предпросмотр',exact=True).click()
+                                    preview = page.get_by_role('dialog').filter(has=page.get_by_role('heading',name='Подтвердить изменение задачи',exact=True))
+                                    preview.wait_for()
+                                    preview.get_by_role('button',name='Отмена',exact=True).click()
+                                    preview.wait_for(state='hidden')
+                                if login == 'auditor':
+                                    page.locator('table').wait_for()
+                                    page.get_by_label('Действие',exact=True).fill('login')
+                                    with page.expect_response(lambda response:'/api/meet/audit?' in response.url and 'action=login' in response.url):
+                                        page.get_by_role('button',name='Применить фильтры',exact=True).click()
+                                    assert 'action=login' in page.get_by_role('link',name='Скачать CSV · текущие фильтры',exact=True).get_attribute('href')
                                 if login == 'admin':
                                     page.get_by_label('Уровень sales_head', exact=True).wait_for()
-                                    assert page.get_by_label('Активен sales_head', exact=True).is_checked()
+                                    assert page.get_by_label('Активен sales_head', exact=True).is_checked(), 'Seeded sales_head should be active'
                                     row = page.get_by_label('Уровень sales_head', exact=True).locator('xpath=ancestor::tr')
                                     row.get_by_role('button', name='Предпросмотр', exact=True).click()
                                     page.get_by_role('dialog').get_by_role('button', name='Отменить', exact=True).click()
-                                    assert page.get_by_role('dialog').count() == 0
+                                    page.get_by_role('dialog').wait_for(state='detached')
+                                    assert page.get_by_role('dialog').count() == 0, 'Cancelled preview remained open'
                                 for width in (360,768,1440):
                                     page.set_viewport_size({'width':width,'height':1000})
                                     geometry = page.evaluate('() => ({width:innerWidth,document_width:document.documentElement.scrollWidth})')
                                     assert geometry['document_width'] <= width + 1, (login, geometry)
                                     page.screenshot(path=str(artifacts / f'{login}-{width}.png'), full_page=True)
                                     observations.append({'login':login, **geometry})
-                                assert not errors, errors
+                                assert not errors, {'login':login,'page_errors':errors}
                             finally: context.close()
                     finally: browser.close()
             finally:
@@ -81,7 +101,7 @@ def main():
     args = parser.parse_args(); artifacts = Path(args.artifacts); artifacts.mkdir(parents=True, exist_ok=True)
     started = time.perf_counter()
     try: result = run(artifacts); code = 0
-    except Exception as error: result = {'status':'failed','error':type(error).__name__,'detail':str(error)}; code = 1
+    except Exception as error: result = {'status':'failed','error':type(error).__name__,'detail':str(error),'traceback':traceback.format_exc()}; code = 1
     result['elapsed_seconds'] = time.perf_counter() - started
     result['commit'] = subprocess.check_output(['git','rev-parse','HEAD'], cwd=ROOT, text=True).strip()
     result['working_tree_dirty'] = bool(subprocess.check_output(['git','status','--porcelain'], cwd=ROOT, text=True).strip())

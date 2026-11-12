@@ -308,7 +308,9 @@ def task_out(connection, row) -> dict:
             'meeting_id': row['meeting_id'], 'meeting_title': meeting['title'] if meeting else None,
             'protocol_item_id': row['protocol_item_id'], 'source_quote': json.loads(row['source_quote']),
             'confirmed_by': user_name(connection, row['confirmed_by']), 'confirmed_at': row['confirmed_at'],
-            'created_at': row['created_at'], 'updated_at': row['updated_at'], 'version': row['version']}
+            'created_at': row['created_at'], 'updated_at': row['updated_at'], 'version': row['version'],
+            'priority':row['priority'], 'assignee_user_id':row['assignee_user_id'], 'department_id':row['department_id'],
+            'linked_entities':json.loads(row['linked_entities']), 'external_ref':row['external_ref']}
 
 
 def speaker_map(connection, meeting_id) -> dict:

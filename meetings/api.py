@@ -26,6 +26,7 @@ from meetings.auth import (COOKIE, ROLE_LABELS, TTL, MeetError, capabilities, ch
                            MeetRoute, ensure_demo_users, make_cookie, require, forbidden, user_from_request)
 from meetings.auth import has_capability as auth_has
 from meetings.llm import get_llm
+from meetings.preparation import task_source, department_context, owner_suggestion
 from providers.local_settings import LocalAIError
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -184,10 +185,22 @@ class ConfirmIn(BaseModel):
     item_ids: list[int] = Field(min_length=1, max_length=300)
 
 
+class EntityLink(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    kind: str = Field(pattern='^(order|customer|document)$')
+    id: str = Field(min_length=1, max_length=80)
+
+
 class TaskPatch(BaseModel):
-    status: str | None = Field(default=None, pattern='^(open|in_progress|done)$')
+    model_config = ConfigDict(extra='forbid')
+    status: str | None = Field(default=None, pattern='^(open|in_progress|done|blocked|cancelled)$')
     assignee: str | None = Field(default=None, max_length=120)
     due: str | None = Field(default=None, max_length=10)
+
+
+    assignee_user_id: int | None = Field(default=None, gt=0)
+    priority: str | None = Field(default=None, pattern='^(low|normal|high|urgent)$')
+    linked_entities: list[EntityLink] | None = Field(default=None, max_length=20)
 
 
 class TaskPreviewIn(BaseModel):
@@ -369,30 +382,24 @@ def _related_meetings(connection, user, row, depth=5) -> list:
     return result
 
 
-def task_source(connection, task: dict) -> dict:
-    meeting = connection.execute('SELECT scheduled_at, created_at FROM meetings WHERE id=?', (task['meeting_id'],)).fetchone()
-    source_at = (store.stored_utc(meeting['scheduled_at']) or meeting['created_at']) if meeting else task['created_at']
-    return {'kind': 'task', 'id': f"T{task['id']}", 'title': task['text'], 'source_at': source_at,
-            'quote': (task.get('source_quote') or {}).get('text'), 'locator': (task.get('source_quote') or {}).get('utterance_id')}
-
-
 def _open_task_block(connection, user, row) -> dict:
     """§7.2.1: not-done tasks of accessible linked previous meetings, kept apart from document facts,
     each with its own source, plus deterministic follow-up questions (no model involved)."""
     open_tasks = []
     for previous in _related_meetings(connection, user, row):
-        for task_row in connection.execute("SELECT * FROM tasks WHERE meeting_id=? AND status!='done' "
+        for task_row in connection.execute("SELECT * FROM tasks WHERE meeting_id=? AND status NOT IN ('done','cancelled') "
                                            "ORDER BY COALESCE(due,'9999'), id", (previous['id'],)):
             task = store.task_out(connection, task_row)
             task['source'] = task_source(connection, task)
             open_tasks.append(task)
+    extras, open_tasks = department_context(connection,user,row,open_tasks)
     questions = []
     for task in open_tasks:
         owner = task['assignee'] or 'ответственный не назван'
         due = task['due'] or task['due_text'] or 'срок не назван'
         questions.append({'text': f"Каков статус поручения «{task['text']}» ({owner}, {due})?",
                           'task_id': task['id'], 'sources': [task['source']]})
-    return {'open_tasks': open_tasks, 'task_questions': questions}
+    return {'open_tasks': open_tasks, 'task_questions': questions, **extras}
 
 
 def parse_transcript(text: str) -> list[dict]:
@@ -984,6 +991,12 @@ def router():
                     already.append(store.task_out(connection, connection.execute(
                         'SELECT * FROM tasks WHERE protocol_item_id=?', (item_id,)).fetchone()))
                     continue
+                person = connection.execute('SELECT id FROM users WHERE active=1 AND name=?', (row['assignee'],)).fetchall()
+                assignee_id = person[0]['id'] if len(person) == 1 else None
+                department_id = connection.execute('SELECT department_id FROM meetings WHERE id=?', (meeting_id,)).fetchone()[0]
+                if assignee_id:
+                    _checked_task_changes(connection, user, {'id':cursor.lastrowid,'department_id':department_id}, {'assignee_user_id':assignee_id})
+                connection.execute('UPDATE tasks SET department_id=?,assignee_user_id=? WHERE id=?', (department_id, assignee_id, cursor.lastrowid))
                 connection.execute('UPDATE protocol_items SET confirmed_by=?, confirmed_at=?, task_id=? WHERE id=?',
                                    (user['id'], stamp, cursor.lastrowid, item_id))
                 store.audit(connection, user['id'], 'task_confirmed', item_id=item_id, task_id=cursor.lastrowid,
@@ -995,20 +1008,34 @@ def router():
 
     # ----- tasks -----
     @api.get('/api/meet/tasks')
-    def tasks(request: Request, status: str = ''):
+    def tasks(request: Request, status: str = '', missing: str = ''):
         user = current_user(request)
+        if status and status not in ('open','in_progress','done','blocked','cancelled'):
+            raise MeetError(422, 'invalid_status', 'Неизвестный статус задачи.')
+        if missing not in ('','assignee','due','either'):
+            raise MeetError(422, 'invalid_filter', 'Фильтр missing: assignee, due или either.')
         with store.db() as connection:
             ids = store.accessible_meeting_ids(connection, user['id'])
             if not ids:
-                return {'tasks': []}
+                return {'tasks': [], 'counts':{'missing_assignee':0,'missing_due':0}}
             marks = ','.join('?' * len(ids))
             query = f'SELECT * FROM tasks WHERE meeting_id IN ({marks})'
             args = list(ids)
+            counts = connection.execute('SELECT SUM(assignee IS NULL OR TRIM(assignee)=\'\') AS missing_assignee, SUM(due IS NULL) AS missing_due FROM tasks WHERE meeting_id IN (' + marks + ') AND status NOT IN (\'done\',\'cancelled\')', ids).fetchone()
+            if missing:
+                query += ' AND status NOT IN (\'done\',\'cancelled\') AND ' + {
+                    'assignee':"(assignee IS NULL OR TRIM(assignee)='')", 'due':'due IS NULL',
+                    'either':"((assignee IS NULL OR TRIM(assignee)='') OR due IS NULL)"}[missing]
             if status:
                 query += ' AND status=?'
                 args.append(status)
             rows = connection.execute(query + ' ORDER BY COALESCE(due,"9999"), id', args)
-            return {'tasks': [store.task_out(connection, r) for r in rows]}
+            tasks_out = [store.task_out(connection, r) for r in rows]
+            if user.get('level'):
+                for task in tasks_out:
+                    suggestion = owner_suggestion(connection,task)
+                    if suggestion: task['assignee_suggestion'] = suggestion
+            return {'tasks':tasks_out, 'counts':{k:counts[k] or 0 for k in counts.keys()}}
 
     def _task(connection, user, task_id, capability=None, action='task.read'):
         row = connection.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone()
@@ -1046,7 +1073,9 @@ def router():
             row = _task(connection, user, task_id, 'tasks.change', 'task.preview')
             if user.get('level') == 'employee' and row['department_id'] not in user.get('_delegated_departments', []) and set(changes) - {'status'}:
                 raise forbidden(user, 'tasks.change', 'task', task_id, 'task.change_fields')
-            before = {k: row[k] for k in ('status', 'assignee', 'due')}
+            changes = _checked_task_changes(connection, user, row, changes)
+            before = {k: row[k] for k in ('status', 'assignee', 'due', 'priority', 'assignee_user_id')}
+            before['linked_entities'] = json.loads(row['linked_entities'])
             after = {**before, **{k: v for k, v in changes.items() if k in before}}
             changed = {k: {'from': before[k], 'to': after[k]} for k in before if before[k] != after[k]}
             if not changed:
@@ -1075,7 +1104,14 @@ def router():
             changes = pending['payload']['changes']
             if user.get('level') == 'employee' and row['department_id'] not in user.get('_delegated_departments', []) and set(changes) - {'status'}:
                 raise forbidden(user, 'tasks.change', 'task', task_id, 'task.change_fields')
+            changes = _checked_task_changes(connection, user, row, changes)
             stamp = store.now()
+            if 'priority' in changes:
+                connection.execute('UPDATE tasks SET priority=? WHERE id=?', (changes['priority'], task_id))
+            if 'linked_entities' in changes:
+                connection.execute('UPDATE tasks SET linked_entities=? WHERE id=?', (json.dumps(changes['linked_entities'], ensure_ascii=False), task_id))
+            if 'assignee_user_id' in changes:
+                connection.execute('UPDATE tasks SET assignee_user_id=? WHERE id=?', (changes['assignee_user_id'], task_id))
             if 'status' in changes:
                 connection.execute('UPDATE tasks SET status=? WHERE id=?', (changes['status'], task_id))
             if 'assignee' in changes:
@@ -1108,7 +1144,7 @@ def router():
             if payload.create_meeting:
                 require(user, 'meetings.create', 'meeting', meeting_id, 'meeting.create_followup')
             open_tasks = [store.task_out(connection, r) for r in connection.execute(
-                "SELECT * FROM tasks WHERE meeting_id=? AND status!='done' ORDER BY COALESCE(due,'9999'), id", (meeting_id,))]
+                "SELECT * FROM tasks WHERE meeting_id=? AND status NOT IN ('done','cancelled') ORDER BY COALESCE(due,'9999'), id", (meeting_id,))]
             agenda = [{'task_id': t['id'], 'text': t['text'], 'assignee': t['assignee'], 'due': t['due'] or t['due_text'],
                        'status': t['status']} for t in open_tasks]
             result = {'agenda': agenda}
@@ -1171,8 +1207,49 @@ def _normalized_task_changes(patch: TaskPatch) -> dict:
         changes['assignee'] = (values['assignee'] or '').strip() or None
     if 'due' in values:
         changes['due'] = _iso_date(values['due'])
+    for key in ('priority','assignee_user_id','linked_entities'):
+        if key in values:
+            changes[key] = values[key]
+    if values.get('linked_entities') is None and 'linked_entities' in values:
+        changes['linked_entities'] = []
+    if 'priority' in changes and changes['priority'] is None:
+        raise MeetError(422, 'invalid_priority', 'Укажите приоритет.')
     if not changes:
-        raise MeetError(422, 'no_changes', 'Укажите хотя бы одно изменение: status, assignee или due.')
+        raise MeetError(422, 'no_changes', 'Укажите изменение статуса, владельца, срока, приоритета или связей.')
+    return changes
+
+
+def _checked_task_changes(connection, user, row, changes):
+    changes = dict(changes)
+    if 'assignee_user_id' in changes:
+        chosen = connection.execute('SELECT * FROM users WHERE id=? AND active=1', (changes['assignee_user_id'],)).fetchone() if changes['assignee_user_id'] else None
+        if changes['assignee_user_id'] and (not chosen or chosen['level'] in ('admin','auditor')):
+            raise MeetError(422, 'invalid_assignee', 'Выберите действующего сотрудника.')
+        if chosen:
+            allowed_departments = {user.get('department_id')}
+            if row.get('department_id') in user.get('_delegated_departments', []):
+                allowed_departments.add(row['department_id'])
+            if user.get('level') == 'lead' and chosen['department_id'] not in allowed_departments:
+                raise forbidden(user, 'tasks.change', 'task', row['id'], 'task.assign_department')
+            if 'assignee' in changes and changes['assignee'] != chosen['name']:
+                raise MeetError(422, 'assignee_mismatch', 'Имя и ID ответственного не совпадают.')
+            changes['assignee'] = chosen['name']
+        elif 'assignee' not in changes:
+            changes['assignee'] = None
+    elif 'assignee' in changes:
+        found = connection.execute('SELECT id FROM users WHERE active=1 AND name=?', (changes['assignee'],)).fetchall()
+        changes['assignee_user_id'] = found[0]['id'] if len(found) == 1 else None
+        if changes['assignee_user_id']:
+            return _checked_task_changes(connection, user, row, changes)
+    for entity in changes.get('linked_entities', []):
+        if entity['kind'] == 'document':
+            if not re.fullmatch(r'[1-9]\d{0,17}', entity['id']) or not store.can_read_document(connection, user['id'], int(entity['id'])):
+                raise denied(user, 'document', entity['id'], 'task.link')
+        else:
+            table, key = ('erp_orders','order_no') if entity['kind'] == 'order' else ('crm_customers','id')
+            sql, params = access.snapshot_predicate(connection, user['id'], 's')
+            if not connection.execute(f'SELECT 1 FROM {table} s WHERE s.{key}=? AND ' + sql, [entity['id'], *params]).fetchone():
+                raise denied(user, entity['kind'], entity['id'], 'task.link')
     return changes
 
 
