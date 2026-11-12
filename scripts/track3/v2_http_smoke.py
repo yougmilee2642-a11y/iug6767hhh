@@ -89,6 +89,16 @@ def run():
             secret = request('director', 'POST', '/qa', json={'question':'Каков фонд оплаты труда?'})
             assert secret['status'] == 'insufficient_data' and 'закрыт для ассистента' in secret['answer']
             tasks = request('operator', 'GET', '/tasks')['tasks']; task = next(t for t in tasks if t['status'] == 'open')
+            request('operator','POST','/crm/preview',expected=403,json={'action':'task.create','object_id':task['id']})
+            crm = request('prod_head','POST','/crm/preview',json={'action':'task.create','object_id':task['id']})
+            request('prod_head','POST',f"/confirmations/{crm['confirmation_id']}/cancel")
+            request('prod_head','POST','/crm/confirm',expected=409,json={'confirmation_id':crm['confirmation_id'],'idempotency_key':'cancel-crm-http'})
+            crm = request('prod_head','POST','/crm/preview',json={'action':'task.create','object_id':task['id']})
+            crm_token = {'confirmation_id':crm['confirmation_id'],'idempotency_key':'send-crm-http'}
+            crm_result = request('prod_head','POST','/crm/confirm',json=crm_token)
+            assert crm_result['status']=='sent' and crm_result['mode']=='mock'
+            assert request('prod_head','POST','/crm/confirm',json=crm_token)['already_confirmed']
+            request('admin','POST','/integrations/check')
             route = f"/tasks/{task['id']}"
             cancelled = request('operator', 'POST', route + '/preview', json={'changes':{'status':'done'}})['confirmation_id']
             request('operator', 'POST', f'/confirmations/{cancelled}/cancel')
@@ -101,6 +111,7 @@ def run():
             assert any(e['result']=='denied' for e in request('auditor','GET','/audit')['events'])
             stop(); proc = start()
             assert request('operator', 'GET', '/me')['user']['login'] == 'operator'
+            assert request('prod_head','GET',f"/crm/tasks/{task['id']}")['outbox']['external_ref']==crm_result['external_ref']
             assert next(t for t in request('operator', 'GET', '/tasks')['tasks'] if t['id']==task['id'])['status']=='in_progress'
             request('designer', 'GET', f'/meetings/{mid}', expected=404)
             return {'status':'passed', 'model':'scripted double; live quality not measured', 'roles':6,

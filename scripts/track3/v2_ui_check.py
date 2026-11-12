@@ -63,6 +63,19 @@ def run(artifacts):
                                 page.get_by_role('heading', name=heading, exact=True).wait_for()
                                 assert not errors, {'login':login,'page_errors':errors}
                                 if login == 'prod_head':
+                                    page.get_by_role('button',name='Задачи',exact=True).click()
+                                    card=page.locator('.task-card').first;card.wait_for()
+                                    card.get_by_role('button',name='Отправить в Битрикс24 · mock',exact=True).click()
+                                    crm_dialog=page.get_by_role('dialog').filter(has=page.get_by_role('heading',name='Что уйдёт в Битрикс24 · mock',exact=True))
+                                    crm_dialog.wait_for()
+                                    with page.expect_response(lambda response:response.url.endswith('/api/meet/crm/confirm') and response.status==200):
+                                        crm_dialog.get_by_role('button',name='Подтвердить',exact=True).click()
+                                    crm_dialog.wait_for(state='hidden')
+                                    page.locator('.task-card').first.get_by_role('button',name='Статус CRM · mock',exact=True).click()
+                                    status_dialog=page.get_by_role('dialog').filter(has=page.get_by_role('heading',name='Отправка в Битрикс24 · mock',exact=True))
+                                    status_dialog.wait_for()
+                                    assert 'Отправлено в локальную имитацию' in status_dialog.inner_text()
+                                    status_dialog.get_by_role('button',name='Закрыть',exact=True).click();status_dialog.wait_for(state='hidden')
                                     page.get_by_role('button',name='Встречи',exact=True).click()
                                     page.locator('.meeting-card').filter(has_text='Браузерная проверка контроля решения').get_by_role('button',name='Открыть встречу',exact=True).click()
                                     page.get_by_role('button',name='3 · Протокол',exact=True).click()
@@ -100,6 +113,10 @@ def run(artifacts):
                                     row.get_by_role('button', name='Предпросмотр', exact=True).click()
                                     page.get_by_role('dialog').get_by_role('button', name='Отменить', exact=True).click()
                                     page.get_by_role('dialog').wait_for(state='detached')
+                                    page.get_by_role('button',name='Интеграции',exact=True).click()
+                                    with page.expect_response(lambda response:response.url.endswith('/api/meet/integrations/check') and response.status==200):
+                                        page.get_by_role('button',name='Проверить соединение',exact=True).click()
+                                    page.get_by_role('status').filter(has_text='SQLite-имитация доступна').wait_for()
                                     assert page.get_by_role('dialog').count() == 0, 'Cancelled preview remained open'
                                 for width in (360,768,1440):
                                     page.set_viewport_size({'width':width,'height':1000})

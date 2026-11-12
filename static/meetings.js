@@ -2,6 +2,7 @@ import { track3UI } from './meetings/track3.js';
 import { protocolPayload } from './meetings/protocol.js';
 import { voiceAssistant } from './meetings/voice.js';
 import { administrationUI } from './meetings/administration.js';
+import { crmUI } from './meetings/crm.js';
 
 const API = '/api/meet';
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -48,6 +49,7 @@ const ui = track3UI({ node, makeButton, makeInput, makeTextarea, makeSelect, req
   dateLabel, render, openMeeting, openSource, showNotice, toast, refreshMeeting, markSaved, draftCheckpoint,
   navigate: setPage });
 const administration = administrationUI({ node, makeButton, makeInput, request, runAction, state, dateLabel });
+const crm = crmUI({ node, makeButton, makeInput, request, runAction, state, dateLabel, ui });
 const assistant = voiceAssistant({ node, makeButton, request, state, openSource, dateLabel, navigate: (page) => {
   if (page === 'tasks') void openTasks(); else setPage(page);
 } });
@@ -356,7 +358,7 @@ function updateAccount() {
   assistant.mount(account);
   account.append(node('span', 'account-name', state.user.name || state.user.login));
   if (state.user.level) account.append(node('span', 'account-name', `${state.user.level} · ${state.user.department?.code || ''}`));
-  for (const [capability, label, page] of [['users.manage','Пользователи','administration'], ['audit.read','Журнал','audit'], ['delegation.grant','Делегировать','delegation']]) {
+  for (const [capability, label, page] of [['users.manage','Пользователи','administration'], ['integrations.manage','Интеграции','integrations'], ['audit.read','Журнал','audit'], ['delegation.grant','Делегировать','delegation']]) {
     if (state.capabilities.includes(capability)) account.append(makeButton(label, () => setPage(page)));
   }
   account.append(makeButton('Выйти', () => void logout(), 'logout-button'));
@@ -394,6 +396,7 @@ function render() {
     return;
   }
   if (state.page === 'administration') void administration.renderAdministration(app);
+  else if (state.page === 'integrations') void crm.renderIntegrations(app);
   else if (state.page === 'delegation') void administration.renderDelegation(app);
   else if (state.page === 'audit') void administration.renderAudit(app);
   else if (state.page === 'meeting' && state.meetingData) renderMeeting(app);
@@ -488,7 +491,7 @@ async function loadSignedInData() {
   state.documents = documents.documents || [];
 }
 
-function landingPage() { return state.user?.level === 'admin' ? 'administration' : state.user?.level === 'auditor' ? 'audit' : 'overview'; }
+function landingPage() { return state.user?.level === 'admin' ? (location.hash==='#integrations' ? 'integrations' : 'administration') : state.user?.level === 'auditor' ? 'audit' : 'overview'; }
 
 async function loginBootstrap() {
   updateNavigation();
@@ -1427,6 +1430,7 @@ function renderProtocol(target) {
     target.append(section);
     return;
   }
+  if (ui.can('crm.write')) section.append(makeButton('Прикрепить протокол к CRM · mock',()=>void runAction(null,()=>crm.attachProtocol(data.meeting,()=>refreshMeeting(data.meeting.id)))));
   const body = node('fieldset', 'protocol-body');
   body.dataset.operationGroup = draft.dataset.operation;
   body.disabled = pendingOperations.has(draft.dataset.operation);
@@ -1492,6 +1496,7 @@ function renderProtocolItem(item) {
   const draft = drafts[item.id] || {};
   const card = node('article', `protocol-item ${item.confirmed ? 'confirmed' : ''}`.trim());
   card.dataset.itemId = item.id; card.tabIndex = -1;
+  for (const entity of item.linked_entities || []) if(entity.kind==='order') card.append(makeButton(`Заказ ${entity.id}`,()=>void runAction(null,()=>crm.openOrder(entity.id)),'task-meeting-link'));
   const head = node('div', 'protocol-item-head');
   const title = node('span', 'protocol-kind', item.kind === 'decision' ? 'Решение' : item.kind === 'proposal' ? 'Предложение' : item.kind === 'task' ? 'Поручение' : item.kind === 'risk' ? 'Риск' : 'Открытый вопрос');
   head.append(title);
@@ -1717,7 +1722,10 @@ function renderTaskCard(task, collection, meetingOnly) {
   card.append(node('p', 'task-card-text', task.text || 'Без описания'));
   const priorities = {low:'Низкий', normal:'Обычный', high:'Высокий', urgent:'Срочный'};
   if (task.priority) card.append(node('p','task-meta',`Приоритет: ${priorities[task.priority] || task.priority}`));
-  for (const entity of task.linked_entities || []) card.append(node('p','task-meta', `${{order:'Заказ', customer:'Клиент', document:'Документ'}[entity.kind] || 'Связь'}: ${entity.id}`));
+  for (const entity of task.linked_entities || []) {
+    if (entity.kind==='order') card.append(makeButton(`Заказ ${entity.id}`,()=>void runAction(null,()=>crm.openOrder(entity.id)),'task-meeting-link'));
+    else card.append(node('p','task-meta', `${{customer:'Клиент', document:'Документ'}[entity.kind] || 'Связь'}: ${entity.id}`));
+  }
   if (task.external_ref) card.append(node('p','task-meta',`CRM: ${task.external_ref}`));
   if (task.assignee) card.append(node('p', 'task-meta', `Ответственный: ${task.assignee}`));
   else if (task.assignee_status === 'unknown') card.append(node('p', 'warning-badge red', 'Ответственный не назван'));
@@ -1732,6 +1740,10 @@ function renderTaskCard(task, collection, meetingOnly) {
   },'task-meeting-link'));
   if (task.source_quote?.utterance_id) card.append(citationButton(task.source_quote.utterance_id, task.source_quote.text, 'utterance', 'Открыть цитату'));
   if (ui.can('tasks.change')) card.append(makeButton('Изменить задачу', () => ui.editTask(task, collection, meetingOnly)));
+  if (ui.can('crm.write')) {
+    if (!task.crm_status && !['done','cancelled'].includes(task.status)) card.append(makeButton('Отправить в Битрикс24 · mock',()=>void runAction(null,()=>crm.exportTask(task,async()=>{ if(meetingOnly) await refreshMeeting(task.meeting_id); else await openTasks(); }))));
+    card.append(makeButton('Статус CRM · mock',()=>void runAction(null,()=>crm.status(task))));
+  }
   card.append(ui.feedback('task', task.id, task.meeting_id));
   return card;
 }
@@ -1810,6 +1822,7 @@ window.addEventListener('beforeunload', (event) => {
   if (dirtyFields.size || state.voiceCapture?.recording) { event.preventDefault(); event.returnValue = ''; }
 });
 window.addEventListener('pagehide', () => { if (state.voiceCapture) void stopVoiceCapture(); });
+window.addEventListener('hashchange',()=>{ if(location.hash==='#integrations' && state.capabilities.includes('integrations.manage')) setPage('integrations'); });
 window.addEventListener('focus', () => {
   if (!state.user) return;
   void request('/me').then((me) => {

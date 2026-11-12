@@ -172,6 +172,10 @@ def build(connection, actor, cutoff, generated):
     metrics.extend(extra_metrics); manifests.update(extra_manifests); warnings.extend(extra_warnings)
     if extra_freshness is not None: freshness = min(freshness,extra_freshness) if freshness else extra_freshness
     if extra_metrics:
+        import os
+        fault = os.getenv('MOCK_CRM_FAULT','')
+        if fault=='stale': warnings.append('Данные CRM устарели. Показана сохранённая витрина; проверьте дату источника.')
+        elif fault in ('timeout','down'): warnings.append('Источник CRM недоступен. Показана сохранённая витрина; её актуальность не подтверждена.')
         for metric in metrics:
             metric.setdefault('as_of',metric['source']['source_at'])
             metric.setdefault('status',domain.status(metric['key'],metric['value']))

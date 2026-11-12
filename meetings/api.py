@@ -110,6 +110,8 @@ def install(app):
     app.include_router(feedback_router())
     from meetings.decisions import router as decisions_router
     app.include_router(decisions_router())
+    from meetings.connectors.api import router as crm_router
+    app.include_router(crm_router())
     extras = _optional_routers()
     for extra in extras:
         app.include_router(extra)
@@ -999,6 +1001,9 @@ def router():
                 if assignee_id:
                     _checked_task_changes(connection, user, {'id':cursor.lastrowid,'department_id':department_id}, {'assignee_user_id':assignee_id})
                 connection.execute('UPDATE tasks SET department_id=?,assignee_user_id=? WHERE id=?', (department_id, assignee_id, cursor.lastrowid))
+                from meetings.connectors.entities import visible_mentions
+                entities = visible_mentions(connection,user['id'],row['text']+' '+row['quotes'])
+                connection.execute('UPDATE tasks SET linked_entities=? WHERE id=?',(json.dumps(entities),cursor.lastrowid))
                 connection.execute('UPDATE protocol_items SET confirmed_by=?, confirmed_at=?, task_id=? WHERE id=?',
                                    (user['id'], stamp, cursor.lastrowid, item_id))
                 store.audit(connection, user['id'], 'task_confirmed', item_id=item_id, task_id=cursor.lastrowid,

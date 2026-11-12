@@ -228,3 +228,32 @@ source_quote. Интерфейс позволяет перейти к задач
 при попытке обычной правки; поля контроля меняются отдельным подтверждением.
 Неизвестные владелец/срок остаются null. Отсутствие срока не считается просрочкой.
 Календарная дата просрочки определяется в Europe/Minsk.
+
+### V2 · CRM mock (миграция 11)
+
+Только локальная SQLite-имитация; реальные внешние системы не подключены.
+Подробности и ограничения: `docs/track3-release/CRM_MOCK.md`.
+
+| Метод/путь `/api/meet` | Доступ / результат |
+|---|---|
+| `POST /crm/preview` | crm.write + ACL; `{action: "task.create"|"protocol.attach", object_id, entity_ref?}`; токен и маскированная карточка |
+| `POST /crm/confirm` | `{confirmation_id,idempotency_key}`; повтор возвращает тот же результат; recheck прав/версии/источников/маппинга |
+| `POST /confirmations/{id}/cancel` | закрывает собственный токен; 0 экспортов |
+| `GET /crm/tasks/{task_id}` | ACL встречи; outbox и внешний mock-статус, без изменения задачи |
+| `GET /crm/orders/{order_no}` | SQL-права до чтения; ERP, история статусов, доступные обращения, as_of/fetched_at/stale |
+| `GET /crm/targets?meeting_id=…` | crm.write + scope; доступные сделки и экспортированные задачи встречи |
+| `GET /integrations` | integrations.manage; метаданные, число сопоставлений, время проверки/отправки |
+| `POST /integrations/check` | integrations.manage; настоящий вызов mock.list_departments + аудит |
+
+`entity_ref`: `deal:<id>` либо `mock:task:…`. При отправке протокола object_id —
+ID встречи, при создании задачи — ID подтверждённой задачи.
+Ошибки `{code,detail}`: 403 forbidden,404 not_found,409 stale/export_exists,
+422 employee_mapping_required/source_quote_required/no_confirmed_items/restricted_action,
+503 unavailable/config/uncertain. При сбое **после** preview confirm сохраняет
+терминальный outbox и ответ с `status`, `outbox_id`, `mode:"mock"`, `http_status`.
+Повтор такого confirm возвращает 503 с тем же статусом и `already_confirmed:true`;
+это не новая попытка отправки. Не подменять эти ответы успешной записью.
+
+Задача дополнена `crm_status` (null/sent/failed/uncertain); `external_ref` по-прежнему
+записывается только сервером. Пункт протокола содержит распознанные явные
+`linked_entities`; наличие номера не даёт доступа к связанной сущности.

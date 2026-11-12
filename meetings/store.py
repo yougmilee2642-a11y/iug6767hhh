@@ -294,15 +294,18 @@ def utterance_out(row, speaker_map: dict) -> dict:
 
 
 def item_out(connection, row) -> dict:
+    from meetings.connectors.entities import mentions
     return {'id': row['id'], 'kind': row['kind'], 'text': row['text'], 'outcome': row['outcome'],
             'assignee': row['assignee'], 'assignee_status': row['assignee_status'], 'due': row['due'],
             'due_text': row['due_text'], 'due_status': row['due_status'], 'quotes': json.loads(row['quotes']),
             'confirmed': row['confirmed_at'] is not None, 'confirmed_by': user_name(connection, row['confirmed_by']),
-            'confirmed_at': row['confirmed_at'], 'task_id': row['task_id'], 'edited': bool(row['edited'])}
+            'confirmed_at': row['confirmed_at'], 'task_id': row['task_id'], 'edited': bool(row['edited']),
+            'linked_entities':mentions(row['text']+' '+row['quotes'])}
 
 
 def task_out(connection, row) -> dict:
     meeting = connection.execute('SELECT title FROM meetings WHERE id=?', (row['meeting_id'],)).fetchone()
+    crm = connection.execute("SELECT status FROM integration_outbox WHERE connector='bitrix24-mock' AND action='task.create' AND object_type='task' AND object_id=?",(row['id'],)).fetchone()
     return {'id': row['id'], 'text': row['text'], 'assignee': row['assignee'], 'assignee_status': row['assignee_status'],
             'due': row['due'], 'due_text': row['due_text'], 'due_status': row['due_status'], 'status': row['status'],
             'meeting_id': row['meeting_id'], 'meeting_title': meeting['title'] if meeting else None,
@@ -310,7 +313,8 @@ def task_out(connection, row) -> dict:
             'confirmed_by': user_name(connection, row['confirmed_by']), 'confirmed_at': row['confirmed_at'],
             'created_at': row['created_at'], 'updated_at': row['updated_at'], 'version': row['version'],
             'priority':row['priority'], 'assignee_user_id':row['assignee_user_id'], 'department_id':row['department_id'],
-            'linked_entities':json.loads(row['linked_entities']), 'external_ref':row['external_ref']}
+            'linked_entities':json.loads(row['linked_entities']), 'external_ref':row['external_ref'],
+            'crm_status':crm['status'] if crm else None}
 
 
 def speaker_map(connection, meeting_id) -> dict:
