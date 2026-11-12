@@ -102,3 +102,23 @@ Unix socket; браузер проверяет CI. Хост отдельно з�
   перепроверяются; устаревший outbox больше не выдаёт название после отзыва ACL.
 
 Границы: [CALENDAR](CALENDAR.md). Реального SMTP/Outlook/Google/Битрикс24 нет.
+
+## E4.2: график и Windows startup
+
+- Full: 1405 passed, 28 skipped, 0 failed, 100,84 s; `v2-smart-calendar-python.log`.
+  Затем добавлен regression canonical marker path: targeted 45 passed, 8,03 s
+  (`v2-smart-calendar-target.log`); новый CI проверит полный состав. Node: 66/0.
+  OpenAPI сохраняет 67 путей и расширяет поля slots/preview.
+- `v2-smart-calendar-http.json`: настоящий сервер, 7 уровней, 3 smart-слота,
+  preview/cancel, ICS/EML/подписка/restart/revoke/provider503. Без моделей.
+- До smart-изменений CI 43162911735: Linux full/Node/browser35/новый calendar UI,
+  base/runtime install — SUCCESS; Windows release — SUCCESS. Windows clean install —
+  FAILED: pip/seed twice прошли, сервер завершился, 52,19 s
+  (`v2-calendar-windows-install-failed.json`). Этот fail не переписан на PASS.
+  Причина падения в старом smoke терялась в DEVNULL.
+- `start.configure` канонизирует абсолютный путь (проверена регрессия relative path);
+  Windows 8.3 остаётся гипотезой до CI. Smoke сохраняет tail stderr, installer
+  сохраняет HTTP JSON даже при сбое. Исправленный Windows требует нового прогона.
+
+Шесть веток smart: нормальный слот; роль/отказ в аудите; replay/cancel;
+нет смен/слотов; source down/corrupt; устаревший график/новые предупреждения.

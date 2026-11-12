@@ -43,3 +43,17 @@ HTTP/restart проверяет ICS/EML, импорт/подписку/отзы�
 Чистые base/runtime Linux установки и браузер E14 CI43161157327 прошли; Windows
 на момент записи queued. Смены/буферы, внешние провайдеры, серии/напоминания и
 автоматическая материализация EML остаются. Main не менялся, PR12 draft.
+
+## Продолжение E4: рабочий график
+
+Smart-подбор учитывает смены, перерывы, HR-отсутствия, буфер10 минут, пояса и
+необязательных участников; top3 с объяснениями. Confirm повторно проверяет
+доступность, источник/новые предупреждения. Full1405 passed/28 skipped/0 failed
+(100,84s), после добавления path-regression targeted45 passed. Node66/0; настоящий
+HTTP выдал3 smart-слота и проверилpreview/cancel, ICS/EML/restart/503.
+
+CI43162911735 на020c515: Linux/base/runtime/весь browser и Windows release passed;
+Windows clean-runtime failed52,19s при старте сервера после успешного install/seed.
+Первичный JSON сохранён. Следующий кандидат канонизирует путь изtempfile перед
+сверкой seed-marker (Windows8.3/relative) и сохраняет stderr при падении; диагноз
+и исправление Windows должны быть подтверждены новым CI, успех не заявляется.

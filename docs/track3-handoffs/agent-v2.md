@@ -317,3 +317,29 @@
 - Осталось E4: смены/буферы/необязательные участники, внешние провайдеры, серии,
   напоминания, автоматические файлыEML. Остальные P1/P2 по SELF_AUDIT не закрыты.
   start-gateway.ps1/main не менялись. PR12 остаётся draft.
+
+## E4.2 · смены, free/busy и повторная проверка
+
+- `availability.py`: явные смены/перерывы, зона каждого пользователя, буфер 10 минут,
+  HR-отсутствия по табельному коду без причин/названий. Отдельная производная
+  free-busy проекция не выдаёт строки HR. Без графика — предупреждённый офисный
+  fallback; если смены не попали в период — слотов нет.
+- Smart slots/preview и optional_participant_ids; организатор обязательный.
+  Top-3: число optional-конфликтов, затем время. В UI флажок и отметка optional
+  для выбранных людей. Legacy API без smart сохранён. Подбор/сбой источника в аудите.
+- Confirm повторно проверяет график, пояс, active, busy и новые warnings. Downtime:
+  503 без event/outbox; новый конфликт: 409/422; cancel 0/replay 1. Inactive/admin/
+  auditor исключены из приглашения. Тесты покрывают роли, смены, таймзоны, optional,
+  отсутствие, старые/повреждённые графики, нет данных и недоступный источник.
+- Full: 1405 passed/28 skipped/0 failed, 100,84 s; Node: 66/0. Затем добавлен
+  path-regression, targeted: 45/0, 8,03 s. Real HTTP: 7 уровней, 3 smart-слота,
+  preview/cancel, ICS/EML/restart/provider503 passed. Gold/модели не менялись.
+  Chromium после прежнего socket refusal не перезапускался.
+- CI 43162911735 на 020c515: Linux целиком, browser/base/runtime passed;
+  Windows release passed; Windows clean install failed за 52,19 s: install/seed
+  прошли, server exited. Raw JSON сохранён. Стартовый путь теперь канонизируется
+  перед проверкой marker (гипотеза tempfile Windows 8.3); отдельный relative-path
+  regression passed. Исправление Windows ждёт нового CI. Smoke сохраняет stderr,
+  installer сохраняет HTTP JSON и при ошибке.
+- Main/start-gateway не менялись, PR12 draft. Внешние провайдеры/SMTP/автоматические
+  EML/серии/напоминания остаются. Остальные P1/P2 — по SELF_AUDIT.

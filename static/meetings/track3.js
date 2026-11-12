@@ -354,6 +354,8 @@ export function track3UI(h) {
     const end = input({ label: 'Конец поиска (дата и время в зоне)', type: 'datetime-local', value: saved.end || '', required: true });
     const duration = input({ label: 'Продолжительность, минут', type: 'number', value: saved.duration || 60, required: true });
     duration.input.min = 15; duration.input.max = 540; duration.input.step = 15;
+    const smart = node('input');smart.type='checkbox';smart.checked=saved.smart ?? true;
+    const smartLabel=field('Учитывать смены, перерывы и буфер 10 минут',smart);
     let revision = 0;
     const viewGeneration = generation;
     const participants = node('fieldset', 'access-users'); participants.append(node('legend', '', 'Календарные участники из тестового справочника'));
@@ -368,27 +370,41 @@ export function track3UI(h) {
     participants.append(load);
     const search = button('Найти свободное время', null, 'secondary-button', 'submit');
     search.disabled = !can('calendar.view') || !saved.directory;
-    form.append(zone.wrap, start.wrap, end.wrap, duration.wrap, participants, search);
+    form.append(zone.wrap, start.wrap, end.wrap, duration.wrap, smartLabel, participants, search);
     const slots = node('div', 'meet-slots'); slots.setAttribute('aria-live', 'polite');
     const rememberRange = () => calendarDrafts.set(calendarKey, { ...calendarDrafts.get(calendarKey), zone: zone.input.value,
       start: start.input.value, end: end.input.value, duration: duration.input.value,
-      participantIds: [...participants.querySelectorAll('input:checked')].map((box) => box.value) });
+      smart:smart.checked,
+      participantIds: [...participants.querySelectorAll('input[data-calendar-role="participant"]:checked')].map((box) => box.value),
+      optionalIds:[...participants.querySelectorAll('input[data-calendar-role="optional"]:checked')].map((box)=>box.value) });
     function renderParticipants(directory) {
       const selected = calendarDrafts.get(calendarKey)?.participantIds;
       participants.replaceChildren(node('legend', '', 'Календарные участники'));
       participants.append(node('p', 'task-meta', 'Организатор включён в приглашение автоматически.'));
       for (const person of directory) {
         const label = node('label', 'check-label'); const box = node('input'); box.type = 'checkbox'; box.value = person.id;
+        box.dataset.calendarRole='participant';
         const organizer = String(person.id) === String(state.user?.id);
         box.checked = organizer || Boolean(selected?.includes(String(person.id)));
         box.disabled = organizer;
         label.append(box, node('span', '', person.name)); participants.append(label);
+        if (!organizer) {
+          const optionalLabel=node('label','check-label'),optionalBox=node('input');optionalBox.type='checkbox';optionalBox.value=person.id;
+          optionalBox.dataset.calendarRole='optional';optionalBox.checked=Boolean(saved.optionalIds?.includes(String(person.id)));
+          optionalBox.disabled=!smart.checked || !box.checked;
+          optionalLabel.append(optionalBox,node('span','',`Необязательный участник: ${person.name}`));participants.append(optionalLabel);
+          box.addEventListener('change',()=>{optionalBox.disabled=!smart.checked||!box.checked;if(!box.checked)optionalBox.checked=false;});
+        }
       }
       search.disabled = !can('calendar.view');
       rememberRange();
     }
     if (saved.directory) renderParticipants(saved.directory);
     form.addEventListener('input', () => {
+      for(const optionalBox of participants.querySelectorAll('input[data-calendar-role="optional"]')) {
+        const main=[...participants.querySelectorAll('input[data-calendar-role="participant"]')].find(box=>box.value===optionalBox.value);
+        optionalBox.disabled=!smart.checked || !main.checked;
+      }
       rememberRange(); revision++;
       slots.replaceChildren(node('p', 'muted-copy', 'Параметры изменились. Подберите свободное время заново.'));
     });
@@ -401,7 +417,9 @@ export function track3UI(h) {
         const body = {
           timezone: zone.input.value.trim(), range_start: zonedISO(start.input.value, zone.input.value.trim()),
           range_end: zonedISO(end.input.value, zone.input.value.trim()), duration_minutes: Number(duration.input.value),
-          participant_ids: [...participants.querySelectorAll('input:checked')].map((box) => Number(box.value)),
+          smart:smart.checked,
+          participant_ids: [...participants.querySelectorAll('input[data-calendar-role="participant"]:checked')].filter(box=>!smart.checked || !participants.querySelector(`input[data-calendar-role="optional"][value="${box.value}"]`)?.checked).map((box) => Number(box.value)),
+          optional_participant_ids:smart.checked ? [...participants.querySelectorAll('input[data-calendar-role="optional"]:checked:not(:disabled)')].map(box=>Number(box.value)) : [],
         };
         slots.replaceChildren(node('p', '', 'Подбираю время…'));
         let result;
@@ -409,6 +427,8 @@ export function track3UI(h) {
         catch (e) { slots.replaceChildren(node('p', 'inline-error', 'Не удалось подобрать время. Измените параметры или повторите поиск.')); throw e; }
         if (!form.isConnected || searchedRevision !== revision || viewGeneration !== generation) return;
         slots.replaceChildren(node('p', 'muted-copy', `Тестовый календарь · зона ${result.timezone} · ${(result.participants || []).map((p) => p.name).join(', ')}`));
+        for(const warning of result.warnings || [])slots.append(node('p','gap-state',warning));
+        if(result.generated_at)slots.append(node('p','task-meta',`Подбор рассчитан: ${date(result.generated_at)}`));
         if (!result.slots?.length) slots.append(node('p', '', 'Свободных слотов нет. Измените диапазон или состав участников.'));
         for (const slot of result.slots || []) {
           const choose = button(`${formatTime(slot.start_at, result.timezone)} — ${formatTime(slot.end_at, result.timezone)}`, async () => {
@@ -418,6 +438,7 @@ export function track3UI(h) {
               try { preview = await request('/calendar/preview', { method: 'POST', body: {
                 meeting_id: meetingId, participant_ids: body.participant_ids, start_at: slot.start_at,
                 duration_minutes: body.duration_minutes, timezone: body.timezone,
+                smart:body.smart,optional_participant_ids:body.optional_participant_ids,
               } }); } catch (e) {
                 if (e.status === 409) slots.replaceChildren(node('p', 'gap-state', `${e.message} Введённые параметры сохранены.`), button('Обновить слоты', () => form.requestSubmit()));
                 throw e;
@@ -448,6 +469,7 @@ export function track3UI(h) {
             });
           });
           choose.disabled = !can('calendar.invite'); slots.append(choose);
+          if(slot.reason)slots.append(node('p','task-meta',slot.reason));
         }
       });
     });

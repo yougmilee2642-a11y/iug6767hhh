@@ -45,27 +45,32 @@ def run(unavailable=False):
             command = [sys.executable, __file__, '--serve', str(path), '--port', str(port)]
             if unavailable:
                 command.append('--unavailable')
+            server_log = tempfile.TemporaryFile(mode='w+', encoding='utf-8', errors='replace')
             child = subprocess.Popen(command, cwd=ROOT,
                                      env={**os.environ, 'MEETINGS_DEMO': '1', 'OLLAMA_BASE_URL': 'http://127.0.0.1:1',
                                           'OLLAMA_API_KEY': '', 'MEETINGS_TIMEOUT': '1'},
-                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                     stdout=server_log, stderr=subprocess.STDOUT)
+            child._track3_log = server_log
             try:
                 deadline = time.monotonic() + 20
                 while time.monotonic() < deadline:
-                    if child.poll() is not None: raise RuntimeError('Product server exited')
+                    if child.poll() is not None:
+                        server_log.seek(0)
+                        raise RuntimeError('Product server exited: ' + '\n'.join(server_log.read().splitlines()[-15:]))
                     try:
                         if httpx.get(base + '/meetings', trust_env=False, timeout=.2).status_code == 200: return child
                     except httpx.HTTPError: pass
                     time.sleep(.1)
                 raise RuntimeError('Server startup timeout')
             except BaseException:
-                child.terminate(); child.wait(timeout=10); raise
+                child.terminate(); child.wait(timeout=10); server_log.close(); raise
         def stop():
             nonlocal proc
             if proc:
                 proc.terminate()
                 try: proc.wait(timeout=10)
                 except subprocess.TimeoutExpired: proc.kill(); proc.wait(timeout=5)
+                proc._track3_log.close()
                 proc = None
         clients = {}
         try:
@@ -117,6 +122,17 @@ def run(unavailable=False):
             # Do not put the bearer itself in reports; access logs redact the path.
             feed = clients['designer'].get(subscription['path'])
             assert feed.status_code==200 and 'SUMMARY:Занято' in feed.text
+            smart = request('director','POST','/calendar/slots',json={
+                'participant_ids':[ids['users']['prod_head']], 'optional_participant_ids':[ids['users']['operator']],
+                'range_start':start_at.replace(hour=0).isoformat(),'range_end':start_at.replace(hour=23).isoformat(),
+                'duration_minutes':30,'smart':True})
+            assert smart['smart'] and smart['generated_at'] and len(smart['slots'])<=3
+            if smart['slots']:
+                candidate = request('director','POST','/calendar/preview',json={
+                    'meeting_id':mid,'participant_ids':[ids['users']['prod_head']],
+                    'optional_participant_ids':[ids['users']['operator']],
+                    'start_at':smart['slots'][0]['start_at'],'duration_minutes':30,'smart':True})
+                request('director','POST',f"/confirmations/{candidate['confirmation_id']}/cancel")
             if unavailable:
                 # Exercise the real provider against an explicitly closed loopback port.
                 # No Ollama process, gateway or scripted reply participates in this mode.
@@ -161,7 +177,8 @@ def run(unavailable=False):
             return {'status':'passed', 'model':('unavailable loopback; no live inference' if unavailable else
                                                'scripted double; live quality not measured'), 'roles':len(clients),
                     'model_failure_path': 'passed' if unavailable else 'not_run',
-                    'requests':events, 'kpi_before_mutation':metrics, 'restart':'passed', 'calendar_interchange':'passed'}
+                    'requests':events, 'kpi_before_mutation':metrics, 'restart':'passed', 'calendar_interchange':'passed',
+                    'smart_calendar':{'slot_count':len(smart['slots']),'warnings':smart['warnings']}}
         finally:
             stop()
             for client in clients.values(): client.close()

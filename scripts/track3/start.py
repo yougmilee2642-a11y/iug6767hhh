@@ -12,6 +12,9 @@ from scripts.track3.paths import explicit_db
 
 
 def configure(path):
+    # tempfile may return a Windows 8.3 path; seed records the canonical absolute
+    # path. Compare the same representation before checking the ownership marker.
+    path = Path(path).resolve()
     os.environ.update(MEETINGS_DB_PATH=str(path), CALLWISE_LOCAL_ONLY='true', AI_PROVIDER='ollama',
                       TELEGRAM_ENABLED='false', CALLWISE_CLOUD_INTEGRATIONS_ENABLED='false')
     # .env cannot override these explicit environment values; main storage is redirected

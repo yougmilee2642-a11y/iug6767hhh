@@ -22,7 +22,9 @@ def overlaps(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datet
 
 def directory(connection) -> list[dict]:
     """Test participant directory: existing users only (no free-form e-mail addresses)."""
-    return [{'id': r['id'], 'name': r['name']} for r in connection.execute('SELECT id, name FROM users ORDER BY id')]
+    from meetings.auth import has_capability
+    return [{'id': r['id'], 'name': r['name']} for r in connection.execute('SELECT * FROM users WHERE active=1 ORDER BY id')
+            if has_capability(dict(r),'calendar.view')]
 
 
 def participants(connection, ids: list[int], organizer_id: int | None = None) -> list[dict]:

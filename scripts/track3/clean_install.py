@@ -82,9 +82,13 @@ def main():
             second = step('seed-repeat', [python, 'scripts/seed_meetings_demo.py'], checkout, env)
             if json.loads(first.stdout) != json.loads(second.stdout):
                 raise RuntimeError('Repeated seed changed object identifiers')
-            step('http-restart-and-model-503', [python, 'scripts/track3/v2_http_smoke.py',
-                 '--unavailable', '--output', str(root / 'http.json')], checkout, env, timeout=120)
-            report['http'] = json.loads((root / 'http.json').read_text(encoding='utf-8'))
+            try:
+                step('http-restart-and-model-503', [python, 'scripts/track3/v2_http_smoke.py',
+                     '--unavailable', '--output', str(root / 'http.json')], checkout, env, timeout=120)
+            finally:
+                if (root / 'http.json').is_file():
+                    report['http'] = json.loads((root / 'http.json').read_text(encoding='utf-8'))
+                    save()
             inventory = step('inventory', [python, '-c',
                 "from importlib import metadata,util; import json; print(json.dumps({"
                 "'packages':{d.metadata['Name']:d.version for d in metadata.distributions()},"
