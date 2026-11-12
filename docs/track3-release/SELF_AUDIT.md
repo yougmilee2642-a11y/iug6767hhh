@@ -17,19 +17,19 @@
 | ОТ-07: TZ/валюта/формулы | Выполнено | `test_track3_management.py`, domain_metrics, decision_controls; Europe/Minsk/BYN | as_of не восстанавливает прошлую историю статусов задач |
 | ОТ-08: лицензии | Частично | LICENSES; `reports/v2-e0-dependencies.json`, notice hashes | PyMuPDF AGPL/commercial, Silero noncommercial, bundled FFmpeg/libsndfile |
 | §7.2.1: подготовка | Выполнено | `test_track3_preparation_v2.py`, core previous-meeting tests | Семантика live неизвестна; локальный проект повестки не сохраняется |
-| §7.2.2: календарь | Выполнено | `test_track3_calendar.py`: занятость/cancel/гонки/replay/ACL | Mock/local outbox, ICS/EML и отзыв подписок: test_track3_calendar_interchange.py; смены/буферы/optional реализованы; внешние провайдеры остаются P1 |
+| §7.2.2: календарь | Выполнено | `test_track3_calendar.py`: занятость/cancel/гонки/replay/ACL | Mock/local outbox, ICS/EML и отзыв подписок: test_track3_calendar_interchange.py; смены/буферы/optional реализованы; Bitrix provider/reservation/uncertain реализованы: test_track3_calendar_providers.py; Google/series остаются P2 |
 | §7.2.3: протокол/цитаты | Требует живой проверки хостом | core summary/risk/outcome/unknown/edited/quote tests; evaluator v2 | Настоящая модель не измерена |
-| §7.2.4: поручения | Выполнено | `test_track3_task_controls.py`, core confirm/cancel/filter/link tests | Комментарии/эскалация остаются P1 |
-| §7.2.5: QA с источником | Требует живой проверки хостом | knowledge tests; frozen 36 QA, double pipeline | FTS5/BM25 со scoped corpus проверен; единый чат ещё не реализован |
+| §7.2.4: поручения | Выполнено | `test_track3_task_controls.py`, core confirm/cancel/filter/link tests | Комментарии/история/эскалация реализованы; внешняя доставка уведомлений ещё не подключена |
+| §7.2.5: QA с источником | Требует живой проверки хостом | knowledge tests; frozen 36 QA, double pipeline | FTS5/BM25 со scoped corpus проверен; единый чат реализован: test_track3_assistant.py; live router не проверен |
 | §7.2.6: обзор | Выполнено | domain_metrics/management/decision_controls tests | Дневной брифинг реализован/read-only (test_track3_briefing.py); метрика→действие остаётся P1 |
 | AI-01: источник/дата | Выполнено | Source resolver, knowledge_hardening, KPI/protocol tests | Цитата подтверждает текст, не истинность источника |
 | AI-02: права до модели | Выполнено | `test_access_matrix.py::test_designer_budget_and_secret_never_reach_model`, SQL predicate | Распространить на будущие коннекторы |
 | AI-03: человек подтверждает | Выполнено | core/task/decision/calendar/CRM confirm/cancel/concurrency | Ручное редактирование отдельно от AI-предложений |
 | AI-04: статусы решений | Выполнено | core accepted-outcome-contradicted→discussed, extract status tests | Реальные неоднозначные формулировки не измерены |
 | AI-05: не выдумывать | Требует живой проверки хостом | Цитаты/имена/сроки, no_data/refusal, scorer v3 | Правила не доказывают полноту/семантику |
-| AI-06: аудит AI | Выполнено | core/knowledge/privacy: masked question, source/model/stage/request ID | Автоматическое хранение/очистка ещё не реализованы |
+| AI-06: аудит AI | Выполнено | core/knowledge/privacy: masked question, source/model/stage/request ID | Worker хранения реализован; внешние/скачанные копии удаляются отдельно |
 | AI-07: правка/feedback | Выполнено | core edit/recheck/feedback tests | История редакций протокола ещё не реализована |
-| §7.4: ограничения/защита | Частично | privacy/injection corpus≥15, intent refusals, secret exclusion, DATA_POLICY | Шаблонный PII-фильтр, свободные адреса, retention/CSRF/rate limits не закрыты целиком |
+| §7.4: ограничения/защита | Частично | privacy/injection corpus≥15, intent refusals, secret exclusion, DATA_POLICY | Шаблонный PII-фильтр, свободные адреса, retention/Origin+header/rate limits реализованы: test_track3_operations.py; свободные адреса всё ещё ограничение PII-фильтра |
 | §7.5: recall≥80%/sources/ACL/cancel/links | Требует живой проверки хостом | Frozen 5 текстов/30 задач/36 QA, double pipeline; CPU/HTTP остальные условия | Live v2 NOT RUN; v1 18/18 и 16/16 — только старое сообщение хоста |
 | §8: набор данных | Выполнено | seed/generator/hash tests, календарь/задачи/классификации | Только синтетика |
 | §9: комплект сдачи | Частично | README, ARCHITECTURE, API/OpenAPI/requests, TEST_REPORT, политики/лицензии/live, DEMO/PITCH | Финальные проверки и остальная реализация P1/P2 впереди |
@@ -83,3 +83,26 @@ UX 20%: браузерная регрессия есть, новые P1-экра
 3. Пройти DEMO на отдельной временной БД, не скрывать ручной путь/mock.
 4. Решить условия PyMuPDF/Silero и внешних UI-шрифтов до распространения.
 5. Завершать P1 по порядку ТЗ, не добавлять P2 до зелёных P0/P1 и не сливать draft по одному числу тестов.
+
+## Продолжение E3/E4/E5/E8/E10/E11/E12 ·12.11.2026
+
+Реализованы assistant read-tools/evidence/history, подтверждаемые task/meeting/
+task-status drafts; voice делегирует им без скрытых записей. Протокол: MD/HTML,
+локальная рассылка, comments/history. Хранение, delete request/admin confirm,
+CSRF, limits, внутренние уведомления и generic opt-in очереди.
+Bitrix: HTTPS transport double, local scope до remote read, маппинг людей/
+сущностей, обезличенные contact/activity, safe uncertainty. Calendar: commit
+reservation до HTTP, replay/crash→uncertain/no resend, no invitation on failure.
+Ни одного реального аккаунта/модели не использовано.
+
+Проверки до последнего calendar-провайдера:1509 passed/28 skipped; обе ветки
+HTTP (double/unavailable) passed; Node66 passed. Новый полный прогон и CI
+фиксируются в журнале исполнения. Не подменять этим live acceptance.
+
+Крупный остаток: E7 аудио/звонки; E9.2 action drill-down; E8.6 источники
+следующей повестки; E6 semantic-selector и P2; финальная traceability/evaluation/
+проверка установки и живые скрипты. Весь ТЗ по-прежнему не закрыт.
+
+Общий срез после merge E6+assistant/operations/adapters:1547 passed,28 skipped,
+0 failed; Node66; HTTPdouble и HTTPunavailable passed. Первичные отчёты
+`reports/v2-assistant-operations-*`. Browser/Windows проверяются новым CI отдельно.

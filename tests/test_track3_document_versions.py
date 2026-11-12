@@ -210,7 +210,7 @@ def test_v12_migration_preserves_existing_files_and_fragments(tmp_path, monkeypa
     c.execute("INSERT INTO documents(id,owner_id,title,filename,kind,content,sha256,created_at) VALUES (1,1,'История','old.txt','txt',?,'hash','2026-11-01T00:00:00+00:00')", (OLD.encode(),))
     c.execute("INSERT INTO fragments(id,document_id,idx,location,text) VALUES (42,1,1,'абз. 1',?)", (OLD,))
     c.commit()
-    assert migrations.apply(c) == [13]
+    assert migrations.apply(c) == list(range(13, migrations.LATEST + 1))
     assert migrations.apply(c) == []
     assert c.execute('SELECT content FROM documents WHERE id=1').fetchone()[0] == OLD.encode()
     assert c.execute('SELECT text FROM fragments WHERE id=42').fetchone()[0] == OLD

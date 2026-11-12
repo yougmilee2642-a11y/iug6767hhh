@@ -7,3 +7,7 @@ demo/track3/documents/*.pdf binary
 demo/track3/documents/*.docx binary
 demo/track3/documents/*.xlsx binary
 demo/track3/documents/*.pptx binary
+
+# Upstream font/license bytes are preserved verbatim, including the OFL notice whitespace.
+static/fonts/jost/Jost.ttf binary
+static/fonts/jost/OFL.txt -text -whitespace

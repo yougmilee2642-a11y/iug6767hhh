@@ -59,6 +59,8 @@ def route(text):
     """Deterministic routing; the model never chooses an action."""
     if WRITE.search(text):
         return 'action'
+    if re.search(r'PP-\d{4}-\d{5}|обращен|следующ.*встреч|кто.*план|кто.*встреч|(?:мои|у меня).*задач|задач.*(?:сегодня|недел)|просроч.*производ',text,re.I) and not DOCUMENT_HINT.search(text):
+        return 'assistant_read'
     if re.search(r'брифинг|что\s+важного\s+сегодня',text,re.I) and not DOCUMENT_HINT.search(text):
         return 'briefing'
     if OVERVIEW.search(text) and not DOCUMENT_HINT.search(text):
@@ -198,6 +200,41 @@ def answer_briefing(actor_user, text, meeting_id, details):
     return result, phrase, private
 
 
+
+def answer_context(actor_user,text,meeting_id,details):
+    import json,uuid
+    from meetings.assistant import service
+    from meetings.privacy import Masker,customer_names
+    from meetings.connectors.mock import digest
+    from meetings.connectors.contracts import IntegrationError
+    auth.require(actor_user,'qa.ask',action='voice.ask')
+    at=utc_now();masked=Masker(customer_names()).text(text)
+    with store.write_tx() as c:
+        try:
+            plan=service.choose(service.candidates(c,actor_user,masked,meeting_id,at),masked,use_model=False)
+            data=service.read_tool(c,actor_user,plan['tool'],plan['args'])
+        except IntegrationError as error:raise MeetError(503,error.code,str(error)) from None
+        ident='ae_'+uuid.uuid4().hex;stamp=store.iso_utc(at)
+        c.execute('INSERT INTO assistant_evidence VALUES (?,?,?,?,?,?)',(ident,actor_user['id'],plan['tool'],json.dumps(plan['args'],ensure_ascii=False),digest(data),stamp))
+        source={'kind':'assistant','id':ident,'title':service.LABELS[plan['tool']],'source_at':stamp}
+        claims=[{'text':r['text'],'sources':[source]} for r in data['claims']]
+        phrase=' '.join(r['text'] for r in data['claims'][:2]) or 'В доступных источниках данных не найдено.'
+        if len(phrase)>MAX_SPOKEN:phrase='Подробный ответ и источники показаны на экране.'
+        private=False
+        for listener in audience(c,actor_user['id'],meeting_id):
+            if listener==actor_user['id']:continue
+            try:other=service.read_tool(c,access_user(c,listener),plan['tool'],plan['args'])
+            except MeetError:private=True;break
+            if [r['text'] for r in other['claims']] != [r['text'] for r in data['claims']]:private=True;break
+    details.update(source_ids=[ident],tools=[plan['tool']])
+    return {'status':'grounded' if claims else 'insufficient_data','claims':claims,'sources':[source] if claims else [],'warnings':data['warnings']},phrase,private
+
+
+def access_user(c,uid):
+    from meetings.access import load_user
+    return load_user(c,uid)
+
+
 def ask(actor_user, text, meeting_id, speak_private, details):
     from meetings.privacy import prohibited_intent, refusal
     prohibited = prohibited_intent(text)
@@ -209,9 +246,18 @@ def ask(actor_user, text, meeting_id, speak_private, details):
     kind = route(text)
     details['route'] = kind
     if kind == 'action':
+        from meetings.assistant.service import proposal
+        from meetings.privacy import Masker,customer_names
+        with store.db() as c:
+            if meeting_id is not None and not store.can_read_meeting(c,actor_user['id'],meeting_id):
+                raise MeetError(404,'not_found','Не найдено или нет доступа.')
+            proposed=proposal(c,actor_user,Masker(customer_names()).text(text),meeting_id)
+        if proposed:
+            return {'route':'action_draft','status':'action_proposed','open_page':'assistant','answer':None,'proposed_action':proposed,
+                    'spoken':'Черновик готов. Проверьте и подтвердите на экране.','display':'Черновик готов. Проверьте поля и подтвердите на экране.','speak':True,'silent_reason':None}
         details['result'] = 'refused'
         return action_reply(text)
-    handler = {'overview':answer_overview,'briefing':answer_briefing}.get(kind,answer_knowledge)
+    handler = {'overview':answer_overview,'briefing':answer_briefing,'assistant_read':answer_context}.get(kind,answer_knowledge)
     result, phrase, private = handler(actor_user, text, meeting_id, details)
     speak = not private or speak_private
     details['spoken'] = speak

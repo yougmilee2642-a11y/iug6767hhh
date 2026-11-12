@@ -13,16 +13,16 @@ export function crmUI(h) {
       content.append(node('p','',fields.text),node('p','task-meta',`Ответственный в CRM: ${fields.assignee_name}`),
         node('p','task-meta',`Срок: ${fields.due ? dateLabel(fields.due) : 'Не указан'}`),
         node('p','task-meta',`Приоритет: ${{low:'Низкий',normal:'Обычный',high:'Высокий',urgent:'Срочный'}[fields.priority]}`),
-        node('p','',`Основание · ${fields.source_quote.utterance_id}: ${fields.source_quote.text}`));
-      content.append(ui.sourceButton({kind:'utterance',id:fields.source_quote.utterance_id,quote:fields.source_quote.text,
-        source_at:fields.source_at,title:'Открыть реплику-основание'}));
+        node('p','',`Основание · ${fields.source_quote.utterance_id || 'ручное поручение'}: ${fields.source_quote.text}`));
+      content.append(ui.sourceButton({kind:fields.source_quote.utterance_id?'utterance':'task',id:fields.source_quote.utterance_id || 'T'+fields.task_id,quote:fields.source_quote.text,
+        source_at:fields.source_at,title:fields.source_quote.utterance_id?'Открыть реплику-основание':'Ручное подтверждённое поручение'}));
     } else {
       content.append(node('p','',fields.title),node('p','task-meta',`Получатель: ${fields.entity_ref}`));
-      for (const item of fields.items) content.append(node('p','',item.text),node('p','task-meta',item.quotes.map(q=>`${q.utterance_id}: ${q.text}`).join('\n')));
+      for (const item of fields.items) content.append(node('p','',item.text),node('p','task-meta',item.quotes.map(q=>`${q.utterance_id || 'Ручное поручение'}: ${q.text}`).join('\n')));
     }
     content.append(node('p','task-meta',`Дата источника: ${dateLabel(view.freshness.as_of)}`));
     const key=crypto.randomUUID();
-    ui.dialog('Что уйдёт в Битрикс24 · mock',content,async()=>{
+    ui.dialog(view.mode==='mock'?'Что уйдёт в Битрикс24 · mock':'Что уйдёт в Битрикс24',content,async()=>{
       await request('/crm/confirm',{method:'POST',body:{confirmation_id:data.confirmation_id,idempotency_key:key}});
       if (current(identity,epoch)) await onDone();
     },async()=>{
@@ -33,11 +33,11 @@ export function crmUI(h) {
   async function exportTask(task,onDone) { await review({action:'task.create',object_id:task.id},onDone); }
   async function status(task) {
     const result=await request(`/crm/tasks/${task.id}`),content=node('div','');
-    const names={sent:'Отправлено в локальную имитацию',uncertain:'Результат неизвестен. Повторная отправка заблокирована; нужна проверка.',failed:'Отправка не выполнена. Нужна проверка перед новым действием.'};
+    const names={sent:result.mode==='mock'?'Отправлено в локальную имитацию':'Отправлено в Битрикс24',uncertain:'Результат неизвестен. Повторная отправка заблокирована; нужна проверка.',failed:'Отправка не выполнена. Нужна проверка перед новым действием.'};
     content.append(node('p','',names[result.outbox?.status] || 'Отправки ещё не было.'));
     if (result.external) content.append(node('p','task-meta',`Статус задачи CRM: ${{open:'Открыта',done:'Выполнена',cancelled:'Отменена'}[result.external.status] || result.external.status}`),
       node('p','task-meta',`Дата источника: ${dateLabel(result.external.as_of)}`));
-    ui.dialog('Отправка в Битрикс24 · mock',content,async()=>{},null,'Закрыть');
+    ui.dialog(result.mode==='mock'?'Отправка в Битрикс24 · mock':'Отправка в Битрикс24',content,async()=>{},null,'Закрыть');
   }
   async function attachProtocol(meeting,onDone) {
     const identity=state.user.id,epoch=state.epoch;

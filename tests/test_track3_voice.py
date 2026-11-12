@@ -97,11 +97,14 @@ def test_voice_never_writes(env, text, who):
     response = say(env, text, who=who)
     assert response.status_code == 200, response.text
     reply = response.json()
-    assert reply['route'] == 'action' and reply['status'] == 'refused'
-    assert 'ничего не создаю и не меняю' in reply['spoken'] and 'на экране' in reply['spoken']
+    supported=text.startswith(('Поставь','Пригласи'))
+    assert reply['route'] == ('action_draft' if supported else 'action')
+    assert reply['status'] == ('action_proposed' if supported else 'refused')
+    assert 'на экране' in reply['spoken']
+    assert ('Черновик готов' in reply['spoken']) if supported else ('ничего не создаю и не меняю' in reply['spoken'])
     assert reply['answer'] is None and counts() == before
     assert env['model'].calls == []
-    assert audit_rows('voice.ask')[-1]['result'] == 'refused'
+    assert audit_rows('voice.ask')[-1]['result'] == ('action_proposed' if supported else 'refused')
 
 
 def test_overview_counts_spoken_only_when_everyone_sees_the_same(env):
@@ -207,3 +210,10 @@ def test_heading_quote_gets_a_full_stop_before_the_source():
         {'title': 'Гайд по бренду', 'source_at': '2026-11-11T14:34:00+00:00'}]}]}
     assert voice.knowledge_phrase(result) == ('Гайд по бренду (подрядчик: студия «Линия»). '
                                               'Источник: «Гайд по бренду», от 11 ноября 2026.')
+
+
+@pytest.mark.parametrize('text',['Какие у меня задачи на сегодня?','Когда следующая встреча?',
+                                'Кто будет на планёрке?','Статус заказа PP-2611-00042',
+                                'Сколько обращений по браку за неделю?'])
+def test_voice_v2_read_tool_route_is_not_a_model_write(text):
+    assert voice.route(text)=='assistant_read'

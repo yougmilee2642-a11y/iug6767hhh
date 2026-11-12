@@ -18,9 +18,10 @@ export function calendarUI(h) {
       const [events,outbox]=await Promise.all([request('/calendar/events'),request('/calendar/outbox')]);
       if(!current())return;
       list.replaceChildren();
-      if(!events.events.length)list.append(node('p','','Подтверждённых событий нет.'));
+      if(!events.events.length)list.append(node('p','','Событий нет.'));
       for(const event of events.events) {
-        const row=node('p','');row.append(node('span','',`${date(event.start_at)} · ${event.title} `),
+        const status={confirmed:'Подтверждено',pending_external:'Ожидает внешнего календаря',uncertain:'Результат требует проверки',failed:'Не создано',cancelled:'Отменено'};
+        const row=node('p','');row.append(node('span','',`${date(event.start_at)} · ${event.title} · ${status[event.status] || 'Требует проверки'} `),
           link('Скачать событие .ics',`/api/meet/calendar/export.ics?event_id=${event.id}`));list.append(row);
       }
       for(const invitation of outbox.invitations) {

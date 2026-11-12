@@ -533,3 +533,41 @@
   inventory. Временные новые клоны/venv, параллельно, кэш неконтролируемый.
   Первичные v2-document-briefing-{runtime,base}-install.json сохранены.
   Новый CI/Windows/браузер не объявляются passed до проверки нового head.
+
+## Продолжение: assistant / operations / protocol export / adapters
+
+Миграции14–17: assistant/evidence/origins, operations/retention/notifications,
+protocol mail, durable calendar outbox. Изменения и параметры — V2_QUICKSTART
+и DATA_POLICY. Базовые E10 read-tools/selector/history/feedback/UI и действия
+preview/confirm; voice read/action draft без скрытых бизнес-записей.
+Ручная задача сохраняет отдельное основание, не создаёт вымышленную реплику.
+E11 browser-origin/header, persisted rate buckets, CSP/self-hosted Jost OFL,
+worker60s, сроки/удаление/marked-demo cleanup. E12 внутренний центр; внешние
+транспорты пока только очереди. MD/HTML export и локальные EML preview/confirm.
+
+E3 Bitrix HTTPS REST behind flag: TLS/no proxies/redirect, safe errors,
+redacted webhook, local scope/allowlist, marker+hash search before write,
+таймаут→uncertain/no retry; админ-маппинг не меняет роли. ERP/Mary/HR — mocks.
+Поля/методы сверены с apidocs.bitrix24.ru и официальным b24restdocs:
+calendar.accessibility.get (DATE_*_TS_UTC не UTC), calendar.event.add/getbyid/
+delete, task.commentitem.add (TASKID/FIELDS), crm.activity.list OWNER_TYPE2,
+crm.timeline.comment.add. getlist старой task-card не имеет fallback на add.
+
+E4 BitrixCalendar: mapped free/busy без чужих названий; provider/mapping hash
+заморожены в preview, confirm повторно проверяет. Состояние sending фиксируется
+до HTTP; при прерывании replay→uncertain, слот занят, ICS tentative, писем нет.
+Google/series/CalDAV/Exchange не заявляются готовыми.
+
+До E4 full1509 passed/28 skipped, обе HTTP ветки passed. Target интеграций84
+passed до дополнительных privacy/crash tests. Новый full выполняется отдельно.
+Node66 passed. Browser здесь запрещён socket() окружения; новый UI ожидает CI.
+
+- Перед публикацией fetch выявил новый удалённый c7b6763 (E6 document lifecycle).
+  Локальный a1cc794 сохранён; обычный merge b0cdd1f включил весь чужой код/тесты
+  и оба HTTP-сценария. Конфликты только журнал/политика/self-audit/HTTP сведены
+  с сохранением обоих наборов. Не force/reset.
+- На общем b0cdd1f:1547 passed/28 skipped/0 failed,224.42s; Node66 passed.
+  Обе HTTP ветки (scripted/unavailable) прошли, включая versions+assistant+
+  manual actions+retention/mappings+briefing/restart. OpenAPI98 путей.
+  Raw reports/v2-assistant-operations-*. Модели/аккаунты не запускались;
+  browser нового head ожидает CI. E7 разрабатывается отдельно, не входит в срез.

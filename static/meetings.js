@@ -1,3 +1,5 @@
+import { operationsUI } from './meetings/operations.js';
+import { assistantUI } from './meetings/assistant.js';
 import { briefingUI } from './meetings/briefing.js';
 import { track3UI } from './meetings/track3.js';
 import { protocolPayload } from './meetings/protocol.js';
@@ -50,12 +52,15 @@ let searchSequence = 0;
 const ui = track3UI({ node, makeButton, makeInput, makeTextarea, makeSelect, request, runAction, state,
   dateLabel, render, openMeeting, openSource, showNotice, toast, refreshMeeting, markSaved, draftCheckpoint,
   navigate: setPage });
+const managerAssistant = assistantUI({node,makeButton,makeInput,makeTextarea,makeSelect,request,runAction,state,ui,dateLabel,openMeeting,openSource});
 const administration = administrationUI({ node, makeButton, makeInput, request, runAction, state, dateLabel });
 const crm = crmUI({ node, makeButton, makeInput, request, runAction, state, dateLabel, ui });
 const calendarTools = calendarUI({ node, makeButton, makeInput, request, runAction, state, dateLabel, ui, markSaved });
-const assistant = voiceAssistant({ node, makeButton, request, state, openSource, dateLabel, navigate: (page) => {
+const assistant = voiceAssistant({ node, makeButton, request, state, openSource, dateLabel, proposeAction:(proposal)=>{managerAssistant.propose(proposal);setPage('assistant');}, navigate: (page) => {
   if (page === 'tasks') void openTasks(); else setPage(page);
 } });
+
+const operations = operationsUI({node,makeButton,makeInput,request,runAction,state,ui,dateLabel,openMeeting,navigate:setPage});
 
 const briefing = briefingUI({node,makeButton,makeInput,request,runAction,state,dateLabel,openSource,openMeeting,
   speak:()=>assistant.ask('Брифинг дня')});
@@ -142,7 +147,7 @@ function clearIdentity({ keepDrafts = false } = {}) {
   state.searchQuery = ''; state.searchStatus = 'idle'; state.searchError = '';
   state.showCreateMeeting = false;
   state.page = 'meetings';
-  closeSource(); ui.reset({ keepDrafts }); assistant.reset();
+  closeSource(); ui.reset({ keepDrafts }); assistant.reset(); managerAssistant.reset();
   clearNotice(); $('#toast').textContent = '';
   if (!keepDrafts) dirtyFields.clear();
 }
@@ -227,7 +232,7 @@ function makeSelect(options, selected = '') {
 
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const epoch = state.epoch;
-  const requestHeaders = { ...headers };
+  const requestHeaders = { 'X-Focus-Request':'1', ...headers };
   let payload = body;
   if (body !== undefined && !(body instanceof FormData)) {
     requestHeaders['Content-Type'] = 'application/json';
@@ -367,6 +372,10 @@ function updateAccount() {
   for (const [capability, label, page] of [['users.manage','Пользователи','administration'], ['integrations.manage','Интеграции','integrations'], ['audit.read','Журнал','audit'], ['delegation.grant','Делегировать','delegation']]) {
     if (state.capabilities.includes(capability)) account.append(makeButton(label, () => setPage(page)));
   }
+  account.append(makeButton('Уведомления',()=>setPage('notifications')));
+  if (state.capabilities.includes('retention.manage')) account.append(makeButton('Хранение данных',()=>setPage('retention')));
+  account.append(makeButton('Удалить мои данные',()=>{const content=node('p','','Запрос будет передан администратору. Данные удалятся только после его проверки и подтверждения.');ui.dialog('Запросить удаление данных',content,()=>request('/privacy/delete-request',{method:'POST'}),null,'Отправить запрос');}));
+  if (state.capabilities.includes('qa.ask')) account.append(makeButton('Ассистент',()=>setPage('assistant')));
   if (state.capabilities.includes('overview.read')) account.append(makeButton('Брифинг',()=>setPage('briefing')));
   account.append(makeButton('Выйти', () => void logout(), 'logout-button'));
 }
@@ -409,6 +418,9 @@ function render() {
   else if (state.page === 'meeting' && state.meetingData) renderMeeting(app);
   else if (state.page === 'overview') ui.renderOverview(app);
   else if (state.page === 'briefing') briefing.render(app);
+  else if (state.page === 'assistant') managerAssistant.render(app);
+  else if (state.page === 'notifications') void runAction(null,()=>operations.notifications(app));
+  else if (state.page === 'retention') void runAction(null,()=>operations.retention(app));
   else if (state.page === 'knowledge') ui.renderKnowledge(app);
   else if (state.page === 'tasks') renderTaskBoard(app, state.tasks, false);
   else if (state.page === 'search') renderSearchResults(app);
@@ -1398,6 +1410,11 @@ async function openSource(kind, id, quote, source = {}) {
         row.append(makeButton('Открыть решение в протоколе',()=>{ closeSource(); void openMeeting(decision.meeting_id,'protocol'); },'task-meeting-link'));
         content.append(row);
       }
+      for (const claim of data?.claims || []) {
+        content.append(node('p','',claim.text));
+        for (const source of claim.native_sources || []) content.append(makeButton(source.title || 'Источник',()=>void openSource(source.kind==='document'?'fragment':source.kind,source.id,source.quote,source),'citation-chip'));
+      }
+      for (const warning of data?.warnings || []) content.append(node('p','access-limited-note',warning));
       if (data?.meeting) content.append(node('p','',data.meeting.title),node('p','task-meta',dateLabel(data.meeting.scheduled_at)),makeButton('Открыть встречу-источник',()=>{closeSource();void openMeeting(data.meeting.id);},'secondary-button'));
       if (data?.metric) content.append(node('p','',`${data.metric.label}: ${data.metric.value ?? 'Нет данных'} ${data.metric.unit || ''}`),node('p','task-meta',`Формула: ${data.metric.formula}`));
       const labels = { numerator: 'Числитель', denominator: 'Знаменатель', completed_orders: 'Завершённые заказы', on_time_orders: 'Заказы в срок', produced_units: 'Произведено единиц', defective_units: 'Бракованных единиц', occupied_capacity: 'Занятая мощность', available_capacity: 'Доступная мощность', order_no:'Заказ', status:'Статус', promised_at:'Обещанный срок', completed_at:'Завершён', first_response_seconds:'Первый ответ, секунд', sla_seconds:'SLA, секунд', closed_by:'Закрыто кем', occupied_hours:'Занятые часы', available_hours:'Доступные часы', section:'Участок', forecast:'Прогноз (0/1)' };
@@ -1437,6 +1454,23 @@ function renderProtocol(target) {
   }, { model: true }));
   heading.append(copy, permit(draft, 'protocol.edit'));
   section.append(heading);
+  if (protocol) {
+    const exports=node('div','inline-actions');
+    for(const [format,label] of [['md','Скачать протокол MD'],['html','Версия для печати']]){
+      const link=node('a','download-link',label);link.href=`${API}/meetings/${data.meeting.id}/protocol/export?format=${format}`;link.setAttribute('download','');exports.append(link);
+    }
+    if(ui.can('calendar.invite'))exports.append(makeButton('Разослать протокол участникам',()=>void runAction(null,async()=>{
+      const preview=await request(`/meetings/${data.meeting.id}/protocol/mail/preview`,{method:'POST',body:{recipient_ids:[]}});
+      const content=node('div');content.append(node('p','',preview.preview.notice),node('p','',`Получателей: ${preview.preview.recipients.length}`),node('pre','',preview.preview.body));
+      const key=crypto.randomUUID();
+      ui.dialog('Подтвердить рассылку протокола',content,async()=>{
+        const result=await request(`/meetings/${data.meeting.id}/protocol/mail/confirm`,{method:'POST',body:{confirmation_id:preview.confirmation_id,idempotency_key:key}});
+        for(const id of result.outbox_ids){const link=node('a','download-link',`Письмо ${id}`);link.href=`${API}/protocol-outbox/${id}/download.eml`;link.setAttribute('download','');exports.append(link);}
+        toast('Протокол помещён в локальную очередь');
+      },()=>request(`/confirmations/${preview.confirmation_id}/cancel`,{method:'POST'}));
+    }),'secondary-button'));
+    section.append(exports);
+  }
   if (!protocol) {
     section.append(emptyState('Протокол ещё не подготовлен', 'Сохраните стенограмму, затем создайте черновик протокола.'));
     target.append(section);
@@ -1720,6 +1754,13 @@ function renderTaskBoard(parent, tasks, meetingOnly) {
     const heading = node('div', 'task-column-heading');
     heading.append(node('h2', '', title), node('span', 'small-chip', String(group.length)));
     column.append(heading);
+    if(ui.can('tasks.change')){
+      column.addEventListener('dragover',event=>event.preventDefault());
+      column.addEventListener('drop',event=>{event.preventDefault();const id=Number(event.dataTransfer.getData('text/plain'));const task=tasks.find(t=>Number(t.id)===id);if(!task || task.status===status)return;void runAction(null,async()=>{
+        const preview=await request(`/tasks/${id}/preview`,{method:'POST',body:{changes:{status}}});const content=node('p','',`Переместить поручение «${task.text}» в «${title}»?`);const key=crypto.randomUUID();
+        ui.dialog('Подтвердить смену статуса',content,async()=>{const result=await request(`/tasks/${id}/confirm`,{method:'POST',body:{confirmation_id:preview.confirmation_id,idempotency_key:key}});Object.assign(task,result.task);render();},()=>request(`/confirmations/${preview.confirmation_id}/cancel`,{method:'POST'}));
+      });});
+    }
     if (!group.length) column.append(node('p', 'empty-copy', 'Нет задач'));
     group.forEach((task) => column.append(renderTaskCard(task, tasks, meetingOnly)));
     grid.append(column);
@@ -1731,6 +1772,7 @@ function renderTaskBoard(parent, tasks, meetingOnly) {
 function renderTaskCard(task, collection, meetingOnly) {
   const card = node('article', 'task-card panel');
   card.id = `task-${task.id}`; card.tabIndex = -1;
+  if(ui.can('tasks.change')){card.draggable=true;card.addEventListener('dragstart',event=>event.dataTransfer.setData('text/plain',String(task.id)));}
   card.append(node('p', 'task-card-text', task.text || 'Без описания'));
   const priorities = {low:'Низкий', normal:'Обычный', high:'Высокий', urgent:'Срочный'};
   if (task.priority) card.append(node('p','task-meta',`Приоритет: ${priorities[task.priority] || task.priority}`));
@@ -1750,7 +1792,10 @@ function renderTaskCard(task, collection, meetingOnly) {
   if (task.protocol_item_id) card.append(makeButton('Основание в протоколе', async () => {
     await openMeeting(task.meeting_id,'protocol'); $$('.protocol-item').find(item => String(item.dataset.itemId) === String(task.protocol_item_id))?.focus();
   },'task-meeting-link'));
+  if (task.source_quote?.kind==='manual_request') card.append(node('p','task-meta','Ручное поручение, подтверждённое пользователем; это не реплика записи.'));
   if (task.source_quote?.utterance_id) card.append(citationButton(task.source_quote.utterance_id, task.source_quote.text, 'utterance', 'Открыть цитату'));
+  card.append(makeButton('Комментарии и история',()=>void runAction(null,()=>operations.comments(card,task.id)),'secondary-button'));
+  if (task.escalated) card.append(node('p','warning-badge red','Эскалировано руководителю'));
   if (ui.can('tasks.change')) card.append(makeButton('Изменить задачу', () => ui.editTask(task, collection, meetingOnly)));
   if (ui.can('crm.write')) {
     if (!task.crm_status && !['done','cancelled'].includes(task.status)) card.append(makeButton('Отправить в Битрикс24 · mock',()=>void runAction(null,()=>crm.exportTask(task,async()=>{ if(meetingOnly) await refreshMeeting(task.meeting_id); else await openTasks(); }))));

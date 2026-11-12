@@ -103,6 +103,8 @@ def install(app):
         response.headers['X-Request-ID'] = request_id
         return response
 
+    from meetings.security import install as security_install
+    security_install(app)
     app.include_router(router())
     from meetings.calendar.api import router as calendar_router
     from meetings.feedback import router as feedback_router
@@ -112,10 +114,19 @@ def install(app):
     app.include_router(decisions_router())
     from meetings.connectors.api import router as crm_router
     app.include_router(crm_router())
+    from meetings.connectors.sync import router as sync_router
+    app.include_router(sync_router())
     from meetings.document_versions import router as document_versions_router
     app.include_router(document_versions_router())
     from meetings.briefing import router as briefing_router
     app.include_router(briefing_router())
+    from meetings.assistant.api import router as assistant_router
+    app.include_router(assistant_router())
+    from meetings.operations import router as operations_router, install_background
+    app.include_router(operations_router())
+    from meetings.protocol_export import router as protocol_export_router
+    app.include_router(protocol_export_router())
+    install_background(app)
     extras = _optional_routers()
     for extra in extras:
         app.include_router(extra)
@@ -1041,6 +1052,8 @@ def router():
                 store.audit(connection, user['id'], 'task_confirmed', item_id=item_id, task_id=cursor.lastrowid,
                             object_type='task', object_id=cursor.lastrowid, stage='confirm',
                             source_ids=[q['utterance_id'] for q in quotes])
+                from meetings.notifications import assigned
+                assigned(connection,cursor.lastrowid)
                 created.append(store.task_out(connection, connection.execute(
                     'SELECT * FROM tasks WHERE id=?', (cursor.lastrowid,)).fetchone()))
             return {'created': created, 'already_confirmed': already, 'protocol': store.protocol(connection, meeting_id)}
@@ -1145,6 +1158,7 @@ def router():
                 raise forbidden(user, 'tasks.change', 'task', task_id, 'task.change_fields')
             changes = _checked_task_changes(connection, user, row, changes)
             stamp = store.now()
+            before_state = {k:row[k] for k in ('status','assignee_user_id','due','priority')}
             if 'priority' in changes:
                 connection.execute('UPDATE tasks SET priority=? WHERE id=?', (changes['priority'], task_id))
             if 'linked_entities' in changes:
@@ -1162,6 +1176,12 @@ def router():
                                    (changes['due'], 'stated' if changes['due'] else 'unknown', task_id))
             connection.execute('UPDATE tasks SET updated_at=?, version=version+1 WHERE id=?', (stamp, task_id))
             task = store.task_out(connection, connection.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone())
+            updated = connection.execute('SELECT * FROM tasks WHERE id=?',(task_id,)).fetchone()
+            connection.execute('INSERT INTO task_history(task_id,user_id,before_json,after_json,created_at) VALUES (?,?,?,?,?)',
+                (task_id,user['id'],json.dumps(before_state),json.dumps({k:updated[k] for k in before_state}),stamp))
+            if 'assignee_user_id' in changes:
+                from meetings.notifications import assigned
+                assigned(connection,task_id)
             confirmations.finish(connection, payload.confirmation_id, payload.idempotency_key, {'task_id': task_id})
             store.audit(connection, user['id'], 'task_update', task_id=task_id, object_type='task', object_id=task_id,
                         confirmation_id=payload.confirmation_id, stage='confirm',

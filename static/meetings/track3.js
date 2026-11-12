@@ -437,7 +437,7 @@ export function track3UI(h) {
         try { result = await request('/calendar/slots', { method: 'POST', body }); }
         catch (e) { slots.replaceChildren(node('p', 'inline-error', 'Не удалось подобрать время. Измените параметры или повторите поиск.')); throw e; }
         if (!form.isConnected || searchedRevision !== revision || viewGeneration !== generation) return;
-        slots.replaceChildren(node('p', 'muted-copy', `Тестовый календарь · зона ${result.timezone} · ${(result.participants || []).map((p) => p.name).join(', ')}`));
+        slots.replaceChildren(node('p', 'muted-copy', `${result.provider==='mock' ? 'Тестовый календарь' : 'Внешний календарь'} · зона ${result.timezone} · ${(result.participants || []).map((p) => p.name).join(', ')}`));
         for(const warning of result.warnings || [])slots.append(node('p','gap-state',warning));
         if(result.generated_at)slots.append(node('p','task-meta',`Подбор рассчитан: ${date(result.generated_at)}`));
         if (!result.slots?.length) slots.append(node('p', '', 'Свободных слотов нет. Измените диапазон или состав участников.'));
@@ -463,7 +463,7 @@ export function track3UI(h) {
               dialog('Проверить встречу и приглашения', content, async () => {
                 try {
                   await request('/calendar/confirm', { method: 'POST', body: { confirmation_id: preview.confirmation_id, idempotency_key: idempotencyKey } });
-                  toast('Встреча назначена. Тестовые приглашения сохранены в локальной очереди.');
+                  toast('Встреча назначена. Приглашения сохранены в локальной очереди.');
                   h.markSaved(form);
                   try { await h.refreshMeeting(meetingId); }
                   catch (e) {

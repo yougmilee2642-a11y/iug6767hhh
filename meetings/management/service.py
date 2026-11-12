@@ -219,7 +219,14 @@ def source_timestamp(value):
 def resolve(actor, kind, source_id, audit):
     with store.db() as connection:
         connection.execute('BEGIN')
-        if kind == 'meeting':
+        if kind == 'assistant':
+            from meetings.assistant.service import source_result
+            from meetings.access import load_user
+            user = load_user(connection,actor)
+            result = source_result(connection,user,source_id)
+            audit.update(object_id=source_id,source_ids=[source_id])
+            return result
+        elif kind == 'meeting':
             if not re.fullmatch(r'[1-9]\d{0,18}', source_id) or int(source_id) > 2**63 - 1:
                 raise not_found()
             if not store.can_read_meeting(connection, actor, int(source_id), model=True):

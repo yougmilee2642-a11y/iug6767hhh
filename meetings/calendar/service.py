@@ -50,7 +50,7 @@ def add_busy(connection, user_id: int, start_at, end_at, title: str = '', source
                               (user_id, store.iso_utc(start), store.iso_utc(end), title[:200], source)).lastrowid
 
 
-def busy_intervals(connection, user_ids: list[int], start: datetime, end: datetime) -> list[tuple[datetime, datetime]]:
+def local_busy_intervals(connection, user_ids: list[int], start: datetime, end: datetime) -> list[tuple[datetime, datetime]]:
     """Merged busy intervals of the given users that intersect [start, end). No titles, no owners."""
     if not user_ids:
         return []
@@ -58,7 +58,7 @@ def busy_intervals(connection, user_ids: list[int], start: datetime, end: dateti
     rows = connection.execute(
         f'SELECT start_at, end_at FROM calendar_busy WHERE user_id IN ({marks}) '
         f'UNION ALL SELECT e.start_at, e.end_at FROM calendar_events e JOIN calendar_event_participants p '
-        f"ON p.event_id=e.id WHERE p.user_id IN ({marks}) AND e.status='confirmed'",
+        f"ON p.event_id=e.id WHERE p.user_id IN ({marks}) AND e.status IN ('confirmed','pending_external','uncertain')",
         list(user_ids) + list(user_ids)).fetchall()
     intervals = []
     for row in rows:
@@ -74,6 +74,19 @@ def busy_intervals(connection, user_ids: list[int], start: datetime, end: dateti
         else:
             merged.append([a, b])
     return [(a, b) for a, b in merged]
+
+
+def busy_intervals(connection, user_ids, start, end):
+    from meetings.calendar import providers
+    from meetings.connectors.contracts import IntegrationError
+    intervals = local_busy_intervals(connection, user_ids, start, end)
+    try:
+        if providers.configured_name() != 'mock':
+            intervals += providers.provider(connection).busy(user_ids, start, end)
+    except IntegrationError as error:
+        raise MeetError(503, 'calendar_' + error.code,
+                        'Источник занятости недоступен или не настроен. Слот не подтверждён; параметры сохранены.') from None
+    return sorted(intervals)
 
 
 def is_free(connection, user_ids, start: datetime, end: datetime) -> bool:
@@ -173,15 +186,24 @@ def safe_outbox(connection, viewer_id, row):
     return result
 
 
-def create_event(connection, organizer: dict, meeting_row, payload: dict, confirmation_id: str) -> dict:
+def create_event(connection, organizer: dict, meeting_row, payload: dict, confirmation_id: str,
+                 *, status='confirmed', provider=PROVIDER) -> dict:
     stamp = store.now()
     event_id = connection.execute(
         'INSERT INTO calendar_events(meeting_id,organizer_id,title,start_at,end_at,timezone,provider,status,'
-        "confirmation_id,created_at) VALUES (?,?,?,?,?,?,?,'confirmed',?,?)",
+        "confirmation_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
         (meeting_row['id'], organizer['id'], meeting_row['title'], payload['start_at'], payload['end_at'],
-         payload['timezone'], PROVIDER, confirmation_id, stamp)).lastrowid
+         payload['timezone'], provider, status, confirmation_id, stamp)).lastrowid
     for person in payload['participants']:
         connection.execute('INSERT OR IGNORE INTO calendar_event_participants VALUES (?,?)', (event_id, person['id']))
+    if status == 'confirmed':
+        finalize_event(connection, organizer, meeting_row, payload, event_id)
+    return {'event_id': event_id}
+
+
+def finalize_event(connection, organizer, meeting_row, payload, event_id):
+    stamp = store.now()
+    connection.execute("UPDATE calendar_events SET status='confirmed' WHERE id=?", (event_id,))
     start, end = datetime.fromisoformat(payload['start_at']), datetime.fromisoformat(payload['end_at'])
     for person in payload['participants']:
         if person['id'] == organizer['id']:
@@ -193,7 +215,6 @@ def create_event(connection, organizer: dict, meeting_row, payload: dict, confir
                            (event_id, person['id'], letter['subject'], letter['body'], stamp))
     connection.execute('UPDATE meetings SET scheduled_at=?, version=version+1 WHERE id=?',
                        (payload['start_at'], meeting_row['id']))
-    return {'event_id': event_id}
 
 
 def event_bundle(connection, viewer_id: int, event_id: int) -> dict:

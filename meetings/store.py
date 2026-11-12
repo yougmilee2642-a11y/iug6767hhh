@@ -312,8 +312,9 @@ def item_out(connection, row) -> dict:
 
 def task_out(connection, row) -> dict:
     meeting = connection.execute('SELECT title FROM meetings WHERE id=?', (row['meeting_id'],)).fetchone()
-    crm = connection.execute("SELECT status FROM integration_outbox WHERE connector='bitrix24-mock' AND action='task.create' AND object_type='task' AND object_id=?",(row['id'],)).fetchone()
-    return {'id': row['id'], 'text': row['text'], 'assignee': row['assignee'], 'assignee_status': row['assignee_status'],
+    crm = connection.execute("SELECT status FROM integration_outbox WHERE action='task.create' AND object_type='task' AND object_id=?",(row['id'],)).fetchone()
+    escalated = bool(connection.execute("SELECT 1 FROM notifications WHERE object_type='task' AND object_id=? AND kind='escalation'",(str(row['id']),)).fetchone()) if row['status'] not in ('done','cancelled') else False
+    return {'escalated':escalated, 'id': row['id'], 'text': row['text'], 'assignee': row['assignee'], 'assignee_status': row['assignee_status'],
             'due': row['due'], 'due_text': row['due_text'], 'due_status': row['due_status'], 'status': row['status'],
             'meeting_id': row['meeting_id'], 'meeting_title': meeting['title'] if meeting else None,
             'protocol_item_id': row['protocol_item_id'], 'source_quote': json.loads(row['source_quote']),

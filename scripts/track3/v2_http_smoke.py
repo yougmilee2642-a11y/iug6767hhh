@@ -189,6 +189,26 @@ def run(unavailable=False):
             request('operator', 'POST', route + '/confirm', json=payload)
             assert request('operator', 'POST', route + '/confirm', json=payload)['already_confirmed']
             assert any(e['result']=='denied' for e in request('auditor','GET','/audit')['events'])
+            assistant_result=request('prod_head','POST','/assistant/ask',json={'text':'Что просрочено?'})
+            assert assistant_result['status']=='grounded' and assistant_result['claims']
+            source=assistant_result['sources'][0]
+            request('prod_head','GET','/sources/assistant/'+source['id'])
+            request('designer','GET','/assistant/conversations/'+assistant_result['conversation_id'],expected=404)
+            action_meeting=request('prod_head','POST','/meetings',json={'title':'HTTP assistant manual task'})['meeting']['id']
+            proposed=request('prod_head','POST','/assistant/ask',json={'text':'Поставь задачу проверить картон','meeting_id':action_meeting})
+            assert proposed['status']=='action_proposed'
+            draft={'kind':'task','meeting_id':action_meeting,'text':'Ручная проверка картона HTTP','assignee_user_id':ids['users']['operator']}
+            action_token=request('prod_head','POST','/assistant/actions/preview',json=draft)['confirmation_id']
+            action_confirm={'confirmation_id':action_token,'idempotency_key':'http-assistant-manual-task'}
+            manual=request('prod_head','POST','/assistant/actions/confirm',json=action_confirm)
+            assert request('prod_head','POST','/assistant/actions/confirm',json=action_confirm)['already_confirmed']
+            request('prod_head','POST',f"/tasks/{manual['task_id']}/comments",json={'text':'Проверен ручной источник.'})
+            assert request('prod_head','GET',f"/tasks/{manual['task_id']}/comments")['comments']
+            assert clients['prod_head'].get(f'/api/meet/meetings/{action_meeting}/protocol/export?format=html').status_code==200
+            request('admin','GET','/retention')
+            request('prod_head','GET','/retention',expected=403)
+            request('admin','GET','/integrations/employees')
+            request('operator','GET','/notifications')
             doc = request('director','POST','/documents',files={'file':('editions.txt','Учебный график версий: поставка картона 20 ноября.'.encode())},
                           data={'title':'HTTP проверка истории версий'})['document']
             version_route = f"/documents/{doc['id']}"

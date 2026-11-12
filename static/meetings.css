@@ -1,3 +1,5 @@
+/* Same Jost family, served locally for the content security policy. */
+@font-face { font-family: "Jost"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("/static/fonts/jost/Jost.ttf") format("truetype"); }
 /* Фокус — встречи и знания.
    Палитра и типографика по брендбуку Pic Pac 2025 (раздел «Сайт»):
    текст #364C49 / #7C807F / #AEB4B3, действие #DD5757 и #364C49,
@@ -472,3 +474,6 @@ body.meetings-page {
 
 /* TODO(design): exact numeric evidence must wrap inside existing KPI cards. */
 .meetings-page .meet-kpi { overflow-wrap: anywhere; }
+
+/* TODO(design): wrap exported protocol text inside functional previews. */
+.meet-preview pre { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }

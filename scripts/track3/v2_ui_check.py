@@ -116,6 +116,15 @@ def run(artifacts):
                                 assert not errors, {'login':login,'page_errors':errors}
                                 if login == 'director':
                                     document_editions(page)
+                                    page.get_by_role('button',name='Ассистент',exact=True).click()
+                                    page.get_by_role('heading',name='Спросить Фокус',exact=True).wait_for()
+                                    page.get_by_label('Сообщение ассистенту',exact=True).fill('Что просрочено?')
+                                    page.get_by_role('button',name='Спросить Фокус',exact=True).click()
+                                    page.locator('[aria-label="Ответы ассистента"] .citation-chip').first.wait_for()
+                                    page.get_by_role('button',name='Уведомления',exact=True).click()
+                                    page.get_by_role('heading',name='Уведомления',exact=True).wait_for()
+                                    page.get_by_role('button',name='Предпросмотр настроек',exact=True).wait_for()
+                                    page.get_by_role('button',name='Обзор',exact=True).click()
                                     page.get_by_role('button',name='Брифинг',exact=True).click()
                                     page.get_by_role('heading',name='Брифинг дня',exact=True).wait_for()
                                     page.get_by_role('heading',name='Главные отклонения KPI',exact=True).wait_for()
@@ -130,6 +139,11 @@ def run(artifacts):
                                     assert page.locator('.search-result').count()>0
                                     page.get_by_role('button',name='Обзор',exact=True).click()
                                     page.get_by_role('heading',name='Обзор',exact=True).wait_for()
+                                if login == 'admin':
+                                    page.get_by_role('button',name='Хранение данных',exact=True).click()
+                                    page.get_by_role('heading',name='Хранение данных',exact=True).wait_for()
+                                    page.get_by_role('button',name='Предпросмотр политики',exact=True).wait_for()
+                                    page.get_by_role('button',name='Пользователи',exact=True).click()
                                 if login == 'prod_head':
                                     page.get_by_role('button',name='Встречи',exact=True).click()
                                     calendar=page.locator('details').filter(has=page.get_by_text('Мой календарь · ICS и приглашения',exact=True))

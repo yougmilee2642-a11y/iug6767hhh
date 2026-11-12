@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from meetings import confirmations, store
 from meetings.api import ConfirmTokenIn, _meeting, time_error
 from meetings.auth import MeetError, MeetRoute, current_user, require
-from meetings.calendar import service
+from meetings.calendar import service, sending
 
 ACTION = 'calendar.schedule'
 
@@ -81,7 +81,8 @@ def router():
     def directory(request: Request):
         current_user(request)
         with store.db() as connection:
-            return {'participants': service.directory(connection), 'provider': service.PROVIDER}
+            proof = sending.snapshot(connection, current_user(request), [])
+            return {'participants': service.directory(connection), 'provider': proof['provider']}
 
     @api.post('/api/meet/calendar/slots')
     def slots(payload: SlotsIn, request: Request):
@@ -91,6 +92,7 @@ def router():
         start, end = _aware(payload.range_start), _aware(payload.range_end)
         with store.db() as connection:
             people = service.participants(connection, [*payload.participant_ids,*payload.optional_participant_ids], user['id'])
+            provider_proof = sending.snapshot(connection, user, [p['id'] for p in people])
             optional = [p['id'] for p in people if p['id'] in payload.optional_participant_ids and p['id'] != user['id'] and p['id'] not in payload.participant_ids]
             required = [p['id'] for p in people if p['id'] not in optional]
             warnings = []
@@ -106,7 +108,7 @@ def router():
             store.audit(connection,user['id'],'availability_search',object_type='calendar',
                         slot_count=len(found),smart=payload.smart,participant_count=len(people))
         return {'slots': found, 'timezone': tz_name, 'participants': people, 'duration_minutes': payload.duration_minutes,
-                'step_minutes': service.STEP_MINUTES, 'provider': service.PROVIDER,'warnings':warnings,'smart':payload.smart,
+                'step_minutes': service.STEP_MINUTES, 'provider': provider_proof['provider'],'warnings':warnings,'smart':payload.smart,
                 'generated_at':store.now()}
 
     @api.post('/api/meet/calendar/preview')
@@ -121,6 +123,9 @@ def router():
             row = _meeting(connection, user, payload.meeting_id, 'calendar.invite', 'calendar.preview')
             people = service.participants(connection, [*payload.participant_ids,*payload.optional_participant_ids], user['id'])
             ids = [p['id'] for p in people]
+            provider_proof = sending.snapshot(connection, user, ids)
+            if provider_proof['provider'] != 'mock' and row['confidentiality'] == 'secret':
+                raise MeetError(403, 'secret_export_denied', 'Закрытая встреча не передаётся во внешний календарь.')
             optional = [i for i in ids if i in payload.optional_participant_ids and i!=user['id'] and i not in payload.participant_ids]
             schedule_warnings = []
             if payload.smart:
@@ -138,10 +143,12 @@ def router():
                     'end_local': end.astimezone(store.zone(tz_name)).isoformat(timespec='minutes'),
                     'duration_minutes': payload.duration_minutes, 'participants': people,
                     'smart':payload.smart,'optional_participant_ids':optional,
-                    'invitations': invitations, 'provider': service.PROVIDER,
+                    'invitations': invitations, 'provider': provider_proof['provider'], 'provider_proof': provider_proof,
                     'warnings': ([f'У участников без доступа к материалам встречи ({no_access}) приглашение придёт '
                                   'без названия; доступ к встрече не выдаётся автоматически.'] if no_access else [])
-                                + schedule_warnings + ['Тестовый календарь: реальные письма не отправляются.']}
+                                + schedule_warnings + [
+                                    'Тестовый календарь: реальные письма не отправляются.' if provider_proof['provider']=='mock' else
+                                    'После подтверждения событие будет записано во внешний календарь. Передаются участники и время; название и материалы остаются локально. Письма — в локальной очереди.']}
             token = confirmations.create(connection, user, ACTION, 'meeting', row['id'], row['version'], body)
             store.audit(connection, user['id'], 'calendar_preview', object_type='meeting', object_id=row['id'],
                         confirmation_id=token['confirmation_id'], stage='preview', participants=ids,
@@ -155,29 +162,40 @@ def router():
             pending = confirmations.load(connection, user, payload.confirmation_id, ACTION, 'meeting', None,
                                          payload.idempotency_key)
             require(user, 'calendar.invite', action='calendar.confirm')
-            if pending['already']:
-                bundle = service.event_bundle(connection, user['id'], pending['result']['event_id'])
-                return {**bundle, 'already_confirmed': True}
             body = pending['payload']
-            meeting_id = int(pending['object_id'])
-            row = _meeting(connection, user, meeting_id, 'calendar.invite', 'calendar.confirm')  # ACL/role re-checked
-            if row['version'] != pending['object_version']:
-                raise MeetError(409, 'stale', 'Встреча изменилась после предпросмотра. Сформируйте предпросмотр заново.')
-            start, end = datetime.fromisoformat(body['start_at']), datetime.fromisoformat(body['end_at'])
-            if body.get('smart'):
-                from meetings.calendar import availability
-                optional = body.get('optional_participant_ids',[])
-                warnings,_ = _availability(user,availability.validate,connection,[p['id'] for p in body['participants'] if p['id'] not in optional],optional,start,end)
-                if set(warnings)-set(body['warnings']):
-                    raise MeetError(409,'stale','Предупреждения графика изменились. Нужен новый предпросмотр приглашения.')
-            elif not service.is_free(connection, [p['id'] for p in body['participants']], start, end):
-                raise MeetError(409, 'slot_taken', 'Пока вы подтверждали, это время заняли. Выберите другой слот.')
-            created = service.create_event(connection, user, row, body, payload.confirmation_id)
-            confirmations.finish(connection, payload.confirmation_id, payload.idempotency_key, created)
-            store.audit(connection, user['id'], 'calendar_confirm', object_type='calendar_event',
-                        object_id=created['event_id'], confirmation_id=payload.confirmation_id, stage='confirm',
-                        meeting_id=meeting_id, invitations=len(body['participants']) - 1)
-            return {**service.event_bundle(connection, user['id'], created['event_id']), 'already_confirmed': False}
+            row = _meeting(connection, user, body['meeting_id'], 'calendar.invite', 'calendar.confirm')
+            if pending['already']:
+                created = pending['result']
+                if body.get('provider','mock') == 'mock':
+                    return {**service.event_bundle(connection, user['id'], created['event_id']), 'already_confirmed': True}
+            else:
+                meeting_id = int(pending['object_id'])
+                if row['version'] != pending['object_version']:
+                    raise MeetError(409, 'stale', 'Встреча изменилась после предпросмотра. Сформируйте предпросмотр заново.')
+                if sending.snapshot(connection, user, [p['id'] for p in body['participants']]) != body.get('provider_proof',{'provider':'mock'}):
+                    raise MeetError(409, 'stale', 'Провайдер или маппинг календаря изменился. Нужен новый предпросмотр.')
+                start, end = datetime.fromisoformat(body['start_at']), datetime.fromisoformat(body['end_at'])
+                if start <= datetime.now(timezone.utc):
+                    raise MeetError(409,'slot_in_past','Время встречи уже прошло. Выберите новый слот.')
+                if body.get('smart'):
+                    from meetings.calendar import availability
+                    optional = body.get('optional_participant_ids',[])
+                    warnings,_ = _availability(user,availability.validate,connection,[p['id'] for p in body['participants'] if p['id'] not in optional],optional,start,end)
+                    if set(warnings)-set(body['warnings']):
+                        raise MeetError(409,'stale','Предупреждения графика изменились. Нужен новый предпросмотр приглашения.')
+                elif not service.is_free(connection, [p['id'] for p in body['participants']], start, end):
+                    raise MeetError(409, 'slot_taken', 'Пока вы подтверждали, это время заняли. Выберите другой слот.')
+                if body['provider'] == 'mock':
+                    created = service.create_event(connection, user, row, body, payload.confirmation_id)
+                else:
+                    created = sending.reserve(connection, user, row, body, payload.confirmation_id, payload.idempotency_key)
+                confirmations.finish(connection, payload.confirmation_id, payload.idempotency_key, created)
+                store.audit(connection, user['id'], 'calendar_confirm', object_type='calendar_event',
+                            object_id=created['event_id'], confirmation_id=payload.confirmation_id, stage='confirm',
+                            meeting_id=meeting_id, invitations=len(body['participants']) - 1)
+                if body['provider'] == 'mock':
+                    return {**service.event_bundle(connection, user['id'], created['event_id']), 'already_confirmed': False}
+        return sending.dispatch(user, created['event_id'], already=pending['already'])
 
     @api.post('/api/meet/calendar/cancel')
     def cancel(payload: CancelIn, request: Request):

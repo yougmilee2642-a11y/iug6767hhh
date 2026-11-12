@@ -1,3 +1,4 @@
+import os
 """Human-confirmed CRM exports. Mock transport only; no background retries."""
 import json
 import re
@@ -9,6 +10,7 @@ from meetings import access, confirmations, store, textutil
 from meetings.auth import MeetError, MeetRoute, current_user, require, forbidden
 from meetings.connectors.contracts import IntegrationError
 from meetings.connectors.mock import MockCRM, digest
+from meetings.connectors.factory import connector, name as connector_name
 from meetings.privacy import Masker, prohibited_intent, source_is_injection
 
 
@@ -61,7 +63,7 @@ def build(c,user,data,*,read_faults=True):
     """Regenerate the exact export at confirm, including mappings and source proof."""
     action, object_id = data['action'], data['object_id']
     require(user,'crm.write','task' if action=='task.create' else 'meeting',object_id,'crm.export')
-    crm = MockCRM(c,user['id'],read_faults=read_faults)
+    crm = connector(c,user['id'],read_faults=read_faults)
     masker = Masker(r[0] for r in c.execute('SELECT display_name FROM crm_customers'))
     if action=='task.create':
         task = c.execute('SELECT * FROM tasks WHERE id=?',(object_id,)).fetchone()
@@ -69,7 +71,9 @@ def build(c,user,data,*,read_faults=True):
         meeting = checked_meeting(c,user,task['meeting_id'])
         if task['status'] in ('done','cancelled'):
             raise MeetError(422,'task_closed','Задача закрыта. Проверьте её статус перед созданием задачи CRM.')
-        proof = quote(c,meeting['id'],json.loads(task['source_quote']))
+        original=json.loads(task['source_quote'])
+        manual=original.get('kind')=='manual_request' and c.execute('SELECT 1 FROM task_origins WHERE task_id=?',(task['id'],)).fetchone()
+        proof = {'kind':'manual_request','task_id':task['id'],'text':task['text']} if manual else quote(c,meeting['id'],original)
         if not proof: raise MeetError(422,'source_quote_required','Проверьте реплику-основание задачи перед отправкой.')
         safe_text(task['text']); safe_text(proof['text'])
         for entity in json.loads(task['linked_entities']):
@@ -87,8 +91,9 @@ def build(c,user,data,*,read_faults=True):
                   'assignee_external_id':employee['external_id'],'assignee_name':employee['name'],
                   'due':task['due'],'priority':task['priority'],'linked_entities':json.loads(task['linked_entities']),
                   'source_quote':masker.value(proof),'source_at':meeting['scheduled_at'] or meeting['created_at'],
-                  'source_path':f"/api/meet/utterances/{proof['utterance_id']}"}
+                  'source_path':f"/api/meet/utterances/{proof['utterance_id']}" if proof.get('utterance_id') else f"/api/meet/sources/task/T{task['id']}"}
         version = task['version']
+        if crm.name=='bitrix24':result['destination_hash']=digest(crm.webhook)
         freshness = {k:employee[k] for k in ('source_id','as_of','fetched_at','stale')}
         return result, version, freshness
     meeting = checked_meeting(c,user,object_id)
@@ -102,6 +107,10 @@ def build(c,user,data,*,read_faults=True):
     items = []
     for item in c.execute('SELECT * FROM protocol_items WHERE meeting_id=? AND confirmed_at IS NOT NULL ORDER BY position,id',(object_id,)):
         proofs = [p for value in json.loads(item['quotes']) if (p := quote(c,object_id,value))]
+        if not proofs and item['task_id'] and c.execute('SELECT 1 FROM task_origins WHERE task_id=?',(item['task_id'],)).fetchone():
+            task=c.execute('SELECT * FROM tasks WHERE id=? AND protocol_item_id=?',(item['task_id'],item['id'])).fetchone()
+            if task and json.loads(task['source_quote']).get('kind')=='manual_request':
+                proofs=[{'kind':'manual_request','task_id':task['id'],'text':task['text']}]
         if not proofs: raise MeetError(422,'source_quote_required','У подтверждённого пункта нет проверяемой цитаты.')
         safe_text(item['text'])
         for proof in proofs: safe_text(proof['text'])
@@ -110,6 +119,9 @@ def build(c,user,data,*,read_faults=True):
     result = masker.value({'meeting_id':object_id,'title':meeting['title'],'items':items,'entity_ref':target,
                           'source_at':meeting['scheduled_at'] or meeting['created_at'],
                           'source_path':f'/api/meet/meetings/{object_id}'})
+    if crm.name=='bitrix24':
+        result['destination_hash']=digest(crm.webhook)
+        result['entity_external_id']=entity.get('external_id') or target.rsplit(':',1)[-1]
     return result,meeting['version'],{k:entity[k] for k in ('source_id','as_of','fetched_at','stale')}
 
 
@@ -137,12 +149,12 @@ def router():
             except IntegrationError as error: raise integration_error(error,user) from None
             kind = 'task' if payload.action=='task.create' else 'meeting'
             old = c.execute('SELECT status,external_ref FROM integration_outbox WHERE connector=? AND action=? AND object_type=? AND object_id=?',
-                            (MockCRM.name,payload.action,kind,payload.object_id)).fetchone()
+                            (connector_name(),payload.action,kind,payload.object_id)).fetchone()
             if old:
                 raise MeetError(409,'export_exists','Отправка уже зарегистрирована. Проверьте её статус; повторная отправка запрещена.')
-            view = {'connector':MockCRM.name,'mode':'mock','action':payload.action,'fields':draft,
+            view = {'connector':connector_name(),'mode':('mock' if connector_name()==MockCRM.name else 'bitrix24'),'action':payload.action,'fields':draft,
                     'freshness':freshness,'warning':'Данные устарели.' if freshness['stale'] else None,
-                    'notice':'Локальная имитация Битрикс24. Реальный портал не подключён.'}
+                    'notice':'Локальная имитация Битрикс24. Реальный портал не подключён.' if connector_name()==MockCRM.name else 'Транспорт Битрикс24 включён. Проверьте адресата и поля перед подтверждением.'}
             token = confirmations.create(c,user,'crm.export',kind,payload.object_id,version,
                         {'input':payload.model_dump(),'draft':draft,'payload_hash':digest(draft),'preview':view})
             store.audit(c,user['id'],'crm_export_preview',object_type=kind,object_id=payload.object_id,
@@ -165,29 +177,31 @@ def router():
             if pending.get('already'): return response(pending['result'],True)
             kind = 'task' if data['action']=='task.create' else 'meeting'
             old = c.execute('SELECT 1 FROM integration_outbox WHERE connector=? AND action=? AND object_type=? AND object_id=?',
-                            (MockCRM.name,data['action'],kind,data['object_id'])).fetchone()
+                            (connector_name(),data['action'],kind,data['object_id'])).fetchone()
             if old: raise MeetError(409,'export_exists','Отправка уже зарегистрирована. Проверьте её статус.')
             # Revalidate the local SQLite mirror without injected read faults.
             # The fault is applied exactly once at the mock write boundary. A
             # future network adapter must not reuse this local-only atomic flow.
+            if pending['payload']['preview']['connector']!=connector_name():
+                raise MeetError(409,'connector_changed','Подключение изменилось. Нужен новый предпросмотр.')
             try: draft,version,_ = build(c,user,data,read_faults=False)
             except IntegrationError as error: raise integration_error(error,user) from None
             if version!=pending['object_version'] or digest(draft)!=pending['payload']['payload_hash']:
                 raise MeetError(409,'stale','Задача, протокол, цитата или сопоставление изменились. Нужен новый предпросмотр.')
-            key = digest([MockCRM.name,data['action'],kind,data['object_id']])
+            key = digest([connector_name(),data['action'],kind,data['object_id']])
             oid = c.execute('INSERT INTO integration_outbox(connector,action,object_type,object_id,payload_hash,preview_json,status,idempotency_key,confirmation_id,confirmed_by,confirmed_at) VALUES (?,?,?,?,?,?,\'pending\',?,?,?,?)',
-                (MockCRM.name,data['action'],kind,data['object_id'],digest(draft),json.dumps(pending['payload']['preview'],ensure_ascii=False),key,payload.confirmation_id,user['id'],store.now())).lastrowid
+                (connector_name(),data['action'],kind,data['object_id'],digest(draft),json.dumps(pending['payload']['preview'],ensure_ascii=False),key,payload.confirmation_id,user['id'],store.now())).lastrowid
             try:
-                crm = MockCRM(c,user['id'])
+                crm = connector(c,user['id'])
                 result = crm.create_task(draft,key) if kind=='task' else crm.attach_protocol(data['entity_ref'],draft,key)
-                result = {'status':'sent','external_ref':result['ref'],'outbox_id':oid,'mode':'mock'}
+                result = {'status':'sent','external_ref':result['ref'],'outbox_id':oid,'mode':('mock' if connector_name()==MockCRM.name else 'bitrix24')}
                 c.execute("UPDATE integration_outbox SET status='sent',external_ref=? WHERE id=?",(result['external_ref'],oid))
                 if kind=='task': c.execute('UPDATE tasks SET external_ref=?,version=version+1,updated_at=? WHERE id=?',
                                           (result['external_ref'],store.now(),data['object_id']))
             except IntegrationError as error:
                 status = 'uncertain' if error.uncertain or error.code=='uncertain' else 'failed'
                 c.execute('UPDATE integration_outbox SET status=?,last_error=? WHERE id=?',(status,error.code,oid))
-                result = {'status':status,'outbox_id':oid,'code':error.code,'detail':str(error),'http_status':503,'mode':'mock'}
+                result = {'status':status,'outbox_id':oid,'code':error.code,'detail':str(error),'http_status':503,'mode':('mock' if connector_name()==MockCRM.name else 'bitrix24')}
             confirmations.finish(c,payload.confirmation_id,payload.idempotency_key,result)
             store.audit(c,user['id'],'crm_export_confirmed',object_type=kind,object_id=data['object_id'],
                         confirmation_id=payload.confirmation_id,result=result['status'],stage='confirm',error_code=result.get('code'))
@@ -199,23 +213,23 @@ def router():
         with store.db() as c:
             row = c.execute('SELECT meeting_id,external_ref FROM tasks WHERE id=?',(task_id,)).fetchone()
             if not row or not store.can_read_meeting(c,user['id'],row['meeting_id']): raise denied(user,'task',task_id)
-            outbox = c.execute("SELECT status,external_ref,last_error,confirmed_at FROM integration_outbox WHERE connector=? AND action='task.create' AND object_type='task' AND object_id=?",(MockCRM.name,task_id)).fetchone()
-            try: external = MockCRM(c,user['id']).get_task_status(row['external_ref']) if row['external_ref'] else None
+            outbox = c.execute("SELECT status,external_ref,last_error,confirmed_at FROM integration_outbox WHERE connector=? AND action='task.create' AND object_type='task' AND object_id=?",(connector_name(),task_id)).fetchone()
+            try: external = connector(c,user['id']).get_task_status(row['external_ref']) if row['external_ref'] else None
             except IntegrationError as error: raise integration_error(error,user) from None
-            return {'outbox':dict(outbox) if outbox else None,'external':external,'mode':'mock'}
+            return {'outbox':dict(outbox) if outbox else None,'external':external,'mode':('mock' if connector_name()==MockCRM.name else 'bitrix24')}
 
     @api.get('/api/meet/crm/orders/{order_no}')
     def order(order_no: str,request: Request):
         user = current_user(request)
         with store.db() as c:
-            crm = MockCRM(c,user['id'])
+            crm = connector(c,user['id'])
             try:
                 row = crm.get_order(order_no)
                 if not row: raise denied(user,'order',order_no)
                 interactions = crm.find_interactions(order_no=order_no)
             except IntegrationError as error: raise integration_error(error,user) from None
             store.audit(c,user['id'],'crm_order_read',object_type='order',object_id=order_no)
-            return {'order':row,'interactions':interactions,'warning':'Данные устарели.' if row['stale'] else None,'mode':'mock'}
+            return {'order':row,'interactions':interactions,'warning':'Данные устарели.' if row['stale'] else None,'mode':('mock' if connector_name()==MockCRM.name else 'bitrix24')}
 
     @api.get('/api/meet/integrations')
     def integrations(request: Request):
@@ -223,10 +237,10 @@ def router():
         with store.db() as c:
             last = c.execute('SELECT MAX(confirmed_at) FROM integration_outbox').fetchone()[0]
             check = c.execute("SELECT at,result FROM audit WHERE action='integration_check' ORDER BY id DESC LIMIT 1").fetchone()
-            return {'connectors':[{'name':MockCRM.name,'mode':'mock','configured':True,'last_export_at':last,
+            return {'connectors':[{'name':connector_name(),'mode':('mock' if connector_name()==MockCRM.name else 'bitrix24'),'configured':(connector_name()==MockCRM.name or bool(os.getenv('MEETINGS_BITRIX_WEBHOOK'))),'last_export_at':last,
                                   'last_checked_at':check['at'] if check else None,'last_check_result':check['result'] if check else None,
-                                  'notice':'SQLite-имитация; реальный портал не подключён.'}],
-                    'mapped_employees':c.execute('SELECT COUNT(*) FROM user_external_ids WHERE connector=?',(MockCRM.name,)).fetchone()[0]}
+                                  'notice':'SQLite-имитация; реальный портал не подключён.' if connector_name()==MockCRM.name else 'Транспорт Битрикс24; права остаются локальными.'}],
+                    'mapped_employees':c.execute('SELECT COUNT(*) FROM user_external_ids WHERE connector=?',(connector_name(),)).fetchone()[0]}
 
     @api.get('/api/meet/crm/targets')
     def targets(meeting_id: int,request: Request):
@@ -238,15 +252,15 @@ def router():
                 'SELECT d.id,d.title FROM crm_deals d WHERE '+sql+' ORDER BY d.id',args)]
             rows += [{'ref':r['external_ref'],'label':'Задача · '+r['text']} for r in c.execute(
                 'SELECT text,external_ref FROM tasks WHERE meeting_id=? AND external_ref IS NOT NULL ORDER BY id',(meeting_id,))]
-            return {'targets':rows,'mode':'mock'}
+            return {'targets':rows,'mode':('mock' if connector_name()==MockCRM.name else 'bitrix24')}
 
     @api.post('/api/meet/integrations/check')
     def check(request: Request):
         user = current_user(request); require(user,'integrations.manage',action='integrations.check')
         with store.db() as c:
             try:
-                departments = MockCRM(c,user['id']).list_departments()
-                result = {'status':'ok','mode':'mock','departments':len(departments),
+                departments = connector(c,user['id']).list_departments()
+                result = {'status':'ok','mode':('mock' if connector_name()==MockCRM.name else 'bitrix24'),'departments':len(departments),
                           'stale':any(d['stale'] for d in departments),'fetched_at':store.now()}
             except IntegrationError as error:
                 store.audit(c,user['id'],'integration_check',object_type='integration',result='failed',error_code=error.code)

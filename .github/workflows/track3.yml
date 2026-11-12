@@ -66,6 +66,8 @@ jobs:
           node --check static/meetings/track3.js
           node --check static/meetings/documents.js
           node --check static/meetings/briefing.js
+          node --check static/meetings/assistant.js
+          node --check static/meetings/operations.js
           node --check static/meetings/protocol.js
           node --check static/meetings/voice.js
           node --check static/meetings/administration.js

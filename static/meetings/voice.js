@@ -362,6 +362,10 @@ export function voiceAssistant(h) {
     result.replaceChildren();
     const phrase = node('p', `voice-phrase${reply.speak ? '' : ' voice-phrase-silent'}`, reply.display);
     result.append(phrase);
+    if (reply.route === 'action_draft') {
+      result.append(node('p','',reply.display),makeButton('Проверить действие',()=>h.proposeAction(reply.proposed_action),'secondary-button'));
+      return;
+    }
     if (reply.route === 'action') {
       result.append(makeButton(reply.open_page === 'calendar' ? 'Открыть встречи' : 'Открыть задачи', () => {
         h.navigate(reply.open_page === 'calendar' ? 'meetings' : 'tasks');
@@ -373,6 +377,14 @@ export function voiceAssistant(h) {
       result.append(node('p','',answer.spoken || reply.display));
       for (const warning of answer.warnings || []) result.append(node('p','voice-warning',warning));
       result.append(makeButton('Открыть брифинг',()=>h.navigate('briefing'),'secondary-button'));
+      return;
+    }
+    if (reply.route === 'assistant_read') {
+      for (const claim of answer.claims || []) {
+        result.append(node('p','',claim.text));
+        for(const source of claim.sources || [])result.append(makeButton(source.title,()=>void openSource(source.kind,source.id,source.quote,source),'citation-chip'));
+      }
+      for(const warning of answer.warnings || [])result.append(node('p','voice-warning',warning));
       return;
     }
     if (reply.route === 'knowledge') {
