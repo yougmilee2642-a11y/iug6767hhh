@@ -1,0 +1,3 @@
+# Frozen model inputs remain byte-identical on Windows checkout.
+*.txt text eol=lf
+*.json text eol=lf

@@ -1,0 +1,228 @@
+{
+  "status": "passed",
+  "model": "scripted double; live quality not measured",
+  "roles": 6,
+  "requests": [
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "prod_head",
+      "method": "POST",
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "role": "prod_head",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "designer",
+      "method": "POST",
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "role": "designer",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "admin",
+      "method": "POST",
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "role": "admin",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "auditor",
+      "method": "POST",
+      "route": "/login",
+      "status": 200
+    },
+    {
+      "role": "auditor",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "GET",
+      "route": "/demo-profiles",
+      "status": 200
+    },
+    {
+      "role": "designer",
+      "method": "GET",
+      "route": "/documents/41/download",
+      "status": 404
+    },
+    {
+      "role": "admin",
+      "method": "GET",
+      "route": "/documents/41/download",
+      "status": 404
+    },
+    {
+      "role": "auditor",
+      "method": "GET",
+      "route": "/documents/41/download",
+      "status": 404
+    },
+    {
+      "role": "prod_head",
+      "method": "GET",
+      "route": "/documents/41/download",
+      "status": 404
+    },
+    {
+      "role": "admin",
+      "method": "GET",
+      "route": "/meetings/1",
+      "status": 404
+    },
+    {
+      "role": "auditor",
+      "method": "GET",
+      "route": "/meetings/1",
+      "status": 404
+    },
+    {
+      "role": "designer",
+      "method": "GET",
+      "route": "/meetings/1",
+      "status": 404
+    },
+    {
+      "role": "admin",
+      "method": "GET",
+      "route": "/admin/users",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "GET",
+      "route": "/overview?as_of=2026-11-11T12:00:00%2B00:00",
+      "status": 200
+    },
+    {
+      "role": "designer",
+      "method": "POST",
+      "route": "/qa",
+      "status": 200
+    },
+    {
+      "role": "director",
+      "method": "POST",
+      "route": "/qa",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "GET",
+      "route": "/tasks",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/tasks/1/preview",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/confirmations/cf_WGBzzN6M1vyZRSeBoguLc4tX/cancel",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/tasks/1/confirm",
+      "status": 409
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/tasks/1/preview",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/tasks/1/confirm",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "POST",
+      "route": "/tasks/1/confirm",
+      "status": 200
+    },
+    {
+      "role": "auditor",
+      "method": "GET",
+      "route": "/audit",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "GET",
+      "route": "/me",
+      "status": 200
+    },
+    {
+      "role": "operator",
+      "method": "GET",
+      "route": "/tasks",
+      "status": 200
+    },
+    {
+      "role": "designer",
+      "method": "GET",
+      "route": "/meetings/1",
+      "status": 404
+    }
+  ],
+  "kpi_before_mutation": {
+    "open_tasks": 4,
+    "overdue_tasks": 3,
+    "on_time_orders": 97.6,
+    "defect_rate": 1.8,
+    "capacity_utilization": 75.0
+  },
+  "restart": "passed",
+  "elapsed_seconds": 4.516076492000138,
+  "working_tree_dirty": true,
+  "commit": "54bc4cc08e280e2ce5d448d8d6da9e3320f40b15"
+}

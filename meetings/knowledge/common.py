@@ -98,7 +98,7 @@ def run(request, response, action, operation):
             capability = 'qa.ask' if action.startswith('qa.') else 'overview.read'
             auth.require(user, capability, action=action)
         result = operation(actor, details)
-        details['result'] = result.get('status', 'ok')
+        details['result'] = 'denied' if details.get('result') == 'denied' else result.get('status', 'ok')
     except (sqlite3.Error, OSError):
         failed = True
         details.update(result='error', error_code='storage_unavailable')

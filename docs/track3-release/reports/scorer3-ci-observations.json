@@ -1,0 +1,61 @@
+{
+  "head_sha": "0844d0e36352e4686a659be47c4e6b705bcba039",
+  "merge_sha": "79862bb2949daf7ac7ab910fbd16a0f45b9c6f41",
+  "run_id": 43041468303,
+  "overall": "failed",
+  "linux_job": 130596032970,
+  "windows_job": 130596033605,
+  "python": {
+    "passed": 256,
+    "failed": 3,
+    "skipped": 15,
+    "seconds": 42.94
+  },
+  "windows": {
+    "passed": 73,
+    "seconds": 7.34,
+    "pythonutf8": 0
+  },
+  "javascript": {
+    "passed": 46
+  },
+  "ui": {
+    "passed": 35,
+    "seconds": 39.744
+  },
+  "ui_http": {
+    "status": "passed",
+    "http_responses": 44,
+    "sizes": [
+      360,
+      768,
+      1440
+    ],
+    "browser_errors": [],
+    "seconds": 5.655836655000002,
+    "model_kind": "explicit_test_double",
+    "live_model_quality": "not_run"
+  },
+  "product_http": {
+    "status": "passed",
+    "seconds": 3.599894999,
+    "model_kind": "none; scripted human-authored protocol",
+    "restart": "passed",
+    "torch_installed": false
+  },
+  "browser_setup": "passed; apt --with-deps removed",
+  "pip_check": "passed",
+  "syntax_diff": "passed",
+  "raw_summary_lines": [
+    "2026-11-11T14:48:45.1031736Z No broken requirements found.",
+    "2026-11-11T14:49:28.6459779Z FAILED tests/test_track3_knowledge.py::test_claim_text_may_copy_document_heading_around_the_quote - AssertionError: assert ('grounded' == 'grounded'",
+    "2026-11-11T14:49:28.6465065Z FAILED tests/test_track3_knowledge_retrieval.py::test_excerpt_boundaries_cannot_drop_currency_or_newline_condition[\\u041b\\u0438\\u043c\\u0438\\u0442 \\u043e\\u043f\\u043b\\u0430\\u0442\\u044b \\u2014 50 \\u0442\\u044b\\u0441. \\u0440\\u0443\\u0431\\u043b\\u0435\\u0439 \\u043d\\u0430 \\u043e\\u043f\\u0435\\u0440\\u0430\\u0446\\u0438\\u044e \\u043f\\u0440\\u0438 \\u043f\\u0440\\u0435\\u0434\\u043e\\u043f\\u043b\\u0430\\u0442\\u0435.-\\u041b\\u0438\\u043c\\u0438\\u0442 \\u043e\\u043f\\u043b\\u0430\\u0442\\u044b \\u2014 50 \\u0442\\u044b\\u0441.-\\u041a\\u0430\\u043a\\u043e\\u0439 \\u043b\\u0438\\u043c\\u0438\\u0442 \\u043e\\u043f\\u043b\\u0430\\u0442\\u044b?] - AssertionError: assert 'grounded' == 'insufficient_data'",
+    "2026-11-11T14:49:28.6470508Z FAILED tests/test_track3_knowledge_retrieval.py::test_excerpt_boundaries_cannot_drop_currency_or_newline_condition[\\u0422\\u043e\\u043b\\u044c\\u043a\\u043e \\u043f\\u0440\\u0438 \\u043f\\u0440\\u0435\\u0434\\u043e\\u043f\\u043b\\u0430\\u0442\\u0435\\n\\u041e\\u0442\\u0433\\u0440\\u0443\\u0437\\u043a\\u0430 \\u0441\\u043e\\u0441\\u0442\\u043e\\u0438\\u0442\\u0441\\u044f 20 \\u043d\\u043e\\u044f\\u0431\\u0440\\u044f.-\\u041e\\u0442\\u0433\\u0440\\u0443\\u0437\\u043a\\u0430 \\u0441\\u043e\\u0441\\u0442\\u043e\\u0438\\u0442\\u0441\\u044f 20 \\u043d\\u043e\\u044f\\u0431\\u0440\\u044f.-\\u041a\\u043e\\u0433\\u0434\\u0430 \\u043e\\u0442\\u0433\\u0440\\u0443\\u0437\\u043a\\u0430?] - AssertionError: assert 'grounded' == 'insufficient_data'",
+    "2026-11-11T14:49:28.6473252Z 3 failed, 256 passed, 15 skipped, 6 warnings in 42.94s",
+    "2026-11-11T14:49:29.3187390Z # pass 46",
+    "2026-11-11T14:49:32.9748463Z {\"status\": \"passed\", \"test_kind\": \"real HTTP + human-authored protocol; no model quality measurement\", \"commit\": \"79862bb2949daf7ac7ab910fbd16a0f45b9c6f41\", \"voice_weights_required\": false, \"torch_installed\": false, \"restart_cookie_and_state\": \"passed\", \"kpi_before_mutations\": {\"open_tasks\": 2, \"overdue_tasks\": 1, \"on_time_orders\": 90.0, \"defect_rate\": 2.0, \"capacity_utilization\": 75.0}, \"elapsed_seconds\": 3.599894999}",
+    "2026-11-11T14:50:21.6950633Z Ran 35 tests in 39.744s",
+    "2026-11-11T14:50:27.6494282Z {\"status\": \"passed\", \"model_kind\": \"explicit_test_double\", \"live_model_quality\": \"not_run\", \"elapsed_seconds\": 5.655836655000002, \"browser\": {\"result\": \"passed\", \"browser_errors\": [], \"HTTP_responses\": 44, \"sizes\": [360, 768, 1440], \"model\": \"explicit test double; no Ollama quality claim\", \"real_calendar_conflict\": 409, \"due_words_preserved\": true}, \"artifacts\": \"/tmp/track3-ui-http\", \"observed_at\": \"2026-11-11T14:50:27.646088+00:00\", \"commit\": \"79862bb2949daf7ac7ab910fbd16a0f45b9c6f41\"}"
+  ],
+  "source_url": "https://github.com/yougmilee2642-a11y/iug6767hhh/actions/runs/43041468303"
+}

@@ -1,3 +1,4 @@
+import { documentLibrary } from './documents.js';
 // Track 3 views. API payloads follow the core and knowledge server handoffs.
 // This module has no demo fallback; fixtures live exclusively in tests/ui_track3.
 export function track3UI(h) {
@@ -7,6 +8,7 @@ export function track3UI(h) {
   let overviewStatus = 'idle';
   let answer = null;
   let question = '';
+  let includeHistory = false;
   let context = '';
   let qaBusy = false;
   let qaSequence = 0;
@@ -19,6 +21,7 @@ export function track3UI(h) {
   const can = (capability) => state.capabilities.includes(capability);
   const key = () => crypto.randomUUID();
   const field = (label, control) => {
+    control.setAttribute('aria-label',label);
     const wrap = node('label', 'meeting-field');
     wrap.append(node('span', 'field-label', label), control);
     return wrap;
@@ -35,11 +38,15 @@ export function track3UI(h) {
     catch { return date(value); }
   };
 
+  const documents = documentLibrary({...h, dialog, field, sourceButton, claims});
+
   function reset({ keepDrafts = false } = {}) {
     generation++;
+    documents.reset();
     overview = answer = null;
     overviewStatus = 'idle';
     question = context = answerContext = answerQuestion = '';
+    includeHistory = false;
     qaSequence++;
     qaBusy = false;
     if (!keepDrafts) { calendarDrafts = new Map(); taskDrafts = new Map(); }
@@ -67,7 +74,15 @@ export function track3UI(h) {
     const actions = node('div', 'inline-actions');
     let busy = false;
     let committed = false;
-    const cancel = button('Отмена', () => modal.close());
+    const restoreOrigin = () => {
+      if (generation !== openedGeneration) return;
+      const target = origin?.isConnected ? origin : document.querySelector('#app h1');
+      if (target) { if (target.tagName === 'H1') target.tabIndex = -1; target.focus(); }
+    };
+    // Native cancel hides the dialog before its later close event. Restore focus
+    // synchronously so Escape completion always includes focus returning to origin.
+    const dismiss = () => { modal.close(); restoreOrigin(); };
+    const cancel = button('Отмена', dismiss);
     const confirm = button(confirmLabel, async () => {
       if (busy || generation !== openedGeneration) return;
       busy = true; cancel.disabled = confirm.disabled = true;
@@ -85,17 +100,14 @@ export function track3UI(h) {
     }, 'primary-button');
     actions.append(cancel, confirm);
     modal.append(label, content, error, actions);
-    modal.addEventListener('cancel', (event) => { if (busy) event.preventDefault(); });
+    modal.addEventListener('cancel', (event) => { event.preventDefault(); if (!busy) dismiss(); });
     modal.addEventListener('close', () => {
       if (generation === openedGeneration && !committed && cancelAction) void cancelAction().catch((e) => {
         if (state.user && generation === openedGeneration) showNotice(`Предпросмотр закрыт. ${e.message}`);
       });
       if (generation === openedGeneration) h.markSaved(modal);
       modal.remove(); if (activeDialog === modal) activeDialog = null;
-      if (generation === openedGeneration) {
-        const target = origin?.isConnected ? origin : document.querySelector('#app h1');
-        if (target) { if (target.tagName === 'H1') target.tabIndex = -1; target.focus(); }
-      }
+      restoreOrigin();
     }, { once: true });
     document.body.append(modal); activeDialog = modal; modal.showModal(); cancel.focus();
     return modal;
@@ -150,11 +162,36 @@ export function track3UI(h) {
       const card = node('article', 'panel meet-kpi');
       card.append(node('h2', '', metric.label), node('strong', 'meet-kpi-value', metric.value == null ? 'Нет данных' : `${metric.value} ${metric.unit || ''}`));
       card.append(node('p', 'task-meta', `Формула: ${metric.formula || 'Не предоставлена'}`));
+      if (metric.status) card.append(node('p', metric.status === 'critical' ? 'warning-badge red' : metric.status === 'warning' ? 'warning-badge amber' : 'task-meta', `Демо-порог: ${{ok:'в норме',warning:'внимание',critical:'критично',no_data:'нет данных',informational:'справочно'}[metric.status] || metric.status}`));
+      if (metric.numerator != null && metric.denominator != null) card.append(node('p','task-meta',`Числитель ${metric.numerator} · знаменатель ${metric.denominator}`));
+      if (metric.as_of) card.append(node('p','task-meta',`Источник: ${date(metric.as_of)}`));
       if (metric.source) card.append(sourceButton(metric.source));
       grid.append(card);
     }
     if (!grid.childNodes.length) grid.append(node('p', 'empty-copy', 'Доступных показателей нет.'));
     parent.append(grid);
+    if ((overview.capacity_forecast || []).length) {
+      parent.append(node('h2','','Прогноз мощности · доступные будущие периоды'));
+      for (const point of overview.capacity_forecast) parent.append(node('p','',`${date(point.period_start)} — ${date(point.period_end)}: ${point.value ?? 'не рассчитано'} % (${point.occupied_hours}/${point.available_hours} часов)`));
+    }
+    if ((overview.delay_reasons || []).length) {
+      parent.append(node('h2','','Причины просрочки завершённых заказов'));
+      for (const reason of overview.delay_reasons) {
+        parent.append(node('p','',`${reason.reason}: ${reason.count}/${reason.total_late} · ${reason.percent} %`));
+        if (reason.source) parent.append(sourceButton(reason.source));
+      }
+    }
+    if ((overview.decision_controls || []).length) {
+      parent.append(node('h2','','Решения на контроле'));
+      for (const decision of overview.decision_controls) {
+        const row=node('article','panel task-card');
+        row.append(node('p','',decision.text),node('p','task-meta',`Ответственный: ${decision.owner_name || 'не уточнён'} · срок: ${decision.due ? date(decision.due):'не уточнён'} · ${{open:'открыто',done:'завершено',cancelled:'отменено'}[decision.status]}`));
+        row.append(button('Открыть решение в протоколе',()=>openMeeting(decision.meeting_id,'protocol'),'task-meeting-link'));
+        if (decision.source_quote?.utterance_id) row.append(button('Реплика решения',()=>h.openSource('utterance',decision.source_quote.utterance_id,decision.source_quote.text),'citation-chip'));
+        if (can('protocol.confirm')) row.append(button('Изменить контроль решения',()=>void controlDecision({id:decision.protocol_item_id,text:decision.text},decision.meeting_id,decision)));
+        parent.append(row);
+      }
+    }
     claims(parent, overview.summary);
     parent.append(node('h2', '', 'Просроченные задачи'));
     if (!(overview.overdue_tasks || []).length) parent.append(node('p', 'empty-copy', 'Просроченных задач в доступных данных нет.'));
@@ -164,6 +201,38 @@ export function track3UI(h) {
       row.append(button(`Открыть задачу во встрече «${task.meeting_title || task.meeting_id}»`, () => void openTask(task), 'task-meeting-link'));
       parent.append(row);
     }
+  }
+
+  async function controlDecision(item, meetingId, existing = null) {
+    const origin = document.activeElement; const current = generation;
+    try {
+      if (!existing) existing = (await request('/decisions')).decisions.find(row => row.protocol_item_id === item.id) || null;
+      if (current !== generation || !state.user) return;
+      const form = node('form','meet-form-grid');
+      const people = [{value:'',label:'Ответственный не уточнён'}, ...state.users.filter(user=>user.active && !['admin','auditor'].includes(user.level)).map(user=>({value:String(user.id),label:user.name}))];
+      if (existing?.owner_user_id && !people.some(person=>person.value===String(existing.owner_user_id))) people.push({value:String(existing.owner_user_id),label:(existing.owner_name || 'Прежний ответственный')+' · неактивен'});
+      const owner = select(people,String(existing?.owner_user_id || ''));
+      const due = input({label:'Срок контроля',type:'date',value:existing?.due || ''});
+      const status = select([{value:'open',label:'Открыто'}, {value:'done',label:'Завершено'}, {value:'cancelled',label:'Отменено'}],existing?.status || 'open');
+      form.append(node('p','',item.text),field('Ответственный за решение',owner),due.wrap,field('Статус контроля',status));
+      const editor = dialog('Контроль решения',form,async()=>{
+        const preview = await request(`/decisions/${item.id}/preview`,{method:'POST',body:{owner_user_id:owner.value ? Number(owner.value):null,due:due.input.value || null,status:status.value}});
+        editor.close(); editor.addEventListener('close',()=>{
+          if (generation !== current || !state.user) return;
+          const content = node('div'); const change=preview.preview.after;
+          content.append(node('p','',preview.preview.text),node('p','',`Ответственный: ${people.find(person=>person.value===String(change.owner_user_id))?.label || 'не уточнён'}`),node('p','',`Срок: ${change.due ? date(change.due) : 'не уточнён'}`),node('p','',`Статус: ${{open:'открыто',done:'завершено',cancelled:'отменено'}[change.status]}`));
+          const quote=preview.preview.source_quote;
+          content.append(button('Реплика-основание',()=>h.openSource('utterance',quote.utterance_id,quote.text),'citation-chip'));
+          const idempotency=key();
+          dialog('Подтвердить контроль решения',content,async()=>{
+            await request(`/decisions/${item.id}/confirm`,{method:'POST',body:{confirmation_id:preview.confirmation_id,idempotency_key:idempotency}});
+            if (state.page==='overview') await loadOverview(); else await h.refreshMeeting(meetingId);
+            toast('Контроль решения сохранён');
+          },()=>cancelConfirmation(preview.confirmation_id),'Подтвердить',origin);
+        },{once:true});
+      },null,'Предпросмотр',origin);
+      form.addEventListener('submit',event=>event.preventDefault());
+    } catch(error) { if (current===generation && state.user) showNotice(error.message); }
   }
 
   async function openTask(task) {
@@ -179,16 +248,20 @@ export function track3UI(h) {
 
   function renderKnowledge(parent) {
     heading(parent, 'Знания', 'Ответы по проверенным утверждениям из доступных материалов.');
+    documents.render(parent);
     const form = node('form', 'panel meet-knowledge');
     const scope = select([{ value: '', label: 'Все доступные материалы' }, ...state.meetings.map((m) => ({ value: m.id, label: m.title }))], context);
     scope.addEventListener('change', () => { context = scope.value; answer = null; qaSequence++; render(); });
     const q = textarea({ label: 'Ваш вопрос', value: question, required: true, rows: 3 });
     q.input.maxLength = 2000;
     q.input.addEventListener('input', () => { question = q.input.value; });
+    const history = input({label:'Искать также в истории версий',type:'checkbox'});
+    history.input.checked=includeHistory;history.input.disabled=qaBusy;
+    history.input.addEventListener('change',()=>{includeHistory=history.input.checked;answer=null;qaSequence++;render();});
     const submit = button(qaBusy ? 'Формируется ответ…' : 'Задать вопрос', null, 'primary-button', 'submit');
     submit.disabled = qaBusy || !can('qa.ask');
     scope.disabled = qaBusy;
-    form.append(field('Контекст', scope), q.wrap, submit);
+    form.append(field('Контекст', scope), q.wrap, history.wrap, submit);
     form.addEventListener('submit', async (event) => {
       event.preventDefault(); if (qaBusy || !q.input.value.trim()) return;
       question = q.input.value;
@@ -198,7 +271,7 @@ export function track3UI(h) {
       const sequence = ++qaSequence;
       qaBusy = true; answer = null; submit.disabled = true;
       await run(submit, async () => {
-        const result = await request('/qa', { method: 'POST', body: { question: askedQuestion, ...(askedContext ? { meeting_id: Number(askedContext) } : {}) } });
+        const result = await request('/qa', { method: 'POST', body: { question: askedQuestion, include_history:history.input.checked, ...(askedContext ? { meeting_id: Number(askedContext) } : {}) } });
         if (current === generation && sequence === qaSequence) { answer = result; answerContext = askedContext; answerQuestion = askedQuestion; qaBusy = false; if (state.page === 'knowledge') render(); }
       }, { model: true, label: 'Формируется ответ…' });
       if (current !== generation || sequence !== qaSequence) return;
@@ -219,6 +292,7 @@ export function track3UI(h) {
       // Render only claims carrying server-verified sources, never free-form answer HTML.
       claims(result, groundedClaims);
     }
+    (answer.warnings || []).forEach(w=>result.append(node('p','access-limited-note',w.message)));
     result.append(node('p', 'task-meta', `Сформировано: ${date(answer.generated_at)}`));
     result.append(feedback('qa_answer', answer.answer_id, askedMeeting()));
     parent.append(result);
@@ -291,6 +365,8 @@ export function track3UI(h) {
     const end = input({ label: 'Конец поиска (дата и время в зоне)', type: 'datetime-local', value: saved.end || '', required: true });
     const duration = input({ label: 'Продолжительность, минут', type: 'number', value: saved.duration || 60, required: true });
     duration.input.min = 15; duration.input.max = 540; duration.input.step = 15;
+    const smart = node('input');smart.type='checkbox';smart.checked=saved.smart ?? true;
+    const smartLabel=field('Учитывать смены, перерывы и буфер 10 минут',smart);
     let revision = 0;
     const viewGeneration = generation;
     const participants = node('fieldset', 'access-users'); participants.append(node('legend', '', 'Календарные участники из тестового справочника'));
@@ -305,27 +381,41 @@ export function track3UI(h) {
     participants.append(load);
     const search = button('Найти свободное время', null, 'secondary-button', 'submit');
     search.disabled = !can('calendar.view') || !saved.directory;
-    form.append(zone.wrap, start.wrap, end.wrap, duration.wrap, participants, search);
+    form.append(zone.wrap, start.wrap, end.wrap, duration.wrap, smartLabel, participants, search);
     const slots = node('div', 'meet-slots'); slots.setAttribute('aria-live', 'polite');
     const rememberRange = () => calendarDrafts.set(calendarKey, { ...calendarDrafts.get(calendarKey), zone: zone.input.value,
       start: start.input.value, end: end.input.value, duration: duration.input.value,
-      participantIds: [...participants.querySelectorAll('input:checked')].map((box) => box.value) });
+      smart:smart.checked,
+      participantIds: [...participants.querySelectorAll('input[data-calendar-role="participant"]:checked')].map((box) => box.value),
+      optionalIds:[...participants.querySelectorAll('input[data-calendar-role="optional"]:checked')].map((box)=>box.value) });
     function renderParticipants(directory) {
       const selected = calendarDrafts.get(calendarKey)?.participantIds;
       participants.replaceChildren(node('legend', '', 'Календарные участники'));
       participants.append(node('p', 'task-meta', 'Организатор включён в приглашение автоматически.'));
       for (const person of directory) {
         const label = node('label', 'check-label'); const box = node('input'); box.type = 'checkbox'; box.value = person.id;
+        box.dataset.calendarRole='participant';
         const organizer = String(person.id) === String(state.user?.id);
         box.checked = organizer || Boolean(selected?.includes(String(person.id)));
         box.disabled = organizer;
         label.append(box, node('span', '', person.name)); participants.append(label);
+        if (!organizer) {
+          const optionalLabel=node('label','check-label'),optionalBox=node('input');optionalBox.type='checkbox';optionalBox.value=person.id;
+          optionalBox.dataset.calendarRole='optional';optionalBox.checked=Boolean(saved.optionalIds?.includes(String(person.id)));
+          optionalBox.disabled=!smart.checked || !box.checked;
+          optionalLabel.append(optionalBox,node('span','',`Необязательный участник: ${person.name}`));participants.append(optionalLabel);
+          box.addEventListener('change',()=>{optionalBox.disabled=!smart.checked||!box.checked;if(!box.checked)optionalBox.checked=false;});
+        }
       }
       search.disabled = !can('calendar.view');
       rememberRange();
     }
     if (saved.directory) renderParticipants(saved.directory);
     form.addEventListener('input', () => {
+      for(const optionalBox of participants.querySelectorAll('input[data-calendar-role="optional"]')) {
+        const main=[...participants.querySelectorAll('input[data-calendar-role="participant"]')].find(box=>box.value===optionalBox.value);
+        optionalBox.disabled=!smart.checked || !main.checked;
+      }
       rememberRange(); revision++;
       slots.replaceChildren(node('p', 'muted-copy', 'Параметры изменились. Подберите свободное время заново.'));
     });
@@ -338,7 +428,9 @@ export function track3UI(h) {
         const body = {
           timezone: zone.input.value.trim(), range_start: zonedISO(start.input.value, zone.input.value.trim()),
           range_end: zonedISO(end.input.value, zone.input.value.trim()), duration_minutes: Number(duration.input.value),
-          participant_ids: [...participants.querySelectorAll('input:checked')].map((box) => Number(box.value)),
+          smart:smart.checked,
+          participant_ids: [...participants.querySelectorAll('input[data-calendar-role="participant"]:checked')].filter(box=>!smart.checked || !participants.querySelector(`input[data-calendar-role="optional"][value="${box.value}"]`)?.checked).map((box) => Number(box.value)),
+          optional_participant_ids:smart.checked ? [...participants.querySelectorAll('input[data-calendar-role="optional"]:checked:not(:disabled)')].map(box=>Number(box.value)) : [],
         };
         slots.replaceChildren(node('p', '', 'Подбираю время…'));
         let result;
@@ -346,6 +438,8 @@ export function track3UI(h) {
         catch (e) { slots.replaceChildren(node('p', 'inline-error', 'Не удалось подобрать время. Измените параметры или повторите поиск.')); throw e; }
         if (!form.isConnected || searchedRevision !== revision || viewGeneration !== generation) return;
         slots.replaceChildren(node('p', 'muted-copy', `Тестовый календарь · зона ${result.timezone} · ${(result.participants || []).map((p) => p.name).join(', ')}`));
+        for(const warning of result.warnings || [])slots.append(node('p','gap-state',warning));
+        if(result.generated_at)slots.append(node('p','task-meta',`Подбор рассчитан: ${date(result.generated_at)}`));
         if (!result.slots?.length) slots.append(node('p', '', 'Свободных слотов нет. Измените диапазон или состав участников.'));
         for (const slot of result.slots || []) {
           const choose = button(`${formatTime(slot.start_at, result.timezone)} — ${formatTime(slot.end_at, result.timezone)}`, async () => {
@@ -355,6 +449,7 @@ export function track3UI(h) {
               try { preview = await request('/calendar/preview', { method: 'POST', body: {
                 meeting_id: meetingId, participant_ids: body.participant_ids, start_at: slot.start_at,
                 duration_minutes: body.duration_minutes, timezone: body.timezone,
+                smart:body.smart,optional_participant_ids:body.optional_participant_ids,
               } }); } catch (e) {
                 if (e.status === 409) slots.replaceChildren(node('p', 'gap-state', `${e.message} Введённые параметры сохранены.`), button('Обновить слоты', () => form.requestSubmit()));
                 throw e;
@@ -385,6 +480,7 @@ export function track3UI(h) {
             });
           });
           choose.disabled = !can('calendar.invite'); slots.append(choose);
+          if(slot.reason)slots.append(node('p','task-meta',slot.reason));
         }
       });
     });
@@ -414,15 +510,24 @@ export function track3UI(h) {
     const draft = taskDrafts.get(draftKey) || task;
     const form = node('form', 'meet-form-grid');
     form.dataset.itemId = `task-${task.id}`;
-    const status = select([{ value: 'open', label: 'Открыта' }, { value: 'in_progress', label: 'В работе' }, { value: 'done', label: 'Готова' }], draft.status);
+    const status = select([{ value: 'open', label: 'Открыта' }, { value: 'in_progress', label: 'В работе' }, { value: 'done', label: 'Готова' }, {value:'blocked',label:'Заблокирована'}, {value:'cancelled',label:'Отменена'}], draft.status);
     const assignee = input({ label: 'Ответственный', value: draft.assignee || '' });
     const due = input({ label: 'Срок', type: 'date', value: draft.due || '' });
-    form.append(node('p', '', task.text), field('Статус задачи', status), assignee.wrap, due.wrap);
+    const priority = select([{value:'low',label:'Низкий'}, {value:'normal',label:'Обычный'}, {value:'high',label:'Высокий'}, {value:'urgent',label:'Срочный'}], draft.priority || 'normal');
+    const links = textarea({label:'Связи · по строке: order:PP-2611-00042, customer:client-0001, document:12',
+      value:(draft.linked_entities || []).map(entity => `${entity.kind}:${entity.id}`).join('\n'), rows:3});
+    const ownStatusOnly = state.user?.level === 'employee' && !(state.user.delegations || []).some(grant => grant.department_id === task.department_id);
+    assignee.input.disabled = due.input.disabled = priority.disabled = links.input.disabled = ownStatusOnly;
+    form.append(node('p', '', task.text), field('Статус задачи', status), assignee.wrap, due.wrap, field('Приоритет',priority), links.wrap);
     if (!task.due && task.due_text) form.append(node('p', 'task-meta', `Срок словами: ${task.due_text}. Он сохраняется, если не назначать новую дату.`));
-    form.addEventListener('input', () => taskDrafts.set(draftKey, {status: status.value, assignee: assignee.input.value, due: due.input.value}));
+    form.addEventListener('input', () => taskDrafts.set(draftKey, {status: status.value, assignee: assignee.input.value, due: due.input.value, priority:priority.value, linked_entities:(links.input.value.split('\n').filter(line=>line.trim()).map(line=>{const split=line.indexOf(':');return {kind:line.slice(0,split),id:line.slice(split+1).trim()};}))}));
     const editor = dialog('Изменить подтверждённую задачу', form, async () => {
-      const values = { status: status.value, assignee: assignee.input.value.trim() || null, due: due.input.value || null };
-      const changes = Object.fromEntries(Object.entries(values).filter(([field, value]) => value !== (task[field] || null)));
+      const linked_entities = links.input.value.split('\n').map(line=>line.trim()).filter(Boolean).map(line=>{
+        const split=line.indexOf(':'); if (split<1) throw new Error('Связь должна иметь формат тип:ID.');
+        return {kind:line.slice(0,split),id:line.slice(split+1).trim()};
+      });
+      const values = ownStatusOnly ? {status:status.value} : { status: status.value, assignee: assignee.input.value.trim() || null, due: due.input.value || null, priority:priority.value, linked_entities };
+      const changes = Object.fromEntries(Object.entries(values).filter(([field, value]) => JSON.stringify(value) !== JSON.stringify(task[field] ?? (field==='linked_entities' ? [] : field==='priority' ? 'normal' : null))));
       if (!Object.keys(changes).length) throw new Error('Изменений нет. Измените статус, исполнителя или срок перед предпросмотром.');
       const result = await request(`/tasks/${task.id}/preview`, { method: 'POST', body: { changes } });
       editor.close();
@@ -430,9 +535,9 @@ export function track3UI(h) {
       editor.addEventListener('close', () => {
         if (generation !== viewGeneration || !state.user) return;
         const content = node('div'); content.append(node('p', '', result.preview.text));
-        const names = { status: 'Статус', assignee: 'Ответственный', due: 'Срок' };
-        const statuses = { open: 'Открыта', in_progress: 'В работе', done: 'Готова' };
-        for (const [name, label] of Object.entries(names)) content.append(node('p', '', `${label}: ${statuses[result.preview.before[name]] || result.preview.before[name] || 'Не указан'} → ${statuses[result.preview.after[name]] || result.preview.after[name] || 'Не указан'}`));
+        const names = { status: 'Статус', assignee: 'Ответственный', due: 'Срок', priority:'Приоритет', linked_entities:'Связи' };
+        const statuses = { open: 'Открыта', in_progress: 'В работе', done: 'Готова', blocked:'Заблокирована', cancelled:'Отменена', low:'Низкий', normal:'Обычный', high:'Высокий', urgent:'Срочный' };
+        for (const [name, label] of Object.entries(names)) content.append(node('p', '', `${label}: ${Array.isArray(result.preview.before[name]) ? JSON.stringify(result.preview.before[name]) : statuses[result.preview.before[name]] || result.preview.before[name] || 'Не указан'} → ${Array.isArray(result.preview.after[name]) ? JSON.stringify(result.preview.after[name]) : statuses[result.preview.after[name]] || result.preview.after[name] || 'Не указан'}`));
         if (!Object.hasOwn(changes, 'due') && task.due_text) content.append(node('p', 'task-meta', `Срок словами сохраняется: ${task.due_text}`));
         const idempotencyKey = key();
         const previewDialog = dialog('Подтвердить изменение задачи', content, async () => {
@@ -469,5 +574,5 @@ export function track3UI(h) {
     return new Date([...candidates][0]).toISOString();
   }
 
-  return { can, reset, discardForeignDrafts, dialog, planning, feedback, sourceButton, renderOverview, renderKnowledge, openKnowledge, editTask, loadOverview, zonedISO };
+  return { can, reset, discardForeignDrafts, dialog, planning, feedback, sourceButton, renderOverview, renderKnowledge, openKnowledge, editTask, controlDecision, loadOverview, zonedISO };
 }

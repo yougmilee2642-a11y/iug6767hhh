@@ -1,0 +1,2 @@
+# Freeze metadata and gold use the same bytes on every platform.
+*.json text eol=lf

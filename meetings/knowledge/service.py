@@ -6,14 +6,17 @@ an arbitrary paraphrase. Only complete stored excerpts may become claims.
 import json
 import hashlib
 import re
+import sqlite3
 from copy import deepcopy
 
 from meetings import store, textutil as tu
 from meetings.auth import MeetError
 from meetings.llm import get_llm
+from meetings.privacy import source_is_injection
 from providers.local_settings import LocalAIError
 from .common import aware, iso, not_found, utc_now
 from .language import relevance, sentences, terms
+from . import index
 
 MAX_CANDIDATES = 24
 MAX_FRAGMENTS = 8
@@ -108,40 +111,38 @@ def verified_excerpt(quote, text):
 
 
 def check_meeting(connection, actor, meeting_id):
-    if meeting_id is not None and not store.can_read_meeting(connection, actor, meeting_id):
+    if meeting_id is not None and not store.can_read_meeting(connection, actor, meeting_id, model=True):
         raise not_found()
 
 
-def check_fragment(connection, actor, fragment_id, meeting_id):
+def check_fragment(connection, actor, fragment_id, meeting_id,include_history=False):
     check_meeting(connection, actor, meeting_id)
-    row = connection.execute('SELECT f.*,d.title,d.created_at FROM fragments f JOIN documents d '
+    row = connection.execute('SELECT f.*,d.title,d.created_at,d.filename FROM fragments f JOIN documents d '
                              'ON d.id=f.document_id WHERE f.id=?', (fragment_id,)).fetchone()
-    if not row or not store.can_read_document(connection, actor, row['document_id']):
+    if not row or not store.can_read_document(connection, actor, row['document_id'], model=True):
         raise not_found()
     if meeting_id is not None and not connection.execute(
             'SELECT 1 FROM meeting_documents WHERE meeting_id=? AND document_id=?',
             (meeting_id, row['document_id'])).fetchone():
         raise not_found()
+    if not include_history:
+        clause,args=index.current_clause(connection,actor,meeting_id=meeting_id)
+        if not connection.execute('SELECT 1 FROM documents d WHERE d.id=? AND '+clause,[row['document_id'],*args]).fetchone():
+            raise stale_saved()
     return dict(row)
 
 
-def retrieve(connection, actor, question, meeting_id):
+def retrieve(connection, actor, question, meeting_id,include_history=False):
     check_meeting(connection, actor, meeting_id)
     query = terms(question)
     scopes = named_scopes(question)
     if not query:
         return []
     # ACL is part of SQL selection, before ranking, limiting and model context.
-    sql = ('SELECT f.*,d.title,d.created_at FROM fragments f JOIN documents d ON d.id=f.document_id '
-           'WHERE (d.owner_id=? OR EXISTS (SELECT 1 FROM document_access a '
-           'WHERE a.document_id=d.id AND a.user_id=?))')
-    params = [actor, actor]
-    if meeting_id is not None:
-        sql += ' AND EXISTS (SELECT 1 FROM meeting_documents md WHERE md.document_id=d.id AND md.meeting_id=?)'
-        params.append(meeting_id)
-    best = []
-    for raw in connection.execute(sql, params):
-        row = dict(raw)
+    eligible, costs = [], {}
+    for row in index.visible_fragments(connection, actor, meeting_id=meeting_id, model=True,include_history=include_history):
+        if any(source_is_injection(row[key]) for key in ('title','filename')):
+            continue
         try:
             aware(row['created_at'])
         except (ValueError, TypeError):
@@ -157,11 +158,15 @@ def retrieve(connection, actor, question, meeting_id):
         # must not crowd valid evidence out of the candidate pool.
         if cost > MAX_CONTEXT_CHARS or not context['excerpts']:
             continue
-        best.append((score, row, cost))
-        best.sort(key=lambda pair: (-pair[0], pair[1]['id']))
-        del best[MAX_CANDIDATES:]
+        eligible.append(row)
+        costs[row['id']] = cost
+    try:
+        best = index.ranked(connection, eligible, question)[:MAX_CANDIDATES]
+    except sqlite3.Error:
+        raise index.unavailable(actor) from None
     selected, size = [], 0
-    for _, row, cost in best:
+    for row in best:
+        cost = costs[row['id']]
         # JSON overhead counts toward the context budget. Never cut a sentence.
         if size + cost <= MAX_CONTEXT_CHARS:
             selected.append(row)
@@ -177,7 +182,7 @@ def offered_excerpts(row, question):
     # A whole fragment preserves headings/conditions when one sentence alone
     # would omit necessary context. Individual complete sentences offer brevity.
     for text in [row['text'].strip(), *sentences(row['text'])]:
-        if (text in seen or not 12 <= len(text) <= 1000 or INSTRUCTION.search(text)
+        if (text in seen or not 12 <= len(text) <= 1000 or INSTRUCTION.search(text) or source_is_injection(text)
                 or not excerpt_matches_scope(text, scopes) or relevance(text, query) < 0.5):
             continue
         seen.add(text)
@@ -254,7 +259,7 @@ def validated_claims(raw, selected, question):
                 or not copied_text(text, quote, row['text']) or not 12 <= len(quote) <= 1000):
             continue
         excerpt = verified_excerpt(quote, row['text'])
-        if (not excerpt or len(excerpt) > 1000 or excerpt in seen or INSTRUCTION.search(excerpt)
+        if (not excerpt or len(excerpt) > 1000 or excerpt in seen or INSTRUCTION.search(excerpt) or source_is_injection(excerpt)
                 or not excerpt_matches_scope(excerpt, named_scopes(question))
                 or relevance(excerpt, terms(question)) < 0.5):
             continue
@@ -265,9 +270,36 @@ def validated_claims(raw, selected, question):
     return claims
 
 
-def answer(actor, question, meeting_id, audit):
+def answer(actor, question, meeting_id, audit,include_history=False):
+    from meetings.privacy import private_json, prohibited_intent, refusal, Masker, customer_names
+    try:
+        question_masked = store.safe_text(Masker(customer_names()).text(question))
+        # Voice retains its stricter hash-only audit contract: no spoken wording.
+        audit['question'] = {k:v for k,v in question_masked.items() if k != 'masked'} if audit.get('route') else question_masked
+    except LocalAIError:
+        raise MeetError(503, 'privacy_unavailable', 'Не удалось применить фильтр данных. Повторите позже.') from None
+    reason = prohibited_intent(question)
+    if reason:
+        with store.db() as connection:
+            check_meeting(connection, actor, meeting_id)
+        audit.update(result='denied', error_code=reason, source_ids=[])
+        return {'answer_id': None, 'status': 'refused', 'answer': refusal(reason), 'claims': [], 'sources': [],
+                'generated_at': iso(utc_now()), 'model': None, 'reason_code': reason}
     with store.db() as connection:
-        selected = retrieve(connection, actor, question, meeting_id)
+        selected = retrieve(connection, actor, question, meeting_id,include_history)
+        secret_notice = False
+        from meetings.access import predicate
+        visible, parameters = predicate(connection, actor, 'document', 'd')
+        for restricted in connection.execute(
+                "SELECT d.title,d.id FROM documents d WHERE d.confidentiality='secret' AND " + visible, parameters):
+            if meeting_id is not None and not connection.execute(
+                    'SELECT 1 FROM meeting_documents WHERE meeting_id=? AND document_id=?',
+                    (meeting_id, restricted['id'])).fetchone():
+                continue
+            if relevance(restricted['title'], terms(question)) >= 0.5:
+                secret_notice = True
+        if secret_notice:
+            selected = []
     audit['source_ids'] = [f"F{row['id']}" for row in selected]
     claims, model = [], None
     if selected:
@@ -279,7 +311,7 @@ def answer(actor, question, meeting_id, audit):
             schema = deepcopy(SCHEMA)
             schema['properties']['excerpt_ids']['items']['enum'] = [
                 choice['excerpt_id'] for context in contexts for choice in context['excerpts']]
-            raw = provider.json(SYSTEM, json.dumps({'question': question, 'untrusted_documents': contexts},
+            raw = private_json(provider, SYSTEM, json.dumps({'question': question, 'untrusted_documents': contexts},
                                 ensure_ascii=False), schema, predict=1800)
             claims = validated_claims(raw, selected, question)
         except LocalAIError as error:
@@ -291,22 +323,27 @@ def answer(actor, question, meeting_id, audit):
                         'Недостаточно доступных данных для ответа с проверяемым источником.',
               'claims': claims, 'sources': [s for claim in claims for s in claim['sources']],
               'generated_at': iso(utc_now()), 'model': model}
+    if secret_notice:
+        result['answer'] = 'Документ есть, но закрыт для ассистента; откройте файл вручную.'
     with store.db() as connection:
         connection.execute('BEGIN IMMEDIATE')
         check_meeting(connection, actor, meeting_id)
         for previous in selected:
-            current = check_fragment(connection, actor, previous['id'], meeting_id)
+            current = check_fragment(connection, actor, previous['id'], meeting_id,include_history)
             if current != previous:
                 raise MeetError(409, 'stale_sources', 'Источники изменились. Повторите вопрос.')
+        from meetings.document_versions import warnings
+        result['warnings'] = warnings(connection, actor, selected)
         stored_claims = [dict(claim) for claim in claims]
         if stored_claims:
             # Storage-only proof binds the entire context, including surrounding
             # negations and fragments that did not become claims. Never sent to UI.
             stored_claims[0]['_context_sha256'] = {f"F{row['id']}": fingerprint(row) for row in selected}
+            if include_history:stored_claims[0]['_include_history']=True
         cursor = connection.execute(
             'INSERT INTO qa_answers(user_id,meeting_id,question_masked,question_sha256,status,answer,claims,source_ids,'
             'model,request_id,generated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-            (actor, meeting_id, '', hashlib.sha256(question.encode()).hexdigest(), result['status'], result['answer'],
+            (actor, meeting_id, question_masked['masked'], hashlib.sha256(question.encode()).hexdigest(), result['status'], result['answer'],
              json.dumps(stored_claims, ensure_ascii=False), json.dumps(audit['source_ids']), model,
              audit['request_id'], result['generated_at']))
         result['answer_id'] = cursor.lastrowid
@@ -329,11 +366,14 @@ def load_answer(connection, actor, answer_id):
             or not isinstance(stored_claims, list) or len(stored_claims) > MAX_CLAIMS
             or saved['status'] != ('grounded' if stored_claims else 'insufficient_data')):
         raise stale_saved()
+    include_history=bool(stored_claims and isinstance(stored_claims[0],dict) and stored_claims[0].get('_include_history') is True)
     for fid in ids:
         if (not isinstance(fid, str) or not re.fullmatch(r'F[1-9]\d{0,18}', fid)
                 or int(fid[1:]) > 2**63 - 1 or fid in rows):
             raise stale_saved()
-        row = check_fragment(connection, actor, int(fid[1:]), saved['meeting_id'])
+        # A saved answer is a historical artifact. Keep its original, revalidated
+        # citations and show replacement/expiry warnings instead of rewriting it.
+        row = check_fragment(connection, actor, int(fid[1:]), saved['meeting_id'],True)
         rows[f"F{row['id']}"] = row
     claims = []
     if stored_claims:
@@ -359,6 +399,8 @@ def load_answer(connection, actor, answer_id):
                         'Недостаточно доступных данных для ответа с проверяемым источником.',
               'claims': claims, 'sources': [source for claim in claims for source in claim['sources']],
               'generated_at': saved['generated_at'], 'model': saved['model']}
+    from meetings.document_versions import warnings
+    result['warnings'] = warnings(connection, actor, rows.values())
     return result
 
 

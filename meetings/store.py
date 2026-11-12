@@ -186,7 +186,7 @@ def reset_cache():
     _initialized.clear()
 
 
-AUDIT_FIELDS = ('object_type', 'object_id', 'result', 'source_ids', 'confirmation_id', 'model', 'error_code')
+AUDIT_FIELDS = ('object_type', 'object_id', 'result', 'source_ids', 'confirmation_id', 'model', 'error_code', 'department_id')
 
 
 def audit(connection, user_id, action, **details):
@@ -196,13 +196,17 @@ def audit(connection, user_id, action, **details):
     The current HTTP request id is attached automatically. Never put titles, full prompts or tokens here."""
     columns = {k: details.pop(k) for k in AUDIT_FIELDS if k in details}
     sources = columns.get('source_ids') or []
+    department = columns.get('department_id')
+    if department is None and user_id is not None:
+        actor = connection.execute('SELECT department_id FROM users WHERE id=?', (user_id,)).fetchone()
+        department = actor[0] if actor else None
     connection.execute(
         'INSERT INTO audit(at,user_id,action,details,request_id,object_type,object_id,result,source_ids,confirmation_id,'
-        'model,error_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+        'model,error_code,department_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
         (now(), user_id, action, json.dumps(details, ensure_ascii=False, default=str), request_id_var.get(),
          columns.get('object_type'), None if columns.get('object_id') is None else str(columns['object_id']),
          columns.get('result') or 'ok', json.dumps([str(s) for s in sources]), columns.get('confirmation_id'),
-         columns.get('model'), columns.get('error_code')))
+         columns.get('model'), columns.get('error_code'), department))
 
 
 def audit_independent(user_id, action, **details):
@@ -221,37 +225,31 @@ def audit_out(row) -> dict:
             'request_id': row['request_id'], 'object_type': row['object_type'], 'object_id': row['object_id'],
             'result': row['result'], 'source_ids': json.loads(row['source_ids'] or '[]'),
             'confirmation_id': row['confirmation_id'], 'model': row['model'], 'error_code': row['error_code'],
-            'details': json.loads(row['details'] or '{}')}
+            'department_id': row['department_id'], 'details': json.loads(row['details'] or '{}')}
 
 
 # ---------- access ----------
 
-def can_read_meeting(connection, user_id: int, meeting_id: int) -> bool:
-    row = connection.execute(
-        'SELECT 1 FROM meetings m WHERE m.id=? AND (m.owner_id=? OR EXISTS '
-        '(SELECT 1 FROM meeting_access a WHERE a.meeting_id=m.id AND a.user_id=?))',
-        (meeting_id, user_id, user_id)).fetchone()
-    return row is not None
+def can_read_meeting(connection, user_id: int, meeting_id: int, *, model=False) -> bool:
+    from meetings.access import object_decision
+    return object_decision(connection, user_id, 'meeting', meeting_id, 'model.read' if model else None).allowed
 
 
-def can_read_document(connection, user_id: int, document_id: int) -> bool:
-    row = connection.execute(
-        'SELECT 1 FROM documents d WHERE d.id=? AND (d.owner_id=? OR EXISTS '
-        '(SELECT 1 FROM document_access a WHERE a.document_id=d.id AND a.user_id=?))',
-        (document_id, user_id, user_id)).fetchone()
-    return row is not None
+def can_read_document(connection, user_id: int, document_id: int, *, model=False) -> bool:
+    from meetings.access import object_decision
+    return object_decision(connection, user_id, 'document', document_id, 'model.read' if model else None).allowed
 
 
-def accessible_document_ids(connection, user_id: int) -> list[int]:
-    return [r[0] for r in connection.execute(
-        'SELECT d.id FROM documents d WHERE d.owner_id=? OR EXISTS '
-        '(SELECT 1 FROM document_access a WHERE a.document_id=d.id AND a.user_id=?) ORDER BY d.id', (user_id, user_id))]
+def accessible_document_ids(connection, user_id: int, *, model=False) -> list[int]:
+    from meetings.access import predicate
+    sql, params = predicate(connection, user_id, 'document', 'd', model=model)
+    return [r[0] for r in connection.execute('SELECT d.id FROM documents d WHERE ' + sql + ' ORDER BY d.id', params)]
 
 
-def accessible_meeting_ids(connection, user_id: int) -> list[int]:
-    return [r[0] for r in connection.execute(
-        'SELECT m.id FROM meetings m WHERE m.owner_id=? OR EXISTS '
-        '(SELECT 1 FROM meeting_access a WHERE a.meeting_id=m.id AND a.user_id=?) ORDER BY m.id', (user_id, user_id))]
+def accessible_meeting_ids(connection, user_id: int, *, model=False) -> list[int]:
+    from meetings.access import predicate
+    sql, params = predicate(connection, user_id, 'meeting', 'm', model=model)
+    return [r[0] for r in connection.execute('SELECT m.id FROM meetings m WHERE ' + sql + ' ORDER BY m.id', params)]
 
 
 # ---------- serializers ----------
@@ -263,12 +261,21 @@ def user_name(connection, user_id):
     return row['name'] if row else None
 
 
-def document_out(connection, row) -> dict:
+def document_out(connection, row, actor=None) -> dict:
     count = connection.execute('SELECT COUNT(*) FROM fragments WHERE document_id=?', (row['id'],)).fetchone()[0]
     shared = [r[0] for r in connection.execute('SELECT user_id FROM document_access WHERE document_id=?', (row['id'],))]
-    return {'id': row['id'], 'title': row['title'], 'filename': row['filename'], 'kind': row['kind'],
+    from meetings.document_versions import freshness
+    actor = actor if actor is not None else row['owner_id']
+    state = freshness(connection, actor, row['id'])
+    previous = row['supersedes_id']
+    if previous and not can_read_document(connection, actor, previous):
+        previous = None
+    return {**state, 'id': row['id'], 'title': row['title'], 'filename': row['filename'], 'kind': row['kind'],
             'owner_id': row['owner_id'], 'owner_name': user_name(connection, row['owner_id']),
-            'shared_with': shared, 'fragments_count': count, 'created_at': row['created_at']}
+            'shared_with': shared, 'fragments_count': count, 'created_at': row['created_at'],
+            'department_id': row['department_id'], 'confidentiality': row['confidentiality'], 'doc_type': row['doc_type'],
+            'authored_at': row['authored_at'], 'version': row['version'], 'valid_until': row['valid_until'],
+            'supersedes_id': previous}
 
 
 def fragment_out(row, title=None) -> dict:
@@ -282,7 +289,8 @@ def meeting_out(connection, row) -> dict:
             'timezone': DISPLAY_ZONE, 'participants': json.loads(row['participants']), 'owner_id': row['owner_id'],
             'owner_name': user_name(connection, row['owner_id']), 'access_user_ids': access,
             'speaker_map': json.loads(row['speaker_map']), 'followup_of': row['followup_of'],
-            'created_at': row['created_at'], 'version': row['version']}
+            'created_at': row['created_at'], 'version': row['version'],
+            'department_id': row['department_id'], 'confidentiality': row['confidentiality']}
 
 
 def utterance_out(row, speaker_map: dict) -> dict:
@@ -293,21 +301,27 @@ def utterance_out(row, speaker_map: dict) -> dict:
 
 
 def item_out(connection, row) -> dict:
+    from meetings.connectors.entities import mentions
     return {'id': row['id'], 'kind': row['kind'], 'text': row['text'], 'outcome': row['outcome'],
             'assignee': row['assignee'], 'assignee_status': row['assignee_status'], 'due': row['due'],
             'due_text': row['due_text'], 'due_status': row['due_status'], 'quotes': json.loads(row['quotes']),
             'confirmed': row['confirmed_at'] is not None, 'confirmed_by': user_name(connection, row['confirmed_by']),
-            'confirmed_at': row['confirmed_at'], 'task_id': row['task_id'], 'edited': bool(row['edited'])}
+            'confirmed_at': row['confirmed_at'], 'task_id': row['task_id'], 'edited': bool(row['edited']),
+            'linked_entities':mentions(row['text']+' '+row['quotes'])}
 
 
 def task_out(connection, row) -> dict:
     meeting = connection.execute('SELECT title FROM meetings WHERE id=?', (row['meeting_id'],)).fetchone()
+    crm = connection.execute("SELECT status FROM integration_outbox WHERE connector='bitrix24-mock' AND action='task.create' AND object_type='task' AND object_id=?",(row['id'],)).fetchone()
     return {'id': row['id'], 'text': row['text'], 'assignee': row['assignee'], 'assignee_status': row['assignee_status'],
             'due': row['due'], 'due_text': row['due_text'], 'due_status': row['due_status'], 'status': row['status'],
             'meeting_id': row['meeting_id'], 'meeting_title': meeting['title'] if meeting else None,
             'protocol_item_id': row['protocol_item_id'], 'source_quote': json.loads(row['source_quote']),
             'confirmed_by': user_name(connection, row['confirmed_by']), 'confirmed_at': row['confirmed_at'],
-            'created_at': row['created_at'], 'updated_at': row['updated_at'], 'version': row['version']}
+            'created_at': row['created_at'], 'updated_at': row['updated_at'], 'version': row['version'],
+            'priority':row['priority'], 'assignee_user_id':row['assignee_user_id'], 'department_id':row['department_id'],
+            'linked_entities':json.loads(row['linked_entities']), 'external_ref':row['external_ref'],
+            'crm_status':crm['status'] if crm else None}
 
 
 def speaker_map(connection, meeting_id) -> dict:

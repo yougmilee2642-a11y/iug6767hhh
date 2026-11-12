@@ -1,0 +1,665 @@
+{
+  "status": "passed",
+  "profile": "requirements.txt",
+  "steps": [
+    {
+      "name": "clone",
+      "exit_code": 0,
+      "elapsed_seconds": 0.252,
+      "tail": [
+        "Cloning into '/tmp/fotoprint-install-v3e9x4qs/repo'...",
+        "done."
+      ]
+    },
+    {
+      "name": "venv",
+      "exit_code": 0,
+      "elapsed_seconds": 3.04,
+      "tail": []
+    },
+    {
+      "name": "install",
+      "exit_code": 0,
+      "elapsed_seconds": 28.381,
+      "tail": [
+        "Using cached multidict-7.2.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (516 kB)",
+        "Using cached propcache-0.5.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (250 kB)",
+        "Using cached pyasn1-0.6.5-py3-none-any.whl (84 kB)",
+        "Downloading truststore-0.10.5-py3-none-any.whl (19 kB)",
+        "Using cached yarl-1.25.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (117 kB)",
+        "Downloading pycparser-3.12-py3-none-any.whl (62 kB)",
+        "Installing collected packages: websockets, uvloop, urllib3, tzdata, typing-extensions, truststore, tabulate, sniffio, rpds-py, pyyaml, python-multipart, python-dotenv, pypdf, PyMuPDF, pygments, pycparser, pyasn1, propcache, pluggy, packaging, numpy, multidict, jiter, iniconfig, idna, httptools, h11, frozenlist, click, charset_normalizer, certifi, attrs, annotated-types, annotated-doc, aiohappyeyeballs, yarl, uvicorn, typing-inspection, requests, referencing, pytest, pydantic-core, pyasn1-modules, opentelemetry-api, httpcore2, httpcore, cffi, anyio, aiosignal, watchfiles, starlette, pydantic, jsonschema-specifications, httpx2, httpx, cryptography, aiohttp, openai, jsonschema, google-auth, fastapi, edge-tts",
+        "Successfully installed PyMuPDF-1.25.5 aiohappyeyeballs-2.7.1 aiohttp-3.14.5 aiosignal-1.4.0 annotated-doc-0.0.6 annotated-types-0.8.0 anyio-4.16.0 attrs-26.1.0 certifi-2026.10.23 cffi-2.1.1 charset_normalizer-3.5.2 click-8.5.1 cryptography-50.0.2 edge-tts-7.3.1 fastapi-0.162.5 frozenlist-1.8.0 google-auth-2.62.2 h11-0.16.0 httpcore-1.0.9 httpcore2-2.16.0 httptools-0.9.0 httpx-0.28.1 httpx2-2.16.0 idna-3.20 iniconfig-2.3.1 jiter-0.19.0 jsonschema-4.26.0 jsonschema-specifications-2025.9.1 multidict-7.2.1 numpy-2.2.5 openai-3.49.0 opentelemetry-api-1.45.2 packaging-26.3 pluggy-1.7.0 propcache-0.5.4 pyasn1-0.6.5 pyasn1-modules-0.4.2 pycparser-3.12 pydantic-2.14.3 pydantic-core-2.50.4 pygments-2.21.0 pypdf-5.4.0 pytest-9.2.0 python-dotenv-1.2.4 python-multipart-0.0.33 pyyaml-6.0.3 referencing-0.37.0 requests-2.34.2 rpds-py-2026.9.1 sniffio-1.3.1 starlette-1.10.0 tabulate-0.10.0 truststore-0.10.5 typing-extensions-4.16.0 typing-inspection-0.4.5 tzdata-2026.6 urllib3-2.8.0 uvicorn-0.54.0 uvloop-0.23.0 watchfiles-1.3.0 websockets-17.4 yarl-1.25.1"
+      ]
+    },
+    {
+      "name": "pip-check",
+      "exit_code": 0,
+      "elapsed_seconds": 0.397,
+      "tail": [
+        "No broken requirements found."
+      ]
+    },
+    {
+      "name": "seed",
+      "exit_code": 0,
+      "elapsed_seconds": 1.44,
+      "tail": [
+        "    \"petr\": 2,",
+        "    \"picpac_lead\": 17,",
+        "    \"prod_head\": 4,",
+        "    \"sales_head\": 15,",
+        "    \"sup_agent\": 11,",
+        "    \"sup_head\": 5",
+        "  }",
+        "}"
+      ]
+    },
+    {
+      "name": "seed-repeat",
+      "exit_code": 0,
+      "elapsed_seconds": 0.9,
+      "tail": [
+        "    \"petr\": 2,",
+        "    \"picpac_lead\": 17,",
+        "    \"prod_head\": 4,",
+        "    \"sales_head\": 15,",
+        "    \"sup_agent\": 11,",
+        "    \"sup_head\": 5",
+        "  }",
+        "}"
+      ]
+    },
+    {
+      "name": "http-restart-and-model-503",
+      "exit_code": 0,
+      "elapsed_seconds": 6.048,
+      "tail": [
+        "{\"status\": \"passed\", \"model\": \"unavailable loopback; no live inference\", \"roles\": 7, \"model_failure_path\": \"passed\", \"observed_model_errors\": {\"/meetings/1/prepare\": \"model_unavailable\", \"/meetings/1/protocol/draft\": \"model_unavailable\", \"/qa\": \"model_unavailable\"}, \"kpi_before_mutation\": {\"open_tasks\": 4, \"overdue_tasks\": 3, \"on_time_orders\": 97.6, \"defect_rate\": 1.8, \"capacity_utilization\": 75.0, \"missing_assignee\": 0, \"missing_due\": 1, \"open_decisions\": 0, \"overdue_decisions\": 0, \"support_sla\": 92.0, \"mary_resolution\": 68.0, \"moderation_queue\": 18, \"unclaimed_pickup\": 31, \"late_order_causes\": 12, \"capacity_forecast_peak\": 111.0}, \"restart\": \"passed\", \"calendar_interchange\": \"passed\", \"document_versions\": \"passed\", \"smart_calendar\": {\"slot_count\": 3, \"warnings\": []}, \"elapsed_seconds\": 5.797077936999813, \"working_tree_dirty\": false, \"commit\": \"7e18d2371ff858229d5084b703c190a6a56b2c11\"}"
+      ]
+    },
+    {
+      "name": "inventory",
+      "exit_code": 0,
+      "elapsed_seconds": 0.113,
+      "tail": [
+        "{\"packages\": {\"edge-tts\": \"7.3.1\", \"fastapi\": \"0.162.5\", \"google-auth\": \"2.62.2\", \"jsonschema\": \"4.26.0\", \"openai\": \"3.49.0\", \"aiohttp\": \"3.14.5\", \"cryptography\": \"50.0.2\", \"httpx\": \"0.28.1\", \"httpx2\": \"2.16.0\", \"jsonschema-specifications\": \"2025.9.1\", \"pydantic\": \"2.14.3\", \"starlette\": \"1.10.0\", \"watchfiles\": \"1.3.0\", \"aiosignal\": \"1.4.0\", \"anyio\": \"4.16.0\", \"cffi\": \"2.1.1\", \"httpcore\": \"1.0.9\", \"httpcore2\": \"2.16.0\", \"opentelemetry-api\": \"1.45.2\", \"pyasn1_modules\": \"0.4.2\", \"pydantic_core\": \"2.50.4\", \"pytest\": \"9.2.0\", \"referencing\": \"0.37.0\", \"requests\": \"2.34.2\", \"typing-inspection\": \"0.4.5\", \"uvicorn\": \"0.54.0\", \"yarl\": \"1.25.1\", \"aiohappyeyeballs\": \"2.7.1\", \"annotated-doc\": \"0.0.6\", \"annotated-types\": \"0.8.0\", \"attrs\": \"26.1.0\", \"certifi\": \"2026.10.23\", \"charset-normalizer\": \"3.5.2\", \"click\": \"8.5.1\", \"frozenlist\": \"1.8.0\", \"h11\": \"0.16.0\", \"httptools\": \"0.9.0\", \"idna\": \"3.20\", \"iniconfig\": \"2.3.1\", \"jiter\": \"0.19.0\", \"multidict\": \"7.2.1\", \"numpy\": \"2.2.5\", \"packaging\": \"26.3\", \"pluggy\": \"1.7.0\", \"propcache\": \"0.5.4\", \"pyasn1\": \"0.6.5\", \"pycparser\": \"3.12\", \"Pygments\": \"2.21.0\", \"PyMuPDF\": \"1.25.5\", \"pypdf\": \"5.4.0\", \"python-dotenv\": \"1.2.4\", \"python-multipart\": \"0.0.33\", \"PyYAML\": \"6.0.3\", \"rpds-py\": \"2026.9.1\", \"sniffio\": \"1.3.1\", \"tabulate\": \"0.10.0\", \"truststore\": \"0.10.5\", \"typing_extensions\": \"4.16.0\", \"tzdata\": \"2026.6\", \"urllib3\": \"2.8.0\", \"uvloop\": \"0.23.0\", \"websockets\": \"17.4\", \"pip\": \"25.0.1\"}, \"optional\": {\"torch\": false, \"scipy\": false, \"av\": false, \"soundfile\": false, \"playwright\": false, \"pytest\": true}}"
+      ]
+    }
+  ],
+  "started_at": "2026-11-12T08:43:29.919700+00:00",
+  "platform": "linux",
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "actor": "agent/CI, not an independent human installer",
+  "cache": "uncontrolled; pip may reuse cached wheels",
+  "models_downloaded": false,
+  "live_model_quality": "not_run",
+  "commit": "7e18d2371ff858229d5084b703c190a6a56b2c11",
+  "http": {
+    "status": "passed",
+    "model": "unavailable loopback; no live inference",
+    "roles": 7,
+    "model_failure_path": "passed",
+    "observed_model_errors": {
+      "/meetings/1/prepare": "model_unavailable",
+      "/meetings/1/protocol/draft": "model_unavailable",
+      "/qa": "model_unavailable"
+    },
+    "requests": [
+      {
+        "role": "director",
+        "method": "POST",
+        "route": "/login",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "GET",
+        "route": "/me",
+        "status": 200
+      },
+      {
+        "role": "prod_head",
+        "method": "POST",
+        "route": "/login",
+        "status": 200
+      },
+      {
+        "role": "prod_head",
+        "method": "GET",
+        "route": "/me",
+        "status": 200
+      },
+      {
+        "role": "mod_lead",
+        "method": "POST",
+        "route": "/login",
+        "status": 200
+      },
+      {
+        "role": "mod_lead",
+        "method": "GET",
+        "route": "/me",
+        "status": 200
+      },
+      {
+        "role": "operator",
+        "method": "POST",
+        "route": "/login",
+        "status": 200
+      },
+      {
+        "role": "operator",
+        "method": "GET",
+        "route": "/me",
+        "status": 200
+      },
+      {
+        "role": "designer",
+        "method": "POST",
+        "route": "/login",
+        "status": 200
+      },
+      {
+        "role": "designer",
+        "method": "GET",
+        "route": "/me",
+        "status": 200
+      },
+      {
+        "role": "admin",
+        "method": "POST",
+        "route": "/login",
+        "status": 200
+      },
+      {
+        "role": "admin",
+        "method": "GET",
+        "route": "/me",
+        "status": 200
+      },
+      {
+        "role": "auditor",
+        "method": "POST",
+        "route": "/login",
+        "status": 200
+      },
+      {
+        "role": "auditor",
+        "method": "GET",
+        "route": "/me",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "GET",
+        "route": "/demo-profiles",
+        "status": 200
+      },
+      {
+        "role": "designer",
+        "method": "GET",
+        "route": "/documents/41/download",
+        "status": 404
+      },
+      {
+        "role": "admin",
+        "method": "GET",
+        "route": "/documents/41/download",
+        "status": 404
+      },
+      {
+        "role": "auditor",
+        "method": "GET",
+        "route": "/documents/41/download",
+        "status": 404
+      },
+      {
+        "role": "prod_head",
+        "method": "GET",
+        "route": "/documents/41/download",
+        "status": 404
+      },
+      {
+        "role": "admin",
+        "method": "GET",
+        "route": "/meetings/1",
+        "status": 404
+      },
+      {
+        "role": "auditor",
+        "method": "GET",
+        "route": "/meetings/1",
+        "status": 404
+      },
+      {
+        "role": "designer",
+        "method": "GET",
+        "route": "/meetings/1",
+        "status": 404
+      },
+      {
+        "role": "admin",
+        "method": "GET",
+        "route": "/admin/users",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "GET",
+        "route": "/overview?as_of=2026-11-11T12:00:00%2B00:00",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "GET",
+        "route": "/search?q=%D0%BA%D0%B0%D1%80%D1%82%D0%BE%D0%BD",
+        "status": 200
+      },
+      {
+        "role": "designer",
+        "method": "GET",
+        "route": "/search?q=%D0%B1%D1%8E%D0%B4%D0%B6%D0%B5%D1%82",
+        "status": 200
+      },
+      {
+        "role": "designer",
+        "method": "POST",
+        "route": "/qa",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "POST",
+        "route": "/qa",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "POST",
+        "route": "/calendar/preview",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "POST",
+        "route": "/calendar/confirm",
+        "status": 200
+      },
+      {
+        "role": "operator",
+        "method": "POST",
+        "route": "/calendar/import/preview",
+        "status": 200
+      },
+      {
+        "role": "operator",
+        "method": "POST",
+        "route": "/calendar/import/confirm",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "POST",
+        "route": "/calendar/subscriptions",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "POST",
+        "route": "/calendar/slots",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "POST",
+        "route": "/calendar/preview",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "POST",
+        "route": "/confirmations/cf_925RQ1vBKxvUHe2QZ4goWqGL/cancel",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "GET",
+        "route": "/meetings/1",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "POST",
+        "route": "/meetings/1/prepare",
+        "status": 503
+      },
+      {
+        "role": "director",
+        "method": "POST",
+        "route": "/meetings/1/protocol/draft",
+        "status": 503
+      },
+      {
+        "role": "director",
+        "method": "POST",
+        "route": "/qa",
+        "status": 503
+      },
+      {
+        "role": "director",
+        "method": "GET",
+        "route": "/meetings/1",
+        "status": 200
+      },
+      {
+        "role": "operator",
+        "method": "GET",
+        "route": "/tasks",
+        "status": 200
+      },
+      {
+        "role": "operator",
+        "method": "POST",
+        "route": "/crm/preview",
+        "status": 403
+      },
+      {
+        "role": "prod_head",
+        "method": "POST",
+        "route": "/crm/preview",
+        "status": 200
+      },
+      {
+        "role": "prod_head",
+        "method": "POST",
+        "route": "/confirmations/cf_GG3QAmvgqQD4qk8vcAXZi9v1/cancel",
+        "status": 200
+      },
+      {
+        "role": "prod_head",
+        "method": "POST",
+        "route": "/crm/confirm",
+        "status": 409
+      },
+      {
+        "role": "prod_head",
+        "method": "POST",
+        "route": "/crm/preview",
+        "status": 200
+      },
+      {
+        "role": "prod_head",
+        "method": "POST",
+        "route": "/crm/confirm",
+        "status": 200
+      },
+      {
+        "role": "prod_head",
+        "method": "POST",
+        "route": "/crm/confirm",
+        "status": 200
+      },
+      {
+        "role": "admin",
+        "method": "POST",
+        "route": "/integrations/check",
+        "status": 200
+      },
+      {
+        "role": "operator",
+        "method": "POST",
+        "route": "/tasks/1/preview",
+        "status": 200
+      },
+      {
+        "role": "operator",
+        "method": "POST",
+        "route": "/confirmations/cf_hBV245RklDXZgyBOVwPsG-bb/cancel",
+        "status": 200
+      },
+      {
+        "role": "operator",
+        "method": "POST",
+        "route": "/tasks/1/confirm",
+        "status": 409
+      },
+      {
+        "role": "operator",
+        "method": "POST",
+        "route": "/tasks/1/preview",
+        "status": 200
+      },
+      {
+        "role": "operator",
+        "method": "POST",
+        "route": "/tasks/1/confirm",
+        "status": 200
+      },
+      {
+        "role": "operator",
+        "method": "POST",
+        "route": "/tasks/1/confirm",
+        "status": 200
+      },
+      {
+        "role": "auditor",
+        "method": "GET",
+        "route": "/audit",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "POST",
+        "route": "/documents",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "POST",
+        "route": "/documents/55/versions/preview",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "POST",
+        "route": "/confirmations/cf_sUFGlHvwwYE14UgKsiiBZZSA/cancel",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "POST",
+        "route": "/documents/55/versions/confirm",
+        "status": 409
+      },
+      {
+        "role": "director",
+        "method": "POST",
+        "route": "/documents/55/versions/preview",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "POST",
+        "route": "/documents/55/versions/confirm",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "POST",
+        "route": "/documents/55/versions/confirm",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "GET",
+        "route": "/documents/56/summary",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "GET",
+        "route": "/documents/55/compare/56",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "GET",
+        "route": "/search",
+        "status": 200
+      },
+      {
+        "role": "admin",
+        "method": "GET",
+        "route": "/documents/55/summary",
+        "status": 404
+      },
+      {
+        "role": "operator",
+        "method": "GET",
+        "route": "/me",
+        "status": 200
+      },
+      {
+        "role": "prod_head",
+        "method": "GET",
+        "route": "/crm/tasks/1",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "DELETE",
+        "route": "/calendar/subscriptions/1",
+        "status": 200
+      },
+      {
+        "role": "operator",
+        "method": "GET",
+        "route": "/tasks",
+        "status": 200
+      },
+      {
+        "role": "designer",
+        "method": "GET",
+        "route": "/meetings/1",
+        "status": 404
+      },
+      {
+        "role": "director",
+        "method": "GET",
+        "route": "/documents/55/versions",
+        "status": 200
+      },
+      {
+        "role": "director",
+        "method": "POST",
+        "route": "/documents/55/versions/confirm",
+        "status": 200
+      }
+    ],
+    "kpi_before_mutation": {
+      "open_tasks": 4,
+      "overdue_tasks": 3,
+      "on_time_orders": 97.6,
+      "defect_rate": 1.8,
+      "capacity_utilization": 75.0,
+      "missing_assignee": 0,
+      "missing_due": 1,
+      "open_decisions": 0,
+      "overdue_decisions": 0,
+      "support_sla": 92.0,
+      "mary_resolution": 68.0,
+      "moderation_queue": 18,
+      "unclaimed_pickup": 31,
+      "late_order_causes": 12,
+      "capacity_forecast_peak": 111.0
+    },
+    "restart": "passed",
+    "calendar_interchange": "passed",
+    "document_versions": "passed",
+    "smart_calendar": {
+      "slot_count": 3,
+      "warnings": []
+    },
+    "elapsed_seconds": 5.797077936999813,
+    "working_tree_dirty": false,
+    "commit": "7e18d2371ff858229d5084b703c190a6a56b2c11"
+  },
+  "inventory": {
+    "packages": {
+      "edge-tts": "7.3.1",
+      "fastapi": "0.162.5",
+      "google-auth": "2.62.2",
+      "jsonschema": "4.26.0",
+      "openai": "3.49.0",
+      "aiohttp": "3.14.5",
+      "cryptography": "50.0.2",
+      "httpx": "0.28.1",
+      "httpx2": "2.16.0",
+      "jsonschema-specifications": "2025.9.1",
+      "pydantic": "2.14.3",
+      "starlette": "1.10.0",
+      "watchfiles": "1.3.0",
+      "aiosignal": "1.4.0",
+      "anyio": "4.16.0",
+      "cffi": "2.1.1",
+      "httpcore": "1.0.9",
+      "httpcore2": "2.16.0",
+      "opentelemetry-api": "1.45.2",
+      "pyasn1_modules": "0.4.2",
+      "pydantic_core": "2.50.4",
+      "pytest": "9.2.0",
+      "referencing": "0.37.0",
+      "requests": "2.34.2",
+      "typing-inspection": "0.4.5",
+      "uvicorn": "0.54.0",
+      "yarl": "1.25.1",
+      "aiohappyeyeballs": "2.7.1",
+      "annotated-doc": "0.0.6",
+      "annotated-types": "0.8.0",
+      "attrs": "26.1.0",
+      "certifi": "2026.10.23",
+      "charset-normalizer": "3.5.2",
+      "click": "8.5.1",
+      "frozenlist": "1.8.0",
+      "h11": "0.16.0",
+      "httptools": "0.9.0",
+      "idna": "3.20",
+      "iniconfig": "2.3.1",
+      "jiter": "0.19.0",
+      "multidict": "7.2.1",
+      "numpy": "2.2.5",
+      "packaging": "26.3",
+      "pluggy": "1.7.0",
+      "propcache": "0.5.4",
+      "pyasn1": "0.6.5",
+      "pycparser": "3.12",
+      "Pygments": "2.21.0",
+      "PyMuPDF": "1.25.5",
+      "pypdf": "5.4.0",
+      "python-dotenv": "1.2.4",
+      "python-multipart": "0.0.33",
+      "PyYAML": "6.0.3",
+      "rpds-py": "2026.9.1",
+      "sniffio": "1.3.1",
+      "tabulate": "0.10.0",
+      "truststore": "0.10.5",
+      "typing_extensions": "4.16.0",
+      "tzdata": "2026.6",
+      "urllib3": "2.8.0",
+      "uvloop": "0.23.0",
+      "websockets": "17.4",
+      "pip": "25.0.1"
+    },
+    "optional": {
+      "torch": false,
+      "scipy": false,
+      "av": false,
+      "soundfile": false,
+      "playwright": false,
+      "pytest": true
+    }
+  },
+  "elapsed_seconds": 40.693,
+  "within_15_minutes_without_models": true
+}

@@ -1,0 +1,22 @@
+{
+  "observed_at": "2026-11-11T15:01:48Z",
+  "source_artifact": 13866703106,
+  "requests": [
+    [
+      "GET",
+      "https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&display=swap",
+      200
+    ],
+    [
+      "GET",
+      "https://fonts.gstatic.com/s/jost/v20/92zatBhPNqw73oTd4g.woff2",
+      200
+    ],
+    [
+      "GET",
+      "https://fonts.gstatic.com/s/jost/v20/92zatBhPNqw73oDd4iYl.woff2",
+      200
+    ]
+  ],
+  "binary_hash_status": "not_checked; CDN responses are not vendored/pinned by HTML"
+}

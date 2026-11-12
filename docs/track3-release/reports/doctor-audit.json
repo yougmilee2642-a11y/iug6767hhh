@@ -1,0 +1,27 @@
+{
+  "status": "not_ready",
+  "checked_at": "2026-11-11T14:06:52.495407+00:00",
+  "inference_requests": 0,
+  "database_mutations": 0,
+  "torch_required": false,
+  "torch_installed": false,
+  "gpu_window": "Must be agreed separately; metadata availability does not reserve the GPU",
+  "dataset_sha256": "1645bc60e6de0c60ed8d21174d84121eb904ec8430b6cb1de48fb3dcf7113fe1",
+  "parameters": {
+    "context": 8192,
+    "timeout": 300.0,
+    "temperature": 0.1,
+    "think": false,
+    "stream": false,
+    "num_predict_protocol": 1800
+  },
+  "configuration": {
+    "OLLAMA_BASE_URL_present": false,
+    "OLLAMA_API_KEY_present": false,
+    "MEETINGS_MODEL_present": false
+  },
+  "configured_model": "qwen2.5:7b",
+  "blocked_at": "model_metadata",
+  "error_type": "ConnectError",
+  "next_action": "Configure a running allowed Ollama gateway with the exact model installed, then agree a GPU window"
+}

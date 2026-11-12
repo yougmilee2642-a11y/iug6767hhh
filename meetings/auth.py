@@ -55,8 +55,35 @@ CAPABILITIES = {
 ROLE_LABELS = {'reader': 'Чтение и обратная связь', 'manager': 'Управление встречами и задачами'}
 
 
+# V2 roles are separate from legacy human job titles and reader/manager users.
+_READ = CAPABILITIES['reader']
+_MANAGE = CAPABILITIES['manager']
+CAPABILITIES.update({
+    'director': (*_MANAGE, 'overview.company', 'crm.write', 'calls.analyze', 'calls.read', 'delegation.grant'),
+    'head': (*_MANAGE, 'crm.write', 'calls.analyze', 'calls.read', 'delegation.grant'),
+    'lead': tuple(c for c in _MANAGE if c != 'audit.read') + ('calls.analyze', 'calls.read'),
+    'employee': (*_READ, 'transcript.edit', 'protocol.edit', 'tasks.change', 'documents.upload', 'documents.share', 'calls.read', 'calls.analyze'),
+    'contractor': (*_READ, 'documents.upload', 'documents.share'),
+    'admin': ('users.manage', 'retention.manage', 'integrations.manage'),
+    'auditor': ('audit.read',),
+})
+ROLE_LABELS.update(director='Директор', head='Руководитель отдела', lead='Руководитель группы',
+                   employee='Сотрудник', contractor='Подрядчик', admin='Администратор', auditor='Аудитор')
+
+
 def capabilities(user: dict) -> list[str]:
-    return list(CAPABILITIES.get((user or {}).get('access_role') or 'reader', CAPABILITIES['reader']))
+    user = user or {}
+    if not user.get('active', 1):
+        return []
+    role = user.get('level') or user.get('access_role') or 'reader'
+    result = list(CAPABILITIES.get(role, ()))
+    if user.get('_delegated_departments') and role in ('head', 'lead', 'employee'):
+        result = list(dict.fromkeys([*result, *CAPABILITIES['head']]))
+    if role == 'head' and user.get('department_code') not in ('SUP', 'SALES'):
+        result = [c for c in result if not c.startswith('calls.')]
+    if role == 'lead' and user.get('department_code') != 'SUP':
+        result = [c for c in result if not c.startswith('calls.')]
+    return result
 
 
 def has_capability(user: dict, capability: str) -> bool:
@@ -129,9 +156,9 @@ def user_from_request(request: Request) -> dict | None:
         if int(expiry) < time.time():
             return None
         with store.db() as connection:
-            row = connection.execute('SELECT id,login,name,role,access_role FROM users WHERE id=?',
-                                     (int(user_id),)).fetchone()
-        return dict(row) if row else None
+            from meetings.access import load_user
+            user = load_user(connection, int(user_id))
+        return user if user and user.get('active', 1) else None
     except (ValueError, TypeError):
         return None
 

@@ -1,0 +1,9 @@
+# Frozen evaluation data is hashed byte-for-byte: keep LF on every OS (Windows core.autocrlf would break the check).
+demo/track3/** text eol=lf
+evaluation/track3/** text eol=lf
+
+# PDF cross-reference records contain format-mandated trailing spaces.
+demo/track3/documents/*.pdf binary
+demo/track3/documents/*.docx binary
+demo/track3/documents/*.xlsx binary
+demo/track3/documents/*.pptx binary

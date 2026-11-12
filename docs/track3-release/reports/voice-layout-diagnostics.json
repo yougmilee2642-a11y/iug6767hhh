@@ -1,0 +1,59 @@
+{
+  "status": "captured",
+  "viewports": [
+    {
+      "viewport": 360,
+      "document_width": 371,
+      "overflowing": [
+        {
+          "tag": "DIV",
+          "class": "meetings-account",
+          "left": 16,
+          "right": 370.765625,
+          "width": 354.765625,
+          "text": "Спросить голосомИрина ВласоваВыйти"
+        },
+        {
+          "tag": "BUTTON",
+          "class": "logout-button",
+          "left": 299.59375,
+          "right": 370.765625,
+          "width": 71.171875,
+          "text": "Выйти"
+        },
+        {
+          "tag": "BUTTON",
+          "class": "meeting-tab",
+          "left": 281.828125,
+          "right": 399.703125,
+          "width": 117.875,
+          "text": "3 · Протокол"
+        },
+        {
+          "tag": "BUTTON",
+          "class": "meeting-tab",
+          "left": 403.703125,
+          "right": 507.609375,
+          "width": 103.90625,
+          "text": "4 · Задачи"
+        }
+      ]
+    },
+    {
+      "viewport": 768,
+      "document_width": 768,
+      "overflowing": []
+    },
+    {
+      "viewport": 1440,
+      "document_width": 1440,
+      "overflowing": []
+    }
+  ],
+  "model_quality": "not_run",
+  "head_sha": "be1fd6b08b32e399cddfc2a14b7bec5cab8e196e",
+  "run_id": 43048167863,
+  "artifact": 13867687704,
+  "artifact_sha256": "3f4a15dc1a14bfedfe892f28d457c333397f70adf0941829eafab5a148313dcd",
+  "verdict": "failed; diagnostics do not waive root overflow assertion"
+}

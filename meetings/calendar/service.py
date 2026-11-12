@@ -22,7 +22,9 @@ def overlaps(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datet
 
 def directory(connection) -> list[dict]:
     """Test participant directory: existing users only (no free-form e-mail addresses)."""
-    return [{'id': r['id'], 'name': r['name']} for r in connection.execute('SELECT id, name FROM users ORDER BY id')]
+    from meetings.auth import has_capability
+    return [{'id': r['id'], 'name': r['name']} for r in connection.execute('SELECT * FROM users WHERE active=1 ORDER BY id')
+            if has_capability(dict(r),'calendar.view')]
 
 
 def participants(connection, ids: list[int], organizer_id: int | None = None) -> list[dict]:
@@ -159,6 +161,18 @@ def outbox_out(row) -> dict:
             'created_at': row['created_at']}
 
 
+def safe_outbox(connection, viewer_id, row):
+    """Recheck both viewer and recipient: an old queued letter cannot bypass a revoked ACL."""
+    result = outbox_out(row)
+    event = connection.execute('SELECT meeting_id,start_at,end_at,timezone FROM calendar_events WHERE id=?', (row['event_id'],)).fetchone()
+    if not event or event['meeting_id'] is None or any(
+            not store.can_read_meeting(connection, person, event['meeting_id']) for person in (viewer_id, row['recipient_id'])):
+        result['subject'] = 'Приглашение на встречу'
+        result['body'] = ('Приглашение на встречу. Материалы недоступны.\n' +
+                          (local_label(store.parse_aware(event['start_at']), event['timezone']) if event else ''))
+    return result
+
+
 def create_event(connection, organizer: dict, meeting_row, payload: dict, confirmation_id: str) -> dict:
     stamp = store.now()
     event_id = connection.execute(
@@ -184,6 +198,6 @@ def create_event(connection, organizer: dict, meeting_row, payload: dict, confir
 
 def event_bundle(connection, viewer_id: int, event_id: int) -> dict:
     row = connection.execute('SELECT * FROM calendar_events WHERE id=?', (event_id,)).fetchone()
-    invitations = [outbox_out(r) for r in connection.execute(
+    invitations = [safe_outbox(connection, viewer_id, r) for r in connection.execute(
         'SELECT * FROM calendar_outbox WHERE event_id=? ORDER BY id', (event_id,))]
     return {'event': event_out(connection, viewer_id, row), 'invitations': invitations}

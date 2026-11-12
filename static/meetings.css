@@ -93,7 +93,8 @@ body.meetings-page {
 .search-button { border-color: var(--f-ink); background: var(--f-ink); color: #fff; }
 .search-button:hover { background: var(--f-ink-strong); }
 .logout-button:hover, .retry-button:hover, .demo-account-button:hover { border-color: var(--f-ink); }
-.meetings-account { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex: 0 0 auto; margin-left: auto; }
+/* TODO(design): role controls wrap within the header at every viewport. */
+.meetings-account { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex: 0 1 auto; min-width: 0; max-width: 100%; flex-wrap: wrap; margin-left: auto; }
 .account-name { max-width: 230px; color: var(--f-muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .logout-button { min-height: 36px; padding: 4px 14px; font-size: 14px; }
 
@@ -356,6 +357,8 @@ body.meetings-page {
 }
 @media (max-width: 620px) {
   .meetings-topbar { padding: 10px 16px; gap: 10px; }
+  /* TODO(design): keep the voice/account controls inside the mobile viewport. */
+  .meetings-account { flex: 0 1 auto; min-width: 0; max-width: 100%; flex-wrap: wrap; }
   .meetings-brand-mark { width: 32px; height: 32px; }
   .meetings-brand small { display: none; }
   .meetings-nav { order: 3; width: 100%; }
@@ -461,3 +464,11 @@ body.meetings-page {
 .voice-form input:focus { outline: 2px solid var(--f-ink); outline-offset: 1px; }
 .voice-wake { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--f-line); }
 @media (max-width: 640px) { .voice-panel { right: 16px; left: 16px; bottom: 16px; width: auto; } .voice-talk-button { padding: 8px 12px; } }
+
+/* TODO(design): contain functional administration tables and preview data. */
+.v2-functional-panel { min-width: 0; overflow-x: auto; }
+.v2-functional-panel dialog { max-width: min(90vw, 800px); }
+.v2-functional-panel pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* TODO(design): exact numeric evidence must wrap inside existing KPI cards. */
+.meetings-page .meet-kpi { overflow-wrap: anywhere; }

@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "scope": "Added lines in staged merged tree after574ab18; format scan, not DLP",
+  "rules": {
+    "private_key": 0,
+    "github_key": 0,
+    "aws_key": 0,
+    "telegram_key": 0,
+    "slack_key": 0,
+    "bitrix_webhook": 0,
+    "phone": 0
+  },
+  "lines": 17679,
+  "fixture_email_matches": 1,
+  "protected_paths_included": false
+}

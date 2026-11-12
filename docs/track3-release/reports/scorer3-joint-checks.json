@@ -1,0 +1,13 @@
+{
+  "raw_sha256": "3cc78c855e40a9d1c466d8a371dea243897434ba3fd47fbc41c34cc1cf5a800e",
+  "raw_archive": "scorer3-joint-python.raw.log.gz",
+  "readable_log": "scorer3-joint-python.log",
+  "transformation": "readable trailing whitespace only",
+  "commit": "7bbe3a653ee77bd1a4635270520e4a2d3eae535e",
+  "scorer_version": 3,
+  "passed": 256,
+  "failed": 3,
+  "skipped": 15,
+  "seconds": 29.42,
+  "provenance_note": "Test started on this local integration commit; only workflow configuration changed while it ran. Product and scorer files were unchanged."
+}

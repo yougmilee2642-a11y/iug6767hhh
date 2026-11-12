@@ -1,6 +1,10 @@
+import { briefingUI } from './meetings/briefing.js';
 import { track3UI } from './meetings/track3.js';
 import { protocolPayload } from './meetings/protocol.js';
 import { voiceAssistant } from './meetings/voice.js';
+import { administrationUI } from './meetings/administration.js';
+import { crmUI } from './meetings/crm.js';
+import { calendarUI } from './meetings/calendar.js';
 
 const API = '/api/meet';
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -8,6 +12,7 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
 const state = {
   user: null,
+  demoProfiles: [],
   capabilities: [],
   timezone: 'Europe/Minsk',
   epoch: 0,
@@ -16,6 +21,8 @@ const state = {
   meetings: [],
   documents: [],
   tasks: [],
+  taskFilter: '',
+  agendaDrafts: Object.create(null),
   tasksStatus: 'idle',
   tasksError: '',
   meetingData: null,
@@ -43,9 +50,15 @@ let searchSequence = 0;
 const ui = track3UI({ node, makeButton, makeInput, makeTextarea, makeSelect, request, runAction, state,
   dateLabel, render, openMeeting, openSource, showNotice, toast, refreshMeeting, markSaved, draftCheckpoint,
   navigate: setPage });
+const administration = administrationUI({ node, makeButton, makeInput, request, runAction, state, dateLabel });
+const crm = crmUI({ node, makeButton, makeInput, request, runAction, state, dateLabel, ui });
+const calendarTools = calendarUI({ node, makeButton, makeInput, request, runAction, state, dateLabel, ui, markSaved });
 const assistant = voiceAssistant({ node, makeButton, request, state, openSource, dateLabel, navigate: (page) => {
   if (page === 'tasks') void openTasks(); else setPage(page);
 } });
+
+const briefing = briefingUI({node,makeButton,makeInput,request,runAction,state,dateLabel,openSource,openMeeting,
+  speak:()=>assistant.ask('Брифинг дня')});
 
 function operation(button, key) {
   key = `${state.epoch}:${key}`;
@@ -125,6 +138,7 @@ function clearIdentity({ keepDrafts = false } = {}) {
   state.protocolDrafts = Object.create(null);
   state.protocolSelection = new Set();
   state.voiceDrafts = Object.create(null);
+  state.taskFilter = ''; state.agendaDrafts = Object.create(null);
   state.searchQuery = ''; state.searchStatus = 'idle'; state.searchError = '';
   state.showCreateMeeting = false;
   state.page = 'meetings';
@@ -349,6 +363,11 @@ function updateAccount() {
   if (!state.user) return;
   assistant.mount(account);
   account.append(node('span', 'account-name', state.user.name || state.user.login));
+  if (state.user.level) account.append(node('span', 'account-name', `${state.user.level} · ${state.user.department?.code || ''}`));
+  for (const [capability, label, page] of [['users.manage','Пользователи','administration'], ['integrations.manage','Интеграции','integrations'], ['audit.read','Журнал','audit'], ['delegation.grant','Делегировать','delegation']]) {
+    if (state.capabilities.includes(capability)) account.append(makeButton(label, () => setPage(page)));
+  }
+  if (state.capabilities.includes('overview.read')) account.append(makeButton('Брифинг',()=>setPage('briefing')));
   account.append(makeButton('Выйти', () => void logout(), 'logout-button'));
 }
 
@@ -383,8 +402,13 @@ function render() {
     renderLogin(app);
     return;
   }
-  if (state.page === 'meeting' && state.meetingData) renderMeeting(app);
+  if (state.page === 'administration') void administration.renderAdministration(app);
+  else if (state.page === 'integrations') void crm.renderIntegrations(app);
+  else if (state.page === 'delegation') void administration.renderDelegation(app);
+  else if (state.page === 'audit') void administration.renderAudit(app);
+  else if (state.page === 'meeting' && state.meetingData) renderMeeting(app);
   else if (state.page === 'overview') ui.renderOverview(app);
+  else if (state.page === 'briefing') briefing.render(app);
   else if (state.page === 'knowledge') ui.renderKnowledge(app);
   else if (state.page === 'tasks') renderTaskBoard(app, state.tasks, false);
   else if (state.page === 'search') renderSearchResults(app);
@@ -414,6 +438,7 @@ function renderGlobalSearch() {
     });
   }
   const field = $('input[name="q"]', form);
+  form.hidden = !ui.can('meetings.read');
   if (field && document.activeElement !== field) field.value = state.searchQuery;
 }
 
@@ -436,12 +461,20 @@ function renderLogin(app) {
     await runAction(submit, async () => {
       await request('/login', { method: 'POST', body: payload });
       await loadSignedInData();
-      state.page = 'overview';
+      state.page = landingPage();
       clearNotice();
       render();
     });
   });
   shell.append(form);
+  if (state.demoProfiles.length) {
+    const label = node('label', 'meeting-field'); label.append(node('span', 'field-label', 'Войти как…'));
+    const select = node('select', ''); select.setAttribute('aria-label', 'Демо-роль');
+    select.append(node('option', '', 'Выберите демо-профиль'));
+    for (const person of state.demoProfiles) { const option = node('option', '', `${person.name} · ${person.level}`); option.value = person.login; select.append(option); }
+    select.addEventListener('change', () => { if (select.value) { login.input.value = select.value; password.input.value = select.value + '-demo'; } });
+    label.append(select); shell.append(label);
+  }
   const demo = node('div', 'demo-accounts');
   demo.append(node('span', 'field-label', 'Демо-доступ'));
   const irina = makeButton('Ирина · irina / irina-demo', () => {
@@ -467,11 +500,16 @@ async function loadSignedInData() {
   state.documents = documents.documents || [];
 }
 
+function landingPage() { return state.user?.level === 'admin' ? (location.hash==='#integrations' ? 'integrations' : 'administration') : state.user?.level === 'auditor' ? 'audit' : 'overview'; }
+
 async function loginBootstrap() {
   updateNavigation();
   $('#app').textContent = 'Загружаю рабочее пространство…';
-  try { await loadSignedInData(); state.page = 'overview'; render(); }
+  try { await loadSignedInData(); state.page = landingPage(); render(); }
   catch (error) {
+    if (error.status === 401) {
+      try { state.demoProfiles = (await request('/demo-profiles')).users || []; } catch { state.demoProfiles = []; }
+    }
     render();
     if (error.status !== 401 && error.code !== 'stale_session') showNotice(error.message, loginBootstrap);
   }
@@ -519,6 +557,7 @@ function renderMeetings(app) {
     list.append(cards);
   }
   app.append(list);
+  calendarTools.panel(app);
 }
 
 function emptyState(title, description) {
@@ -654,20 +693,28 @@ function renderPreparation(target) {
   docs.append(node('p', 'muted-copy', 'Прикрепите документ или выберите уже доступный файл.'));
   const upload = node('form', 'upload-form');
   const fileLabel = node('label', 'file-picker');
-  fileLabel.append(node('span', 'field-label', 'Загрузить TXT, DOCX или PDF'));
+  fileLabel.append(node('span', 'field-label', 'Загрузить TXT, DOCX, PDF, XLSX, CSV, PPTX, MD, HTML или EML'));
   const file = node('input', '');
   file.type = 'file';
-  file.accept = '.txt,.docx,.pdf,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  file.accept = '.txt,.docx,.pdf,.xlsx,.csv,.pptx,.md,.html,.eml';
   file.required = true;
   fileLabel.append(file);
   upload.append(fileLabel);
   const submit = makeButton('Загрузить и прикрепить', null, 'secondary-button', 'submit');
-  upload.append(submit);
+  const classification = makeSelect([
+    {value:'public', label:'Вся компания'}, {value:'internal', label:'Сотрудники'},
+    {value:'department', label:'Свой отдел'}, {value:'confidential', label:'Явный доступ'},
+    {value:'secret', label:'Закрыто для ассистента'},
+  ], state.user?.level === 'employee' ? 'department' : 'confidential');
+  const classificationLabel = node('label', 'meeting-field');
+  classificationLabel.append(node('span', 'field-label', 'Конфиденциальность'), classification);
+  upload.append(classificationLabel, submit);
   upload.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!file.files?.[0]) return;
     const payload = new FormData();
     payload.append('file', file.files[0]);
+    payload.append('confidentiality', classification.value);
     payload.append('meeting_id', meeting.id);
     const shareIds = (meeting.access_user_ids || []).map(String);
     if (shareIds.length) payload.append('share_with', shareIds.join(','));
@@ -752,6 +799,7 @@ function renderPreparation(target) {
       }
       prep.append(gaps);
     }
+    (result.warnings || []).forEach(w=>prep.append(node('p','access-limited-note',w.message)));
     renderClaimGroup(prep, 'Краткая справка', result.brief || []);
     renderClaimGroup(prep, 'Предлагаемая повестка', result.agenda || []);
     renderClaimGroup(prep, 'Вопросы', result.questions || []);
@@ -764,7 +812,7 @@ function renderPreparation(target) {
   const followup = result || data.followup;
   if (result || (data.followup?.open_tasks || []).length) {
     const tasks = followup.open_tasks || [];
-    prep.append(node('h3', '', 'Открытые задачи предыдущих встреч'));
+    prep.append(node('h3', '', followup.kpi_context ? 'Открытые задачи отдела и связанных встреч' : 'Открытые задачи предыдущих встреч'));
     if (!tasks.length) prep.append(node('p', 'empty-copy', 'Открытых задач предыдущих встреч нет.'));
     for (const task of tasks) prep.append(renderTaskCard(task, tasks, true));
     for (const q of followup.task_questions || []) {
@@ -772,6 +820,39 @@ function renderPreparation(target) {
       for (const source of q.sources || []) prep.append(ui.sourceButton({ ...source, id: String(source.id).replace(/^T/, '') }));
     }
     if (result) prep.append(ui.feedback('prep', meeting.id, meeting.id));
+  }
+  if (followup?.kpi_context || followup?.previous_questions?.length) {
+    const addDraft = (text, sources = []) => {
+      const key = String(meeting.id); const items = state.agendaDrafts[key] ||= [];
+      if (!items.some(item => item.text === text)) items.push({text, sources});
+      render(); toast('Добавлено в локальный проект повестки. На сервере ничего не изменено.');
+    };
+    prep.append(node('h3', '', 'Вопросы и показатели отдела'));
+    for (const question of followup.previous_questions || []) {
+      prep.append(node('p', '', question.text));
+      for (const source of question.sources || []) prep.append(ui.sourceButton(source));
+      prep.append(makeButton('Добавить вопрос в проект повестки', () => addDraft(question.text,question.sources)));
+    }
+    const context = followup.kpi_context;
+    if (context) {
+      prep.append(node('p','task-meta',`Показатели отдела · данные ${dateLabel(context.as_of)}`));
+      for (const metric of context.metrics || []) {
+        const text = `${metric.label}: ${metric.value ?? 'не рассчитано'} ${metric.unit}`;
+        prep.append(node('p','',text), node('p','task-meta',`${metric.formula}; ${metric.numerator}/${metric.denominator}`));
+        for (const source of metric.sources || []) prep.append(ui.sourceButton(source));
+        prep.append(makeButton('Добавить показатель в проект повестки', () => addDraft(text,metric.sources)));
+      }
+      for (const warning of context.warnings || []) prep.append(node('p','muted-copy',warning));
+    }
+    for (const task of followup.open_tasks || []) prep.append(makeButton(`В повестку: ${task.text}`, () => addDraft(task.text,[task.source])));
+  }
+  const draftAgenda = state.agendaDrafts[String(meeting.id)] || [];
+  if (draftAgenda.length) {
+    prep.append(node('h3','','Локальный проект повестки'), node('p','muted-copy','Не сохранён на сервере; исчезнет после выхода или закрытия вкладки.'));
+    for (const item of draftAgenda) {
+      prep.append(node('p','',item.text));
+      for (const source of item.sources || []) if (source) prep.append(ui.sourceButton({...source, id:source.kind==='task' ? String(source.id).replace(/^T/,'') : source.id}));
+    }
   }
   left.append(prep);
   target.append(left);
@@ -1311,14 +1392,25 @@ async function openSource(kind, id, quote, source = {}) {
         if (task.meeting_id) row.append(makeButton('Открыть задачу во встрече', () => { closeSource(); void openMeeting(task.meeting_id, 'tasks'); }, 'task-meeting-link'));
         content.append(row);
       }
-      const labels = { numerator: 'Числитель', denominator: 'Знаменатель', completed_orders: 'Завершённые заказы', on_time_orders: 'Заказы в срок', produced_units: 'Произведено единиц', defective_units: 'Бракованных единиц', occupied_capacity: 'Занятая мощность', available_capacity: 'Доступная мощность' };
+      for (const decision of data?.decisions || []) {
+        const row = node('article','claim-item');
+        row.append(node('p','',decision.text),node('p','task-meta',`Ответственный: ${decision.owner_name || 'не уточнён'} · срок: ${dateLabel(decision.due)}`));
+        row.append(makeButton('Открыть решение в протоколе',()=>{ closeSource(); void openMeeting(decision.meeting_id,'protocol'); },'task-meeting-link'));
+        content.append(row);
+      }
+      if (data?.meeting) content.append(node('p','',data.meeting.title),node('p','task-meta',dateLabel(data.meeting.scheduled_at)),makeButton('Открыть встречу-источник',()=>{closeSource();void openMeeting(data.meeting.id);},'secondary-button'));
+      if (data?.metric) content.append(node('p','',`${data.metric.label}: ${data.metric.value ?? 'Нет данных'} ${data.metric.unit || ''}`),node('p','task-meta',`Формула: ${data.metric.formula}`));
+      const labels = { numerator: 'Числитель', denominator: 'Знаменатель', completed_orders: 'Завершённые заказы', on_time_orders: 'Заказы в срок', produced_units: 'Произведено единиц', defective_units: 'Бракованных единиц', occupied_capacity: 'Занятая мощность', available_capacity: 'Доступная мощность', order_no:'Заказ', status:'Статус', promised_at:'Обещанный срок', completed_at:'Завершён', first_response_seconds:'Первый ответ, секунд', sla_seconds:'SLA, секунд', closed_by:'Закрыто кем', occupied_hours:'Занятые часы', available_hours:'Доступные часы', section:'Участок', forecast:'Прогноз (0/1)' };
       const snapshots = data?.snapshots || [data];
       for (const snapshot of [data, ...snapshots.filter((item) => item !== data)]) {
         if (!snapshot) continue;
         if (snapshot.source_id) content.append(node('h3', '', `Снимок ${snapshot.source_id}`));
         if (snapshot.period_start) content.append(node('p', 'task-meta', `Период: ${dateLabel(snapshot.period_start)} — ${dateLabel(snapshot.period_end)}`));
         if (snapshot.as_of) content.append(node('p', 'task-meta', `Актуальность: ${dateLabel(snapshot.as_of)}`));
-        for (const [key, label] of Object.entries(labels)) if (Object.hasOwn(snapshot, key)) content.append(node('p', '', `${label}: ${snapshot[key] ?? 'Нет данных'}`));
+        for (const [key, label] of Object.entries(labels)) if (Object.hasOwn(snapshot, key)) {
+          const value = key.endsWith('_at') && snapshot[key] ? dateLabel(snapshot[key]) : snapshot[key];
+          content.append(node('p', '', `${label}: ${value ?? 'Нет данных'}`));
+        }
       }
     }
   } catch (error) {
@@ -1350,6 +1442,7 @@ function renderProtocol(target) {
     target.append(section);
     return;
   }
+  if (ui.can('crm.write')) section.append(makeButton('Прикрепить протокол к CRM · mock',()=>void runAction(null,()=>crm.attachProtocol(data.meeting,()=>refreshMeeting(data.meeting.id)))));
   const body = node('fieldset', 'protocol-body');
   body.dataset.operationGroup = draft.dataset.operation;
   body.disabled = pendingOperations.has(draft.dataset.operation);
@@ -1414,7 +1507,8 @@ function renderProtocolItem(item) {
   const drafts = state.protocolDrafts;
   const draft = drafts[item.id] || {};
   const card = node('article', `protocol-item ${item.confirmed ? 'confirmed' : ''}`.trim());
-  card.dataset.itemId = item.id;
+  card.dataset.itemId = item.id; card.tabIndex = -1;
+  for (const entity of item.linked_entities || []) if(entity.kind==='order') card.append(makeButton(`Заказ ${entity.id}`,()=>void runAction(null,()=>crm.openOrder(entity.id)),'task-meeting-link'));
   const head = node('div', 'protocol-item-head');
   const title = node('span', 'protocol-kind', item.kind === 'decision' ? 'Решение' : item.kind === 'proposal' ? 'Предложение' : item.kind === 'task' ? 'Поручение' : item.kind === 'risk' ? 'Риск' : 'Открытый вопрос');
   head.append(title);
@@ -1493,8 +1587,12 @@ function renderProtocolItem(item) {
     card.append(quotes);
   }
   card.append(ui.feedback('protocol_item', item.id, state.meetingData.meeting.id));
+  if (item.kind === 'decision' && ui.can('protocol.confirm')) card.append(makeButton('Контроль решения',()=>void ui.controlDecision(item,state.meetingData.meeting.id)));
   if (item.confirmed) {
     card.append(node('p', 'confirmed-stamp', `Подтверждено: ${item.confirmed_by || 'пользователь'} · ${dateLabel(item.confirmed_at)}`));
+    if (item.task_id) card.append(makeButton('Открыть связанную задачу', async () => {
+      await openMeeting(state.meetingData.meeting.id,'tasks'); document.getElementById(`task-${item.task_id}`)?.focus();
+    },'task-meeting-link'));
   }
   return card;
 }
@@ -1604,8 +1702,16 @@ function renderTaskBoard(parent, tasks, meetingOnly) {
     parent.append(board);
     return;
   }
+  const activeTasks = tasks.filter(task => !['done','cancelled'].includes(task.status));
+  const missingOwner = activeTasks.filter(task => !task.assignee).length;
+  const missingDue = activeTasks.filter(task => !task.due).length;
+  const filter = makeSelect([{value:'',label:'Все задачи'}, {value:'assignee',label:`Без владельца · ${missingOwner}`},
+    {value:'due',label:`Без срока · ${missingDue}`}, {value:'either',label:'Без владельца или срока'}], state.taskFilter);
+  const filterLabel = node('label', 'meeting-field'); filterLabel.append(node('span','field-label','Требуют уточнения'), filter);
+  filter.addEventListener('change', () => { state.taskFilter = filter.value; render(); }); board.append(filterLabel);
+  if (state.taskFilter) tasks = activeTasks.filter(task => state.taskFilter === 'assignee' ? !task.assignee : state.taskFilter === 'due' ? !task.due : !task.assignee || !task.due);
   const columns = [
-    ['open', 'Открытые'], ['in_progress', 'В работе'], ['done', 'Готово'],
+    ['open', 'Открытые'], ['in_progress', 'В работе'], ['blocked', 'Заблокированы'], ['done', 'Готово'], ['cancelled', 'Отменены'],
   ];
   const grid = node('div', 'task-columns');
   columns.forEach(([status, title]) => {
@@ -1626,15 +1732,30 @@ function renderTaskCard(task, collection, meetingOnly) {
   const card = node('article', 'task-card panel');
   card.id = `task-${task.id}`; card.tabIndex = -1;
   card.append(node('p', 'task-card-text', task.text || 'Без описания'));
+  const priorities = {low:'Низкий', normal:'Обычный', high:'Высокий', urgent:'Срочный'};
+  if (task.priority) card.append(node('p','task-meta',`Приоритет: ${priorities[task.priority] || task.priority}`));
+  for (const entity of task.linked_entities || []) {
+    if (entity.kind==='order') card.append(makeButton(`Заказ ${entity.id}`,()=>void runAction(null,()=>crm.openOrder(entity.id)),'task-meeting-link'));
+    else card.append(node('p','task-meta', `${{customer:'Клиент', document:'Документ'}[entity.kind] || 'Связь'}: ${entity.id}`));
+  }
+  if (task.external_ref) card.append(node('p','task-meta',`CRM: ${task.external_ref}`));
   if (task.assignee) card.append(node('p', 'task-meta', `Ответственный: ${task.assignee}`));
   else if (task.assignee_status === 'unknown') card.append(node('p', 'warning-badge red', 'Ответственный не назван'));
+  if (task.assignee_suggestion) card.append(node('p','task-meta',`Предположение: ${task.assignee_suggestion.name} · ${task.assignee_suggestion.reason}. Ответственный не назначен.`));
   if (task.due) card.append(node('p', 'task-meta', `Срок: ${dateLabel(task.due)}`));
   else if (task.due_text) card.append(node('p', 'task-meta', `Срок: ${task.due_text} (дата не распознана)`));
   else if (task.due_status === 'unknown') card.append(node('p', 'warning-badge amber', 'Срок не назван'));
   const link = makeButton(task.meeting_title ? `Встреча: ${task.meeting_title}` : 'Открыть встречу', () => void openMeeting(task.meeting_id), 'task-meeting-link');
   card.append(link);
+  if (task.protocol_item_id) card.append(makeButton('Основание в протоколе', async () => {
+    await openMeeting(task.meeting_id,'protocol'); $$('.protocol-item').find(item => String(item.dataset.itemId) === String(task.protocol_item_id))?.focus();
+  },'task-meeting-link'));
   if (task.source_quote?.utterance_id) card.append(citationButton(task.source_quote.utterance_id, task.source_quote.text, 'utterance', 'Открыть цитату'));
   if (ui.can('tasks.change')) card.append(makeButton('Изменить задачу', () => ui.editTask(task, collection, meetingOnly)));
+  if (ui.can('crm.write')) {
+    if (!task.crm_status && !['done','cancelled'].includes(task.status)) card.append(makeButton('Отправить в Битрикс24 · mock',()=>void runAction(null,()=>crm.exportTask(task,async()=>{ if(meetingOnly) await refreshMeeting(task.meeting_id); else await openTasks(); }))));
+    card.append(makeButton('Статус CRM · mock',()=>void runAction(null,()=>crm.status(task))));
+  }
   card.append(ui.feedback('task', task.id, task.meeting_id));
   return card;
 }
@@ -1690,6 +1811,7 @@ function renderSearchResults(app) {
     const card = node('article', 'search-result panel');
     card.append(node('h2', '', result.document_title || result.title || 'Документ'));
     card.append(node('p', 'source-location', result.location || 'Фрагмент документа'));
+    if (result.stale) card.append(node('p','access-limited-note','Источник устарел. Проверьте версию и срок действия.'));
     card.append(node('p', '', result.snippet || result.text || ''));
     card.append(citationButton(result.id, result.snippet || result.text, 'fragment', 'Открыть фрагмент'));
     list.append(card);
@@ -1713,6 +1835,7 @@ window.addEventListener('beforeunload', (event) => {
   if (dirtyFields.size || state.voiceCapture?.recording) { event.preventDefault(); event.returnValue = ''; }
 });
 window.addEventListener('pagehide', () => { if (state.voiceCapture) void stopVoiceCapture(); });
+window.addEventListener('hashchange',()=>{ if(location.hash==='#integrations' && state.capabilities.includes('integrations.manage')) setPage('integrations'); });
 window.addEventListener('focus', () => {
   if (!state.user) return;
   void request('/me').then((me) => {

@@ -24,14 +24,14 @@ RATIOS = (
 
 
 def visible_tasks(connection, actor):
+    from meetings.access import predicate
+    sql, params = predicate(connection, actor, 'meeting', 'm', model=True)
     return [dict(row) for row in connection.execute(
-        'SELECT t.* FROM tasks t JOIN meetings m ON m.id=t.meeting_id WHERE m.owner_id=? '
-        'OR EXISTS (SELECT 1 FROM meeting_access a WHERE a.meeting_id=m.id AND a.user_id=?) ORDER BY t.id',
-        (actor, actor))]
+        'SELECT t.* FROM tasks t JOIN meetings m ON m.id=t.meeting_id WHERE ' + sql + ' ORDER BY t.id', params)]
 
 
 def overdue(task, day):
-    if task['status'] == 'done' or not isinstance(task['due'], str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', task['due']):
+    if task['status'] in ('done','cancelled') or not isinstance(task['due'], str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', task['due']):
         return False
     try:
         return date.fromisoformat(task['due']) < day
@@ -39,14 +39,16 @@ def overdue(task, day):
         return False
 
 
-def metric_rows(connection, actor, cutoff, warnings):
+def metric_rows(connection, actor, cutoff, warnings, department_id=None):
     exists = connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_metrics'").fetchone()
     if not exists:
         warnings.append('Производственная витрина не загружена.')
         return []
-    rows = connection.execute('SELECT p.* FROM production_metrics p WHERE p.owner_id=? OR EXISTS '
-                              '(SELECT 1 FROM production_metric_access a WHERE a.metric_id=p.id AND a.user_id=?)',
-                              (actor, actor))
+    from meetings.access import predicate
+    sql, params = predicate(connection, actor, 'metric', 'p', model=True)
+    if department_id is not None:
+        sql += ' AND p.department_id=?'; params.append(department_id)
+    rows = connection.execute('SELECT p.* FROM production_metrics p WHERE ' + sql, params)
     latest = {}
     for raw in rows:
         row = dict(raw)
@@ -126,7 +128,7 @@ def ratio(rows, numerator, denominator, label, warnings):
 def build(connection, actor, cutoff, generated):
     warnings, metrics, manifests = [], [], {}
     tasks = visible_tasks(connection, actor)
-    open_rows = [task for task in tasks if task['status'] != 'done']
+    open_rows = [task for task in tasks if task['status'] not in ('done','cancelled')]
     late_rows = [task for task in open_rows if overdue(task, cutoff.astimezone(MINSK).date())]
     task_dates = []
     for task in tasks:
@@ -138,9 +140,9 @@ def build(connection, actor, cutoff, generated):
     # Persist the latter in the signed ID so reopening preserves its provenance.
     task_stamp = iso(max(task_dates, default=generated))
     for key, label, rows, formula in (
-        ('open_tasks', 'Открытые задачи', open_rows, "count(status != 'done'); текущий реестр"),
+        ('open_tasks', 'Открытые задачи', open_rows, "count(status NOT IN ('done','cancelled')); текущий реестр"),
         ('overdue_tasks', 'Просроченные задачи', late_rows,
-         f"count(status != 'done' AND valid_date(due) < {cutoff.astimezone(MINSK).date().isoformat()}); Europe/Minsk"),
+         f"count(status NOT IN ('done','cancelled') AND valid_date(due) < {cutoff.astimezone(MINSK).date().isoformat()}); Europe/Minsk"),
     ):
         # Include all visible tasks in fingerprint: changing a closed task to open
         # must invalidate an old source even if the old result was zero.
@@ -164,13 +166,26 @@ def build(connection, actor, cutoff, generated):
             manifests[source['id']] = {'metric': metric, 'numerator': top, 'denominator': bottom,
                                        'period_start': snapshots[0]['period_start'], 'period_end': snapshots[0]['period_end'],
                                        'snapshots': snapshots}
+    from meetings.management import domain
+    extra_metrics, extra_manifests, extra_warnings, extra_freshness, domain_data = domain.build(
+        connection,actor,cutoff,generated,aggregate_source,tasks)
+    metrics.extend(extra_metrics); manifests.update(extra_manifests); warnings.extend(extra_warnings)
+    if extra_freshness is not None: freshness = min(freshness,extra_freshness) if freshness else extra_freshness
+    if extra_metrics:
+        import os
+        fault = os.getenv('MOCK_CRM_FAULT','')
+        if fault=='stale': warnings.append('Данные CRM устарели. Показана сохранённая витрина; проверьте дату источника.')
+        elif fault in ('timeout','down'): warnings.append('Источник CRM недоступен. Показана сохранённая витрина; её актуальность не подтверждена.')
+        for metric in metrics:
+            metric.setdefault('as_of',metric['source']['source_at'])
+            metric.setdefault('status',domain.status(metric['key'],metric['value']))
     if cutoff.astimezone(MINSK).date() != generated.astimezone(MINSK).date():
         warnings.append('Статусы задач взяты из текущего реестра; as_of задаёт дату просрочки и срез витрины, а не историю статусов.')
     summary = [{'text': f"{metric['label']}: {metric['value']} {metric['unit']}.", 'sources': [metric['source']]}
                for metric in metrics if metric['value'] is not None]
     result = {'as_of': iso(freshness) if freshness else None, 'generated_at': iso(generated), 'metrics': metrics,
               'overdue_tasks': [store.task_out(connection, task) for task in late_rows], 'summary': summary,
-              'warnings': list(dict.fromkeys(warnings))}
+              'warnings': list(dict.fromkeys(warnings)), **domain_data}
     return result, manifests
 
 
@@ -204,10 +219,19 @@ def source_timestamp(value):
 def resolve(actor, kind, source_id, audit):
     with store.db() as connection:
         connection.execute('BEGIN')
-        if kind == 'task':
+        if kind == 'meeting':
             if not re.fullmatch(r'[1-9]\d{0,18}', source_id) or int(source_id) > 2**63 - 1:
                 raise not_found()
-            task = connection.execute('SELECT * FROM tasks WHERE id=?', (int(source_id),)).fetchone()
+            if not store.can_read_meeting(connection, actor, int(source_id), model=True):
+                raise not_found()
+            row = connection.execute('SELECT * FROM meetings WHERE id=?', (int(source_id),)).fetchone()
+            source = {'kind':'meeting','id':source_id,'title':row['title'],'source_at':source_timestamp(row['created_at'])}
+            data = {'meeting':{'id':row['id'],'title':row['title'],'scheduled_at':row['scheduled_at']}}
+        elif kind == 'task':
+            task_key = source_id[1:] if source_id.startswith('T') else source_id
+            if not re.fullmatch(r'[1-9]\d{0,18}', task_key) or int(task_key) > 2**63 - 1:
+                raise not_found()
+            task = connection.execute('SELECT * FROM tasks WHERE id=?', (int(task_key),)).fetchone()
             if not task or not store.can_read_meeting(connection, actor, task['meeting_id']):
                 raise not_found()
             source = {'kind': 'task', 'id': source_id, 'title': task['text'], 'source_at': source_timestamp(task['updated_at']),
@@ -231,9 +255,10 @@ def resolve(actor, kind, source_id, audit):
             else:
                 if not connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_metrics'").fetchone():
                     raise not_found()
-                row = connection.execute('SELECT p.* FROM production_metrics p WHERE p.source_id=? AND '
-                    '(p.owner_id=? OR EXISTS (SELECT 1 FROM production_metric_access a '
-                    'WHERE a.metric_id=p.id AND a.user_id=?))', (source_id, actor, actor)).fetchone()
+                from meetings.access import predicate
+                sql, params = predicate(connection, actor, 'metric', 'p')
+                row = connection.execute('SELECT p.* FROM production_metrics p WHERE p.source_id=? AND ' + sql,
+                                         [source_id, *params]).fetchone()
                 if not row:
                     raise not_found()
                 data = dict(row)
