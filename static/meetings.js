@@ -680,13 +680,17 @@ function plural(count, one, few, many) {
 
 function meetingRow(meeting, zone) {
   const row = node('article', 'meeting-row');
-  row.append(node('span', 'meeting-row-time', timeLabel(meeting.scheduled_at, zone)));
+  const time=node('time','meeting-row-time',timeLabel(meeting.scheduled_at,zone));
+  if(meeting.scheduled_at)time.dateTime=meeting.scheduled_at;
+  time.title=`${dateLabel(meeting.scheduled_at,zone)} · ${zone}`;
+  time.setAttribute('aria-label',time.title);row.append(time);
   const main = node('div', 'meeting-row-main');
   main.append(node('h3', '', meeting.title || 'Без названия'));
   if (meeting.topic && meeting.topic.trim() !== (meeting.title || '').trim()) main.append(node('p', '', meeting.topic));
   const people = (meeting.participants || []).length;
   row.append(main, node('span', 'meeting-row-meta', people ? `${people} ${plural(people, 'участник', 'участника', 'участников')}` : 'Участники не указаны'));
   const open = makeButton('Открыть встречу', () => void openMeeting(meeting.id), 'row-open');
+  open.setAttribute('aria-label','Открыть встречу');
   open.title = meeting.title || 'Открыть встречу';
   row.append(open);
   row.addEventListener('click', (event) => { if (!event.target.closest('button')) void openMeeting(meeting.id); });

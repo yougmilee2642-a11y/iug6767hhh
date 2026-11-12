@@ -5,6 +5,7 @@ The HTTP fixtures intercept only /api/meet; the actual UI modules run in Chromiu
 import functools
 import http.server
 import os
+import re
 import shutil
 from pathlib import Path
 import threading
@@ -532,8 +533,8 @@ class BrowserTests(unittest.TestCase):
         self.page.reload()
         expect(self.page.get_by_role('heading',name='Обзор',exact=True)).to_be_visible()
         self.page.get_by_role('button',name='Встречи',exact=True).click()
-        expect(self.page.locator('.meeting-date-chip')).to_contain_text('15:00')
-        expect(self.page.locator('.meeting-date-chip')).to_contain_text('Asia/Tokyo')
+        expect(self.page.locator('.meeting-row-time')).to_contain_text('15:00')
+        expect(self.page.locator('.meeting-row-time')).to_have_attribute('title',re.compile('Asia/Tokyo'))
         self.page.get_by_role('button',name='Открыть встречу',exact=True).click()
         expect(self.page.locator('.meeting-detail-copy > .eyebrow')).to_contain_text('15:00')
         expect(self.page.locator('.meeting-detail-copy > .eyebrow')).to_contain_text('Asia/Tokyo')

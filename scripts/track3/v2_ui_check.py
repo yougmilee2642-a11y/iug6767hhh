@@ -218,7 +218,7 @@ def run(artifacts):
                                     assert 'Отправлено в локальную имитацию' in status_dialog.inner_text()
                                     status_dialog.get_by_role('button',name='Закрыть',exact=True).click();status_dialog.wait_for(state='hidden')
                                     page.get_by_role('button',name='Встречи',exact=True).click()
-                                    page.locator('.meeting-card').filter(has_text='Браузерная проверка контроля решения').get_by_role('button',name='Открыть встречу',exact=True).click()
+                                    page.locator('.meeting-row').filter(has_text='Браузерная проверка контроля решения').get_by_role('button',name='Открыть встречу',exact=True).click()
                                     page.get_by_role('button',name='3 · Протокол',exact=True).click()
                                     page.get_by_role('button',name='Контроль решения',exact=True).click()
                                     editor = page.get_by_role('dialog'); editor.wait_for()
