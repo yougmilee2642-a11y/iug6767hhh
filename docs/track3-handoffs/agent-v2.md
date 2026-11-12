@@ -343,3 +343,21 @@
   installer сохраняет HTTP JSON и при ошибке.
 - Main/start-gateway не менялись, PR12 draft. Внешние провайдеры/SMTP/автоматические
   EML/серии/напоминания остаются. Остальные P1/P2 — по SELF_AUDIT.
+
+## Windows · повторный smoke и контракт provider failures
+
+- На b294178/CI43164400635 Windows сервер уже запустился: runtime install и seed
+  пройдены, HTTP дошёл до503 model_timeout. Предыдущая startup-проблема после
+  canonical path больше не наблюдается. Первичный диагностический JSON сохранён
+  в reports/v2-windows-provider-diagnostic.json; весь clean-install пока FAILED.
+- Closed loopback на Windows может завершиться connect timeout, а на Linux —
+  connection refused. Smoke теперь требует503 и принимает только два известных
+  кода model_unavailable/model_timeout с непустым объяснением. Фактические коды
+  сохраняются в observed_model_errors. Успех/пустой ответ/другая ошибка не проходят;
+  отдельные позитивные и негативные тесты. Инференс не запускался.
+- Новый локальный runtime install чистого b294178 passed22,898s, кэш неизвестен;
+  старые ошибки не перезаписаны. Последний полный CI Python на b294178 прошёл;
+  финальная Windows/браузерная приёмка нового исправления ещё впереди.
+- Scan добавленных строк от3dbc30c доb294178:9484 строки,0 совпадений форматов
+  private/GitHub/Slack/Bitrix/Telegram ключей; ограниченный scan, не DLP.
+  Защищённые пути отсутствуют в новых изменениях.

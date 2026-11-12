@@ -14,6 +14,14 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 
+def model_failure_code(error):
+    # Windows may time out before a closed loopback port reports connection
+    # refusal. Both are explicit 503 provider failures, never successful inference.
+    assert isinstance(error, dict) and error.get('code') in ('model_unavailable', 'model_timeout'), error
+    assert isinstance(error.get('detail'), str) and error['detail'].strip(), error
+    return error['code']
+
+
 def server(db, port, unavailable=False):
     from scripts.track3.start import configure
     from meetings import llm
@@ -35,6 +43,7 @@ def run(unavailable=False):
     import httpx
     from scripts.track3.seed_fotoprint import seed
     events = []
+    observed_model_errors = {}
     with tempfile.TemporaryDirectory(prefix='fotoprint-v2-http-') as temp:
         path = Path(temp) / 'demo.db'; ids = seed(str(path))
         with socket.socket() as sock:
@@ -139,10 +148,10 @@ def run(unavailable=False):
                 before = request('director', 'GET', f'/meetings/{mid}')
                 for route in [f'/meetings/{mid}/prepare', f'/meetings/{mid}/protocol/draft']:
                     error = request('director', 'POST', route, expected=503)
-                    assert error['code'] == 'model_unavailable' and error.get('detail'), error
+                    observed_model_errors[route] = model_failure_code(error)
                 error = request('director', 'POST', '/qa', expected=503,
                                 json={'question': 'Какие условия поставки картона 0,9 мм?'})
-                assert error['code'] == 'model_unavailable' and error.get('detail'), error
+                observed_model_errors['/qa'] = model_failure_code(error)
                 after = request('director', 'GET', f'/meetings/{mid}')
                 assert before['utterances'] == after['utterances']
             tasks = request('operator', 'GET', '/tasks')['tasks']; task = next(t for t in tasks if t['status'] == 'open')
@@ -177,6 +186,7 @@ def run(unavailable=False):
             return {'status':'passed', 'model':('unavailable loopback; no live inference' if unavailable else
                                                'scripted double; live quality not measured'), 'roles':len(clients),
                     'model_failure_path': 'passed' if unavailable else 'not_run',
+                    'observed_model_errors':observed_model_errors,
                     'requests':events, 'kpi_before_mutation':metrics, 'restart':'passed', 'calendar_interchange':'passed',
                     'smart_calendar':{'slot_count':len(smart['slots']),'warnings':smart['warnings']}}
         finally:

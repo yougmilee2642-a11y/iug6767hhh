@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -21,3 +22,17 @@ def test_start_configure_canonicalizes_the_path_recorded_by_seed(tmp_path):
     assert result.returncode==0,result.stderr
     after=json.loads(marker.read_text(encoding='utf-8'))
     assert after['db']==str(database.resolve()) and after['start_files']
+
+
+@pytest.mark.parametrize('code',['model_unavailable','model_timeout'])
+def test_closed_loopback_smoke_accepts_explicit_provider_failures(code):
+    from scripts.track3.v2_http_smoke import model_failure_code
+    assert model_failure_code({'code':code,'detail':'Локальная модель недоступна.'})==code
+
+
+@pytest.mark.parametrize('body',[{}, {'status':'ok'}, {'code':'model_unavailable'},
+                                 {'code':'forbidden_role','detail':'Нет прав'},
+                                 {'code':'model_timeout','detail':' '}])
+def test_closed_loopback_smoke_rejects_missing_or_unrelated_results(body):
+    from scripts.track3.v2_http_smoke import model_failure_code
+    with pytest.raises(AssertionError): model_failure_code(body)
