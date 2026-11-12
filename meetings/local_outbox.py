@@ -60,4 +60,11 @@ def write(c):
         message['From']='focus@demo.invalid';message['To']=f"user-{row['user_id']}@demo.invalid"
         message['Subject']='Уведомление Фокус';message.set_content(payload['text']+'\n'+payload['path'])
         count+=exclusive(root,f"notification-{row['id']}.eml",message.as_bytes())
+    from meetings.weekly_digest import message as weekly_message
+    for row in c.execute('SELECT * FROM weekly_digest_outbox'):
+        user=access.load_user(c,row['user_id'])
+        if not user or not user['active']:continue
+        try:data=weekly_message(c,user,row)
+        except Exception:continue
+        count+=exclusive(root,f"weekly-{row['id']}.eml",data)
     return count

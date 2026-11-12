@@ -1,4 +1,4 @@
-// Functional calendar interchange in the existing controls; no external delivery.
+// Calendar interchange; external SMTP requires a second explicit confirmation.
 export function calendarUI(h) {
   const {node,makeButton:button,makeInput:input,makeSelect:select,request,runAction:run,state,ui,dateLabel:date,markSaved,openMeeting} = h;
   function panel(parent) {
@@ -11,11 +11,11 @@ export function calendarUI(h) {
     function link(label,path) {
       const anchor=node('a','text-button',label);anchor.href=path;anchor.download='';return anchor;
     }
-    section.append(node('p','muted-copy','Скачивание и подписка только для чтения. Внешние письма не отправляются.'),
+    section.append(node('p','muted-copy','Скачивание и подписка только для чтения. SMTP требует отдельного предпросмотра и подтверждения.'),
       link('Скачать мой календарь .ics','/api/meet/calendar/export.ics'));
     const list=node('div','');
     const load=button('Показать события и приглашения',()=>void run(load,async()=>{
-      const [events,outbox]=await Promise.all([request('/calendar/events'),request('/calendar/outbox')]);
+      const [events,outbox,delivery,smtp]=await Promise.all([request('/calendar/events'),request('/calendar/outbox'),request('/delivery-status'),request('/smtp-outbox')]);
       if(!current())return;
       list.replaceChildren();
       if(!events.events.length)list.append(node('p','','Событий нет.'));
@@ -26,7 +26,17 @@ export function calendarUI(h) {
       }
       for(const invitation of outbox.invitations) {
         const row=node('p','');row.append(link(`Скачать приглашение №${invitation.id} .eml`,
-          `/api/meet/calendar/outbox/${invitation.id}/download.eml`));list.append(row);
+          `/api/meet/calendar/outbox/${invitation.id}/download.eml`));
+        const deliveryRow=smtp.outbox.find(item=>item.invitation_id===invitation.id);
+        if(deliveryRow)row.append(node('span','',` SMTP: ${({pending:'в очереди',sending:'отправляется',sent:'отправлено',uncertain:'результат неизвестен, проверьте вручную',failed:'отклонено',cancelled:'отменено'})[deliveryRow.status] || 'проверьте статус'}.`));
+        else if(delivery.smtp && state.capabilities.includes('calendar.invite'))row.append(button('Проверить SMTP-отправку',()=>void run(null,async()=>{
+          const p=await request(`/calendar/outbox/${invitation.id}/smtp/preview`,{method:'POST'});if(!current())return;
+          const content=node('div');content.append(node('p','',p.notice),node('p','',`От: ${p.preview.sender}; кому: ${p.preview.recipient}`),node('p','',p.preview.subject),node('pre','',p.preview.text),node('p','',`Вложение: ${p.preview.attachment}`));
+          const key=crypto.randomUUID();ui.dialog('Подтвердить внешнюю отправку приглашения',content,async()=>{
+            await request(`/calendar/outbox/${invitation.id}/smtp/confirm`,{method:'POST',body:{confirmation_id:p.confirmation_id,idempotency_key:key}});if(current())row.append(node('p','','Письмо в SMTP-очереди. Статус можно обновить кнопкой «Показать события и приглашения».'));
+          },()=>request(`/confirmations/${p.confirmation_id}/cancel`,{method:'POST'}));
+        }),'secondary-button'));
+        list.append(row);
       }
     }));section.append(load,list);
 

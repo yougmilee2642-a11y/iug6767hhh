@@ -30,7 +30,9 @@ def emit(c,user_id,kind,obj_type,obj_id,message,dedupe):
         for channel in ('email','telegram','bitrix'):
             if settings[channel+'_enabled']:
                 # External text is intentionally generic; never copies PII/document/task text.
-                payload={'text':'Новое уведомление в Фокусе. Откройте рабочее место ассистента.','path':'/meetings'}
+                from meetings.notification_delivery import TEXT,frozen
+                payload={'text':TEXT,'path':'/meetings'}
+                if channel!='email':payload['delivery']=frozen(c,user_id,channel,settings)
                 c.execute('INSERT INTO notification_outbox(notification_id,channel,payload,created_at) VALUES (?,?,?,?)',
                           (nid,channel,json.dumps(payload,ensure_ascii=False),stamp))
     return nid

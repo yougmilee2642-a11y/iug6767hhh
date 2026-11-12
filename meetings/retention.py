@@ -42,6 +42,8 @@ def clean(c,now=None):
     counts['tokens']=confirmations.purge(c,now-timedelta(days=1))
     counts['audit']=c.execute('DELETE FROM audit WHERE julianday(at)<julianday(?)',(store.iso_utc(now-timedelta(days=p['audit_days'])),)).rowcount
     c.execute('DELETE FROM notifications WHERE julianday(created_at)<julianday(?)',(chat,))
+    c.execute('DELETE FROM weekly_digest_outbox WHERE julianday(created_at)<julianday(?)',(chat,))
+    c.execute('DELETE FROM smtp_outbox WHERE julianday(created_at)<julianday(?)',(chat,))
     return counts
 
 
@@ -53,7 +55,7 @@ def test_marker():
     return path
 
 
-BUSINESS_TABLES=('action_basis','protocol_mail_outbox','notification_outbox','notifications','task_comments','task_history','task_origins','decision_controls',
+BUSINESS_TABLES=('smtp_outbox','weekly_digest_outbox','pickup_storage','seasonality_samples','action_basis','protocol_mail_outbox','notification_outbox','notifications','task_comments','task_history','task_origins','decision_controls',
     'media_segments','media_assets','media_jobs','calls','task_effect_checks','commitments',
     'assistant_messages','assistant_evidence','assistant_conversations','qa_answers','calendar_provider_outbox','calendar_outbox','calendar_event_participants',
     'calendar_events','calendar_import_state','calendar_busy','calendar_subscriptions','integration_outbox','mock_crm_objects',
@@ -80,6 +82,9 @@ def delete_user(c,user_id):
     # Keep a non-personal FK stub so records of other owners remain consistent.
     user=access.load_user(c,user_id)
     if not user:return {}
+    c.execute('DELETE FROM smtp_outbox WHERE user_id=?',(user_id,))
+    c.execute('DELETE FROM weekly_digest_outbox WHERE user_id=?',(user_id,))
+    c.execute('DELETE FROM task_effect_checks WHERE owner_id=?',(user_id,))
     counts={'meetings':c.execute('SELECT count(*) FROM meetings WHERE owner_id=?',(user_id,)).fetchone()[0],
             'documents':c.execute('SELECT count(*) FROM documents WHERE owner_id=?',(user_id,)).fetchone()[0]}
     owned_tasks=[r[0] for r in c.execute('SELECT t.id FROM tasks t JOIN meetings m ON m.id=t.meeting_id WHERE m.owner_id=?',(user_id,))]

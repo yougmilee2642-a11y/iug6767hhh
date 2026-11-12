@@ -1,5 +1,6 @@
 import { documentLibrary } from './documents.js';
 import { formulaLine } from './formula.js';
+import { advancedUI } from './advanced.js';
 
 // Демо «Фотопринт»: вопросы, на которые в документах роли есть подтверждённый ответ.
 const EXAMPLE_QUESTIONS = {
@@ -54,6 +55,7 @@ export function track3UI(h) {
   };
 
   const documents = documentLibrary({...h, dialog, field, sourceButton, claims});
+  const advanced = advancedUI({...h,dialog,sourceButton});
 
   function reset({ keepDrafts = false } = {}) {
     generation++;
@@ -225,6 +227,7 @@ export function track3UI(h) {
       parent.append(button('Обновить обзор', () => void loadOverview()), node('p', 'inline-error', overview.message)); return;
     }
     for (const warning of overview.warnings || []) parent.append(node('p', 'gap-state', warning));
+    advanced.mount(parent);
     const columns = node('div', 'overview-columns');
     columns.append(todayColumn(), attentionColumn());
     parent.append(columns);

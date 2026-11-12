@@ -203,6 +203,16 @@ def m020_planning(connection):
     upgrade(connection)
 
 
+def m021_advanced_reports(connection):
+    from meetings.migrations.advanced_reports import upgrade
+    upgrade(connection)
+
+
+def m022_delivery(connection):
+    from meetings.migrations.delivery import upgrade
+    upgrade(connection)
+
+
 MIGRATIONS = [
     (1, 'roles', m001_roles),
     (2, 'audit', m002_audit),
@@ -224,6 +234,8 @@ MIGRATIONS = [
     (18, 'media', m018_media),
     (19, 'action_basis', m019_action_basis),
     (20, 'planning', m020_planning),
+    (21, 'advanced_reports', m021_advanced_reports),
+    (22, 'reviewed_delivery', m022_delivery),
 ]
 LATEST = MIGRATIONS[-1][0]
 

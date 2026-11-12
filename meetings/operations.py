@@ -64,10 +64,11 @@ def router():
         user=current_user(request)
         with store.write_tx() as c:
             old=c.execute('SELECT version FROM notification_settings WHERE user_id=?',(user['id'],)).fetchone()
-            data=payload.model_dump()
+            from meetings.notification_delivery import review
+            data={**payload.model_dump(),'delivery':review(c,user,payload.model_dump())}
             token=confirmations.create(c,user,'notification.settings','user',user['id'],old[0] if old else 0,data)
             store.audit(c,user['id'],'notification_settings_preview',object_type='user',object_id=user['id'],stage='preview',confirmation_id=token['confirmation_id'])
-            return {**token,'preview':data,'notice':'Внешние каналы сохраняют сообщения в outbox; реальные аккаунты не подключены.'}
+            return {**token,'preview':data,'notice':'E-mail сохраняется в файл. Telegram/Битрикс отправляют только общее уведомление по показанному адресу, если канал включён на сервере. Изменение получателя требует нового подтверждения.'}
 
     @api.post('/api/meet/notification-settings/confirm')
     def channel_confirm(payload: ConfirmTokenIn,request: Request):
@@ -78,9 +79,11 @@ def router():
             old=c.execute('SELECT version FROM notification_settings WHERE user_id=?',(user['id'],)).fetchone()
             if (old[0] if old else 0)!=p['object_version']:raise MeetError(409,'stale','Настройки изменились. Проверьте заново.')
             data=p['payload']
-            c.execute('INSERT INTO notification_settings(user_id,email_enabled,telegram_enabled,bitrix_enabled,reminder_minutes) VALUES (?,?,?,?,?) '
-                      'ON CONFLICT(user_id) DO UPDATE SET email_enabled=excluded.email_enabled,telegram_enabled=excluded.telegram_enabled,bitrix_enabled=excluded.bitrix_enabled,reminder_minutes=excluded.reminder_minutes,version=version+1',
-                      (user['id'],data['email_enabled'],data['telegram_enabled'],data['bitrix_enabled'],data['reminder_minutes']))
+            from meetings.notification_delivery import review
+            if review(c,user,data)!=data.get('delivery',{}):raise MeetError(409,'stale','Адресат или конфигурация изменились. Нужен новый предпросмотр.')
+            c.execute('INSERT INTO notification_settings(user_id,email_enabled,telegram_enabled,bitrix_enabled,reminder_minutes,delivery_proof) VALUES (?,?,?,?,?,?) '
+                      'ON CONFLICT(user_id) DO UPDATE SET email_enabled=excluded.email_enabled,telegram_enabled=excluded.telegram_enabled,bitrix_enabled=excluded.bitrix_enabled,reminder_minutes=excluded.reminder_minutes,delivery_proof=excluded.delivery_proof,version=version+1',
+                      (user['id'],data['email_enabled'],data['telegram_enabled'],data['bitrix_enabled'],data.get('reminder_minutes',15),json.dumps(data.get('delivery',{}),ensure_ascii=False)))
             confirmations.finish(c,payload.confirmation_id,payload.idempotency_key,{'settings':data})
             store.audit(c,user['id'],'notification_settings_confirmed',object_type='user',object_id=user['id'],stage='confirm')
             return {'settings':data,'already_confirmed':False}
@@ -203,9 +206,14 @@ def install_background(app):
             try:
                 with store.write_tx() as c:
                     deleted=retention.clean(c);created=notifications.tick(c)
+                    from meetings.effect_checks import tick as check_effects
+                    effects=check_effects(c)
                     from meetings.local_outbox import write
                     files=write(c)
-                    store.audit(c,None,'retention_run',object_type='retention',deleted=deleted,notifications=created,outbox_files=files)
+                    store.audit(c,None,'retention_run',object_type='retention',deleted=deleted,notifications=created,effect_checks=effects,outbox_files=files)
+                from meetings.notification_delivery import dispatch
+                from meetings.smtp_delivery import dispatch as smtp_dispatch
+                dispatch();smtp_dispatch()
             except Exception:
                 # No provider messages, paths or personal text in logs.
                 import logging

@@ -3,8 +3,12 @@ export function operationsUI(h) {
   function preview(title,result,confirm){
     const content=node('div');
     if(result.notice)content.append(node('p','',result.notice));
-    const labels={audio_after_confirm:'Удаление аудио после подтверждения',transcript_days:'Расшифровки, дней',chat_days:'Ответы, дней',audit_days:'Журнал, дней',email_enabled:'E-mail',telegram_enabled:'Telegram',bitrix_enabled:'Битрикс24',documents:'Документы',meetings:'Встречи',tasks:'Поручения',utterances:'Реплики',user_id:'Пользователь',request_id:'Запрос'};
-    for(const [name,value] of Object.entries(result.preview || {}))content.append(node('p','',`${labels[name] || name}: ${typeof value==='boolean'?(value?'да':'нет'):typeof value==='object'?JSON.stringify(value):value}`));
+    const labels={audio_after_confirm:'Удаление аудио после подтверждения',transcript_days:'Расшифровки, дней',chat_days:'Ответы, дней',audit_days:'Журнал, дней',reminder_minutes:'Напоминание, минут',email_enabled:'E-mail',telegram_enabled:'Telegram',bitrix_enabled:'Битрикс24',documents:'Документы',meetings:'Встречи',tasks:'Поручения',utterances:'Реплики',user_id:'Пользователь',request_id:'Запрос'};
+    for(const [name,value] of Object.entries(result.preview || {})){
+      if(name==='delivery'){
+        for(const [channel,info] of Object.entries(value || {}))content.append(node('p','',`${channel==='telegram'?'Telegram':'Битрикс24'}: ${info.enabled?'получатель '+info.recipient+'; ссылка '+info.url:'только локальная очередь; отправка не настроена'}`));
+      }else content.append(node('p','',`${labels[name] || name}: ${typeof value==='boolean'?(value?'да':'нет'):typeof value==='object'?JSON.stringify(value):value}`));
+    }
     const key=crypto.randomUUID();
     ui.dialog(title,content,()=>confirm({confirmation_id:result.confirmation_id,idempotency_key:key}),()=>request(`/confirmations/${result.confirmation_id}/cancel`,{method:'POST'}));
   }
@@ -16,7 +20,7 @@ export function operationsUI(h) {
       const field=input({label:`Уведомления: ${label}`,type:'checkbox'});field.input.checked=Boolean(data.settings[name+'_enabled']);controls[name+'_enabled']=field.input;settings.append(field.wrap);
     }
     const reminder=input({label:'Напомнить о встрече за минут (0 — выключено)',type:'number',value:data.settings.reminder_minutes ?? 15});reminder.input.min='0';reminder.input.max='1440';settings.append(reminder.wrap);
-    settings.append(node('p','muted-copy','Внешние каналы сохраняются в outbox. Реальные сервисы не подключены.'));
+    settings.append(node('p','muted-copy','По умолчанию — внутренняя и файловая очередь. Внешние каналы требуют настройки сервера и вашего подтверждения получателя.'));
     const save=button('Предпросмотр настроек',null,'secondary-button','submit');settings.append(save);
     settings.addEventListener('submit',event=>{event.preventDefault();void run(save,async()=>{
       const result=await request('/notification-settings/preview',{method:'POST',body:{...Object.fromEntries(Object.entries(controls).map(([k,v])=>[k,v.checked])),reminder_minutes:Number(reminder.input.value)}});

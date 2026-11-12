@@ -135,6 +135,10 @@ def install(app):
     app.include_router(document_insights_router())
     from meetings.meeting_hints import router as meeting_hints_router
     app.include_router(meeting_hints_router())
+    from meetings.delivery_api import router as delivery_router
+    app.include_router(delivery_router())
+    from meetings.management.advanced_api import router as advanced_router
+    app.include_router(advanced_router())
     install_background(app)
     extras = _optional_routers()
     for extra in extras:

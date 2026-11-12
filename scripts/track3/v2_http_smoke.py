@@ -94,7 +94,7 @@ def run(unavailable=False):
                 assert response.status_code == expected, (login, route, response.status_code, response.text)
                 assert response.headers.get('X-Request-ID')
                 return response.json()
-            for login in ['director','prod_head','mod_lead','operator','designer','admin','auditor']:
+            for login in ['director','prod_head','sup_head','mod_lead','operator','designer','admin','auditor']:
                 clients[login] = httpx.Client(base_url=base, trust_env=False, timeout=15)
                 request(login, 'POST', '/login', json={'login': login, 'password': login + '-demo'})
                 assert request(login, 'GET', '/me')['level']
@@ -145,6 +145,11 @@ def run(unavailable=False):
             imported_result = request('operator','POST','/calendar/import/confirm',json={
                 'confirmation_id':imported['confirmation_id'],'idempotency_key':'http-calendar-import-001'})
             assert imported_result['interval_count']==1
+            delivery=request('director','GET','/delivery-status')
+            assert delivery=={'smtp':False,'telegram':False,'bitrix':False}
+            invitation_id=scheduled['invitations'][0]['id']
+            request('director','POST',f'/calendar/outbox/{invitation_id}/smtp/preview',expected=503)
+            assert request('director','GET','/smtp-outbox')['outbox']==[]
             subscription = request('director','POST','/calendar/subscriptions')
             # Do not put the bearer itself in reports; access logs redact the path.
             feed = clients['designer'].get(subscription['path'])
@@ -275,6 +280,19 @@ def run(unavailable=False):
             assert any(c['entity']=='картон 0,9 мм' for c in insights['conflicts'])
             assert insights['commitments']
             request('admin','GET','/document-insights',expected=403)
+            advanced=request('prod_head','GET','/advanced-overview')
+            assert advanced['seasonal_forecast'] and len(advanced['seasonal_forecast'][0]['points'])==6
+            proof=advanced['seasonal_forecast'][0]['source']['id']
+            request('prod_head','GET','/sources/insight/'+proof)
+            request('sup_head','GET','/sources/insight/'+proof,expected=404)
+            request('admin','GET','/advanced-overview',expected=403)
+            weekly=request('prod_head','POST','/briefing/weekly/preview',json={'period_end':'2026-11-11'})
+            weekly_token={'confirmation_id':weekly['confirmation_id'],'idempotency_key':'http-weekly'}
+            weekly=request('prod_head','POST','/briefing/weekly/confirm',json=weekly_token)
+            assert clients['prod_head'].get(weekly['path']).status_code==200
+            assert clients['director'].get(weekly['path']).status_code==404
+            assert request('prod_head','POST','/briefing/weekly/confirm',json=weekly_token)['already_confirmed']
+            assert request('prod_head','GET','/effect-checks')['checks']==[]
             stop(); proc = start()
             assert request('operator', 'GET', '/me')['user']['login'] == 'operator'
             assert request('prod_head','GET',f"/crm/tasks/{task['id']}")['outbox']['external_ref']==crm_result['external_ref']
@@ -295,7 +313,7 @@ def run(unavailable=False):
                     'audio_retained_503':'passed','call_analysis':'passed','metric_action':'passed',
                     'voice_action_fields':'passed',
                     'recurring_series':'passed',
-                    'document_insights':'passed',
+                    'document_insights':'passed', 'advanced_reports':'passed', 'weekly_local_digest':'passed',
                     'smart_calendar':{'slot_count':len(smart['slots']),'warnings':smart['warnings']}}
         finally:
             stop()

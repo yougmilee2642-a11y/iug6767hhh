@@ -219,7 +219,13 @@ def source_timestamp(value):
 def resolve(actor, kind, source_id, audit):
     with store.db() as connection:
         connection.execute('BEGIN')
-        if kind in ('document','utterance'):
+        if kind == 'insight':
+            from meetings.management.advanced import resolve as advanced_source
+            from meetings.access import load_user
+            result=advanced_source(connection,load_user(connection,actor),source_id)
+            audit.update(object_id=source_id,source_ids=[source_id])
+            return result
+        elif kind in ('document','utterance'):
             from meetings.evidence import resolve as evidence
             from meetings.access import load_user
             result=evidence(connection,load_user(connection,actor),kind,source_id)

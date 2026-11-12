@@ -1564,8 +1564,14 @@ async function openSource(kind, id, quote, source = {}) {
       for (const warning of data?.warnings || []) content.append(node('p','access-limited-note',warning));
       if (data?.meeting) content.append(node('p','',data.meeting.title),node('p','task-meta',dateLabel(data.meeting.scheduled_at)),makeButton('Открыть встречу-источник',()=>{closeSource();void openMeeting(data.meeting.id);},'secondary-button'));
       if (data?.metric) content.append(node('p','',`${data.metric.label}: ${data.metric.value ?? 'Нет данных'} ${data.metric.unit || ''}`),formulaLine(node, data.metric));
-      if(kind==='metric' && data?.metric) {
-        const basis={kind:'metric',id:String(id)};
+      if(data?.data?.counts){
+        const names={defective_premium_orders:'Заказы Premium с браком',support_defect_cases:'Обращения о браке Premium',defect_calls:'Звонки о браке/переплёте',controlled_decisions:'Решения на контроле',overdue_tasks:'Просроченные поручения'};
+        for(const [key,value] of Object.entries(data.data.counts))content.append(node('p','',`${names[key] || key}: ${value==null?'нет доступа к источнику':value}`));
+      }
+      for(const point of data?.data?.points || [])content.append(node('p','',`${dateLabel(point.start)} — ${dateLabel(point.end)}: ${point.value}%; дефицит ${point.deficit_percent}%.`));
+      for(const order of data?.data?.orders || [])content.append(node('p','',typeof order==='string'?order:`${order.order_no}: хранение до ${dateLabel(order.expires_at)}`));
+      if(['metric','insight'].includes(kind) && data?.metric) {
+        const basis={kind,id:String(id)};
         const propose=(type)=>{closeSource();managerAssistant.propose({kind:type,text:`Проверить показатель «${data.metric.label}»`,basis});setPage('assistant');};
         if(state.capabilities.includes('meetings.create'))content.append(makeButton('Обсудить показатель на новой встрече',()=>propose('meeting')));
         if(state.capabilities.includes('protocol.confirm'))content.append(makeButton('Предложить поручение по показателю',()=>propose('task')));

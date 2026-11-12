@@ -125,6 +125,19 @@ def run(artifacts):
                                 page.get_by_role('button', name='Войти', exact=True).click()
                                 page.get_by_role('heading', name=heading, exact=True).wait_for()
                                 assert not errors, {'login':login,'page_errors':errors}
+                                if login == 'prod_head':
+                                    radar=page.locator('details').filter(has=page.get_by_text('Сезонный радар, качество, ПВЗ и контроль результата',exact=True))
+                                    radar.locator('summary').click()
+                                    radar.get_by_role('button',name='Показать расширенный обзор',exact=True).click()
+                                    radar.get_by_role('heading',name='Сезонный прогноз на 6 недель',exact=True).wait_for()
+                                    radar.get_by_label('Конец недели для дайджеста',exact=True).fill('2026-11-11')
+                                    radar.get_by_role('button',name='Предпросмотр недельного дайджеста',exact=True).click()
+                                    weekly=page.get_by_role('dialog').filter(has=page.get_by_role('heading',name='Подтвердить личный недельный дайджест',exact=True))
+                                    weekly.get_by_role('button',name='Подтвердить',exact=True).click()
+                                    radar.get_by_role('link',name='Скачать письмо .eml',exact=True).wait_for()
+                                    radar.get_by_role('button',name='Проверки результата решений',exact=True).click()
+                                    radar.get_by_text('Назначенных вами проверок нет.',exact=True).wait_for()
+                                    radar.locator('summary').click()
                                 if login == 'director':
                                     document_editions(page)
                                     page.get_by_role('button',name='Ассистент',exact=True).click()
@@ -180,7 +193,9 @@ def run(artifacts):
                                     series.get_by_role('button',name='Предпросмотр всех дат серии',exact=True).click()
                                     series_dialog=page.get_by_role('dialog').filter(has=page.get_by_role('heading',name='Проверить всю серию',exact=True))
                                     series_dialog.wait_for();assert series_dialog.locator('p').count()>=7
-                                    series_dialog.get_by_role('button',name='Отменить',exact=True).click();series_dialog.wait_for(state='hidden')
+                                    with page.expect_response(lambda response:'/api/meet/confirmations/' in response.url and response.url.endswith('/cancel') and response.status==200):
+                                        series_dialog.get_by_role('button',name='Отмена',exact=True).click()
+                                    series_dialog.wait_for(state='hidden')
                                     payload=(b'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:browser-import\r\n'
                                              b'DTSTART:20261201T060000Z\r\nDTEND:20261201T070000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n')
                                     calendar.get_by_label('Импорт занятости (.ics)',exact=True).set_input_files({'name':'busy.ics','mimeType':'text/calendar','buffer':payload})
@@ -278,6 +293,11 @@ def run(artifacts):
                                     page.screenshot(path=str(artifacts / f'{login}-{width}.png'), full_page=True)
                                     observations.append({'login':login, **geometry})
                                 assert not errors, {'login':login,'page_errors':errors}
+                            except Exception:
+                                # Only this synthetic test database is used here.
+                                page.screenshot(path=str(artifacts / f'{login}-failure.png'),full_page=True)
+                                (artifacts / f'{login}-failure.html').write_text(page.content(),encoding='utf-8')
+                                raise
                             finally: context.close()
                     finally: browser.close()
             finally:

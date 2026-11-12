@@ -6,7 +6,7 @@ ACL/конфиденциальность на чтении, до контекс�
 Admin/auditor не получают бизнес-содержимое. Чужой объект → 404 без его названия;
 запрещённая операция → 403. В ответе есть `X-Request-ID` для журнала.
 
-Полный срез117 путей: [openapi.json](openapi.json). Он получен из настоящего
+Полный срез 129 путей: [openapi.json](openapi.json). Он получен из настоящего
 `app.app`, а не написан вручную. Обновление без моделей/рабочей БД:
 
 ```bash
@@ -78,7 +78,7 @@ QA/summary/compare возвращают предупреждения по `valid
 | Комментарии | GET/POST /tasks/{id}/comments | Владелец/scoped задача, история изменений |
 | Протокол | GET /meetings/{id}/protocol/export (format: md или html); POST /protocol/mail/preview, /confirm | Подтверждённые пункты; повторный ACL получателей, local EML |
 | Контроль данных | GET /retention; POST /retention/policy/preview, /policy/confirm; /privacy/delete-request | Admin policy/cleanup/deletion через отдельный preview/confirm |
-| Уведомления | GET /notifications; POST /notification-settings/preview, /confirm | Внешние каналы — opt-in queue, реальные отправители не включены |
+| Уведомления | GET /notifications; POST /notification-settings/preview, /confirm | Opt-in generic queue, gated Telegram/Bitrix; SMTP отдельно; реальные аккаунты NOT RUN |
 
 Точные пути операций хранения/уведомлений см. OpenAPI. Для браузерных мутаций
 требуется Origin той же системы и X-Focus-Request:1. Скрипты без browser Origin
@@ -120,3 +120,25 @@ Google provider выключен по умолчанию; настройки/о�
 исходник. Secret не появляется ни в анализе, ни в голосовых списках.
 
 `GET /corridor`: три коротких предложения с источниками о ближайшей личной встрече. `POST /meetings/{id}/room-hints`: consent и временные drafts, только transcript.edit; без моделей/бизнес-записей. См.BRIEFING.md.
+
+
+## E9/E15: расширенные отчёты
+
+[Формулы, источники, ACL, недельный дайджест и контроль результата](ADVANCED_REPORTS.md).
+Миграция 21 и отдельное синтетическое расширение seed; модели не вызываются.
+
+
+## Расширенные отчёты и доставка
+
+[Формулы/права/дайджест/контроль](ADVANCED_REPORTS.md), [флаги и согласие на доставку](DELIVERY.md).
+
+| Назначение | Маршруты под /api/meet | Граница |
+|---|---|---|
+| Отчёты | GET /advanced-overview; /sources/insight/{id} | Текущий scope и HMAC исходника |
+| Недельное письмо | POST /briefing/weekly/preview, /confirm; GET /briefing/weekly/outbox, /outbox/{id}.eml | Только автор/localEML/recheck |
+| Контроль метрики | GET /effect-checks; POST /effect-checks/preview, /confirm | Подтверждённое решение, свежие снимки, без причинного вывода |
+| Доступность каналов | GET /delivery-status | Только bool, без токенов |
+| SMTP | POST /calendar/outbox/{id}/smtp/preview, /confirm; GET /smtp-outbox | Отдельное согласие организатора, один адрес, terminal uncertain |
+
+Basis допускает metric/call/document/utterance/insight с повторной проверкой
+источника. Confirm не выполняет произвольные команды модели.

@@ -4159,6 +4159,357 @@
         }
       }
     },
+    "/api/meet/delivery-status": {
+      "get": {
+        "summary": "Status",
+        "operationId": "status_api_meet_delivery_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/calendar/outbox/{invitation_id}/smtp/preview": {
+      "post": {
+        "summary": "Preview",
+        "operationId": "preview_api_meet_calendar_outbox__invitation_id__smtp_preview_post",
+        "parameters": [
+          {
+            "name": "invitation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "exclusiveMinimum": 0,
+              "title": "Invitation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/calendar/outbox/{invitation_id}/smtp/confirm": {
+      "post": {
+        "summary": "Confirm",
+        "operationId": "confirm_api_meet_calendar_outbox__invitation_id__smtp_confirm_post",
+        "parameters": [
+          {
+            "name": "invitation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "exclusiveMinimum": 0,
+              "title": "Invitation Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmTokenIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/smtp-outbox": {
+      "get": {
+        "summary": "Outbox",
+        "operationId": "outbox_api_meet_smtp_outbox_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/advanced-overview": {
+      "get": {
+        "summary": "Overview",
+        "operationId": "overview_api_meet_advanced_overview_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/briefing/weekly/preview": {
+      "post": {
+        "summary": "Weekly Preview",
+        "operationId": "weekly_preview_api_meet_briefing_weekly_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Week"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/briefing/weekly/confirm": {
+      "post": {
+        "summary": "Weekly Confirm",
+        "operationId": "weekly_confirm_api_meet_briefing_weekly_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmTokenIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/briefing/weekly/outbox": {
+      "get": {
+        "summary": "Weekly Outbox",
+        "operationId": "weekly_outbox_api_meet_briefing_weekly_outbox_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/briefing/weekly/outbox/{outbox_id}.eml": {
+      "get": {
+        "summary": "Download",
+        "operationId": "download_api_meet_briefing_weekly_outbox__outbox_id__eml_get",
+        "parameters": [
+          {
+            "name": "outbox_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "exclusiveMinimum": 0,
+              "title": "Outbox Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/effect-checks": {
+      "get": {
+        "summary": "Effects",
+        "operationId": "effects_api_meet_effect_checks_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/effect-checks/preview": {
+      "post": {
+        "summary": "Effect Preview",
+        "operationId": "effect_preview_api_meet_effect_checks_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Effect"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meet/effect-checks/confirm": {
+      "post": {
+        "summary": "Effect Confirm",
+        "operationId": "effect_confirm_api_meet_effect_checks_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmTokenIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/meet/qa": {
       "post": {
         "summary": "Ask",
@@ -4827,7 +5178,7 @@
         "properties": {
           "kind": {
             "type": "string",
-            "pattern": "^(metric|call|document|utterance)$",
+            "pattern": "^(metric|call|document|utterance|insight)$",
             "title": "Kind"
           },
           "id": {
@@ -5327,6 +5678,48 @@
         ],
         "title": "ConfirmTokenIn",
         "description": "Confirm carries only the token and an idempotency key — never a payload that could be swapped."
+      },
+      "Effect": {
+        "properties": {
+          "protocol_item_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "exclusiveMinimum": 0.0,
+            "title": "Protocol Item Id"
+          },
+          "metric_key": {
+            "type": "string",
+            "pattern": "^(on_time_orders|defect_rate|capacity_utilization)$",
+            "title": "Metric Key"
+          },
+          "target_value": {
+            "type": "number",
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Target Value"
+          },
+          "direction": {
+            "type": "string",
+            "pattern": "^(le|ge)$",
+            "title": "Direction"
+          },
+          "days": {
+            "type": "integer",
+            "maximum": 90.0,
+            "minimum": 1.0,
+            "title": "Days",
+            "default": 7
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "protocol_item_id",
+          "metric_key",
+          "target_value",
+          "direction"
+        ],
+        "title": "Effect"
       },
       "EntityLink": {
         "properties": {
@@ -6408,6 +6801,21 @@
           "text"
         ],
         "title": "VoiceQuestion"
+      },
+      "Week": {
+        "properties": {
+          "period_end": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "title": "Period End"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "period_end"
+        ],
+        "title": "Week"
       },
       "meetings__administration__api__Token": {
         "properties": {

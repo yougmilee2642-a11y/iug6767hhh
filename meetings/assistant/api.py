@@ -24,7 +24,7 @@ class Ask(BaseModel):
 
 class Basis(BaseModel):
     model_config=ConfigDict(extra='forbid')
-    kind:str=Field(pattern='^(metric|call|document|utterance)$')
+    kind:str=Field(pattern='^(metric|call|document|utterance|insight)$')
     id:str=Field(min_length=1,max_length=240)
 
 
