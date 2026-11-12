@@ -146,17 +146,74 @@ export function track3UI(h) {
     if (state.page === 'overview') render();
   }
 
+  const zoneDay = (value, zone) => {
+    try { return new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value)); }
+    catch { return String(value).slice(0, 10); }
+  };
+  const zoneTime = (value, zone) => {
+    try { return new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: zone }).format(new Date(value)); }
+    catch { return ''; }
+  };
+
+  function todayColumn(parent) {
+    const zone = state.timezone;
+    const today = zoneDay(new Date(), zone);
+    const dated = state.meetings.filter((m) => m.scheduled_at).sort((a, b) => String(a.scheduled_at).localeCompare(String(b.scheduled_at)));
+    let list = dated.filter((m) => zoneDay(m.scheduled_at, m.timezone || zone) === today);
+    const title = list.length ? 'Сегодня' : 'Ближайшие встречи';
+    if (!list.length) list = dated.filter((m) => zoneDay(m.scheduled_at, m.timezone || zone) > today).slice(0, 3);
+    const column = node('section', 'overview-column');
+    column.append(node('h2', '', title));
+    if (!list.length) column.append(node('p', 'empty-copy', 'Запланированных встреч нет.'));
+    for (const meeting of list) {
+      const row = node('article', 'overview-meeting');
+      const when = zoneDay(meeting.scheduled_at, meeting.timezone || zone) === today
+        ? zoneTime(meeting.scheduled_at, meeting.timezone || zone)
+        : new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' }).format(new Date(meeting.scheduled_at));
+      const copy = node('div', '');
+      const people = (meeting.participants || []).length;
+      const topic = meeting.topic && meeting.topic.trim() !== (meeting.title || '').trim() ? meeting.topic : '';
+      copy.append(node('b', '', meeting.title || 'Без названия'), node('small', '', [topic, people ? `${people} ${people % 10 === 1 && people % 100 !== 11 ? 'участник' : people % 10 >= 2 && people % 10 <= 4 && (people % 100 < 10 || people % 100 >= 20) ? 'участника' : 'участников'}` : ''].filter(Boolean).join(' · ')));
+      row.append(node('span', 'overview-time', when), copy, button('Открыть', () => void openMeeting(meeting.id), 'task-meeting-link'));
+      column.append(row);
+    }
+    return column;
+  }
+
+  function attentionColumn() {
+    const column = node('section', 'overview-column');
+    column.append(node('h2', '', 'Требуют внимания'));
+    const tasks = overview.overdue_tasks || [];
+    if (!tasks.length) column.append(node('p', 'empty-copy', 'Просроченных задач в доступных данных нет.'));
+    for (const task of tasks) {
+      const row = node('article', 'overview-attention');
+      row.append(node('b', '', task.text), node('small', '', `до ${date(task.due)}${task.meeting_title ? ` · ${task.meeting_title}` : ''}`));
+      row.append(button(`Открыть задачу во встрече «${task.meeting_title || task.meeting_id}»`, () => void openTask(task), 'task-meeting-link'));
+      column.append(row);
+    }
+    return column;
+  }
+
   function renderOverview(parent) {
-    heading(parent, 'Обзор', 'Показатели доступных данных и контроль поручений.');
+    const day = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: state.timezone }).format(new Date());
+    heading(parent, 'Обзор', day.charAt(0).toUpperCase() + day.slice(1));
+    if (can('meetings.create')) {
+      const create = button('Новая встреча', () => { state.showCreateMeeting = true; h.navigate('meetings'); }, 'primary-button accent-button');
+      parent.lastElementChild.append(create);
+    }
     if (overviewStatus === 'idle') { void loadOverview(); return; }
     if (overviewStatus === 'loading') { parent.append(node('p', '', 'Загружаю показатели…')); return; }
-    const refresh = button('Обновить обзор', () => void loadOverview());
-    parent.append(refresh);
     if (overviewStatus === 'error') {
-      parent.append(node('p', 'inline-error', overview.message)); return;
+      parent.append(button('Обновить обзор', () => void loadOverview()), node('p', 'inline-error', overview.message)); return;
     }
-    parent.append(node('p', 'muted-copy', `Актуальность витрины: ${date(overview.as_of)} · Рассчитано: ${date(overview.generated_at)}`));
     for (const warning of overview.warnings || []) parent.append(node('p', 'gap-state', warning));
+    const columns = node('div', 'overview-columns');
+    columns.append(todayColumn(), attentionColumn());
+    parent.append(columns);
+    const meta = node('div', 'overview-meta');
+    meta.append(node('h2', '', 'Показатели'), node('p', 'muted-copy', `Актуальность витрины: ${date(overview.as_of)} · Рассчитано: ${date(overview.generated_at)}`),
+      button('Обновить обзор', () => void loadOverview(), 'text-button'));
+    parent.append(meta);
     const grid = node('div', 'meet-kpi-grid');
     for (const metric of overview.metrics || []) {
       const card = node('article', 'panel meet-kpi');
@@ -193,14 +250,6 @@ export function track3UI(h) {
       }
     }
     claims(parent, overview.summary);
-    parent.append(node('h2', '', 'Просроченные задачи'));
-    if (!(overview.overdue_tasks || []).length) parent.append(node('p', 'empty-copy', 'Просроченных задач в доступных данных нет.'));
-    for (const task of overview.overdue_tasks || []) {
-      const row = node('article', 'panel task-card');
-      row.append(node('p', '', task.text), node('p', 'task-meta', `Срок: ${date(task.due)}`));
-      row.append(button(`Открыть задачу во встрече «${task.meeting_title || task.meeting_id}»`, () => void openTask(task), 'task-meeting-link'));
-      parent.append(row);
-    }
   }
 
   async function controlDecision(item, meetingId, existing = null) {
@@ -247,8 +296,24 @@ export function track3UI(h) {
   }
 
   function renderKnowledge(parent) {
-    heading(parent, 'Знания', 'Ответы по проверенным утверждениям из доступных материалов.');
-    documents.render(parent);
+    heading(parent, 'Знания', 'Спросите о встречах и документах');
+    const layout = node('div', 'knowledge-layout');
+    const aside = node('aside', 'knowledge-sources');
+    aside.append(node('h2', '', 'Источники'));
+    const recent = state.documents.filter((d) => !d.superseded).slice(0, 8);
+    const list = node('ul', 'knowledge-source-list');
+    for (const doc of recent) {
+      const item = node('li', '');
+      item.append(button(doc.title || doc.filename || 'Документ', () => void run(null, () => documents.open(doc)), 'source-link'));
+      list.append(item);
+    }
+    if (!recent.length) aside.append(node('p', 'empty-copy', 'Доступных материалов пока нет.'));
+    else aside.append(list);
+    documents.render(aside);
+    const main = node('div', 'knowledge-main');
+    layout.append(aside, main);
+    parent.append(layout);
+    parent = main;
     const form = node('form', 'panel meet-knowledge');
     const scope = select([{ value: '', label: 'Все доступные материалы' }, ...state.meetings.map((m) => ({ value: m.id, label: m.title }))], context);
     scope.addEventListener('change', () => { context = scope.value; answer = null; qaSequence++; render(); });

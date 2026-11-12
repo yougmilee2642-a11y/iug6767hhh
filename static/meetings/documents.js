@@ -180,5 +180,5 @@ export function documentLibrary(h) {
     disclosure.append(controls,refresh,list,output); draw(); parent.append(disclosure);
   }
   h.openDocument = openDocument;
-  return {render:renderLibrary,reset};
+  return {render:renderLibrary,reset,open:openDocument};
 }
