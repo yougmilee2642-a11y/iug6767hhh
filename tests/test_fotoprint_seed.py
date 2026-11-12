@@ -119,6 +119,8 @@ def test_extended_readers_keep_conditions_headers_and_locations():
     for doc in manifest['documents']:
         kind, fragments = documents.fragments(doc['filename'], (ROOT / 'demo/track3' / doc['path']).read_bytes())
         types.add(kind)
+        if 'sha256' in doc:
+            assert hashlib.sha256((ROOT / 'demo/track3' / doc['path']).read_bytes()).hexdigest() == doc['sha256']
         assert fragments and all(f['text'] and f['location'] for f in fragments)
         if kind == 'xlsx':
             assert all('!' in f['location'] and 'Факт:' in f['text'] for f in fragments)
